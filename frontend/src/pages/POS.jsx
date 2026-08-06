@@ -255,6 +255,12 @@ useEffect(() => {
     setPulseType(type);
     setPulseId(pulseKey);
     window.setTimeout(() => setPulseId(null), 220);
+  }, [branchInventory]);
+
+  const openCustomerDisplay = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const displayUrl = `${window.location.origin}/app/customer-view`;
+    window.open(displayUrl, "_blank", "noopener,noreferrer");
   }, []);
 
   const updateQty = (id, newQty) => {
