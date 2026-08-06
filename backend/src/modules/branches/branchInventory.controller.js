@@ -158,13 +158,6 @@ const updateBranchInventory = async (req, res) => {
   }
 };
 
-export default {
-  importProductToBranch,
-  getBranchInventory,
-  updateBranchInventory,
-  getImportStatus
-};
-
 const getImportStatus = async (req, res) => {
   try {
     const id = req.params.id;
@@ -176,4 +169,9 @@ const getImportStatus = async (req, res) => {
   }
 };
 
-export { getImportStatus };
+export default {
+  importProductToBranch,
+  getBranchInventory,
+  updateBranchInventory,
+  getImportStatus
+};
