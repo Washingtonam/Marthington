@@ -1025,9 +1025,9 @@ export default {
   rejectPayoutRequest,
   // ledger and settlement
   getPartnersLedger,
-  settleBalance
-  ,
+  settleBalance,
   // operation logs
   listOperationLogs,
-  retryOperationLog
+  retryOperationLog,
+  getOperationLog
 };

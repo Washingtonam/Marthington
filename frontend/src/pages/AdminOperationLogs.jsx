@@ -6,7 +6,6 @@ const AdminOperationLogs = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
-  const [limit] = useState(20);
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
@@ -21,21 +20,27 @@ const AdminOperationLogs = () => {
   const [showModal, setShowModal] = useState(false);
   const pollRef = useRef(null);
 
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const buildQuery = (p = page) => {
+    const q = [];
+    q.push(`page=${p}`);
+    q.push(`limit=${pageSize}`);
+    q.push(`sortBy=${encodeURIComponent(sortBy)}`);
+    q.push(`sortDir=${encodeURIComponent(sortDir)}`);
+    if (search) q.push(`search=${encodeURIComponent(search)}`);
+    if (fromDate) q.push(`from=${encodeURIComponent(fromDate)}`);
+    if (toDate) q.push(`to=${encodeURIComponent(toDate)}`);
+    if (userFilter) q.push(`user=${encodeURIComponent(userFilter)}`);
+    if (branchFilter) q.push(`branch=${encodeURIComponent(branchFilter)}`);
+    if (operationTypeFilter) q.push(`operationType=${encodeURIComponent(operationTypeFilter)}`);
+    return q.join("&");
+  };
+
   const load = async (p = page) => {
     try {
       setLoading(true);
-      const q = [];
-      q.push(`page=${p}`);
-      q.push(`limit=${pageSize || limit}`);
-      q.push(`sortBy=${encodeURIComponent(sortBy)}`);
-      q.push(`sortDir=${encodeURIComponent(sortDir)}`);
-      if (search) q.push(`search=${encodeURIComponent(search)}`);
-      if (fromDate) q.push(`from=${encodeURIComponent(fromDate)}`);
-      if (toDate) q.push(`to=${encodeURIComponent(toDate)}`);
-      if (userFilter) q.push(`user=${encodeURIComponent(userFilter)}`);
-      if (branchFilter) q.push(`branch=${encodeURIComponent(branchFilter)}`);
-      if (operationTypeFilter) q.push(`operationType=${encodeURIComponent(operationTypeFilter)}`);
-      const res = await getOperationLogs(q.join("&"));
+      const res = await getOperationLogs(buildQuery(p));
       setLogs(res.logs || []);
       setTotal(res.total || 0);
     } catch (err) {
@@ -57,16 +62,14 @@ const AdminOperationLogs = () => {
   }, [page]);
 
   useEffect(() => {
-    // when search changes, reset to page 1 and reload
-    const t = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       setPage(1);
       load(1);
     }, 400);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timeoutId);
   }, [search]);
 
   useEffect(() => {
-    // reload when filters/sorting/pageSize change
     setPage(1);
     load(1);
   }, [sortBy, sortDir, fromDate, toDate, userFilter, branchFilter, operationTypeFilter, pageSize]);
@@ -133,7 +136,12 @@ const AdminOperationLogs = () => {
         {!loading && !error && (
           <div>
             <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by job id, branch id, or operation type" className="form-input" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by job id, branch id, or operation type"
+                className="form-input"
+              />
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="form-select">
                 <option value="createdAt">Created At</option>
                 <option value="status">Status</option>
@@ -148,134 +156,136 @@ const AdminOperationLogs = () => {
             <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
               <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="form-input" />
               <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="form-input" />
-              <input value={userFilter} onChange={(e) => setUserFilter(e.target.value)} placeholder="Filter by user id" className="form-input" />
-              <input value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} placeholder="Filter by branch id" className="form-input" />
+              <input
+                value={userFilter}
+                onChange={(e) => setUserFilter(e.target.value)}
+                placeholder="Filter by user id"
+                className="form-input"
+              />
+              <input
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                placeholder="Filter by branch id"
+                className="form-input"
+              />
             </div>
 
-            <div className="mb-4 flex items-center gap-3">
-              <label className="text-sm">Page size</label>
-              <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="form-select w-28">
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <input value={operationTypeFilter} onChange={(e) => setOperationTypeFilter(e.target.value)} placeholder="Operation type" className="form-input ml-3" />
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-sm">Page size</label>
+                <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="form-select w-28">
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+              <input
+                value={operationTypeFilter}
+                onChange={(e) => setOperationTypeFilter(e.target.value)}
+                placeholder="Operation type"
+                className="form-input"
+              />
             </div>
 
             <div className="overflow-auto">
-            <table className="w-full table-auto">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Progress</th>
-                  <th>Created</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((l) => {
-                  const totalP = l.metadata?.totalProducts || 0;
-                  const processed = l.metadata?.processed || 0;
-                  const percent = totalP > 0 ? Math.min(100, Math.round((processed / totalP) * 100)) : 0;
-                  return (
-                    <tr key={l._id} className="border-t">
-                      <td>
-                        <button className="text-blue-600" onClick={() => openDetails(l._id)}>{l._id}</button>
-                      </td>
-                      <td>{l.operationType}</td>
-                      <td>
-                        <span className={`px-2 py-1 rounded text-sm ${l.status === 'completed' ? 'bg-green-100 text-green-800' : l.status === 'failed' ? 'bg-rose-100 text-rose-800' : 'bg-yellow-100 text-yellow-800'}`}>{l.status}</span>
-                      </td>
-                      <td style={{ minWidth: 180 }}>
-                        <div className="w-full bg-slate-100 rounded-full h-3">
-                          <div className="bg-blue-600 h-3 rounded-full" style={{ width: `${percent}%` }} />
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">{processed}/{totalP} ({percent}%)</div>
-                      </td>
-                      <td>{new Date(l.createdAt).toLocaleString()}</td>
-                      <td>
-                        {l.status === "failed" && (
-                          <button onClick={() => handleRetry(l._id)} className="ghost-button">Retry</button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            <div className="mt-4 flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-slate-500">Total: {total}</div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    max={Math.max(1, Math.ceil(total / limit))}
-                    placeholder="Go to page"
-                    className="form-input w-28"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        const v = Number(e.target.value || 1);
-                        if (v >= 1) setPage(Math.min(Math.max(1, v), Math.ceil(total / limit)));
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button className="btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Prev</button>
-
-                {/* page numbers */}
-                <div className="flex items-center gap-1">
-                  {(() => {
-                    const totalPages = Math.max(1, Math.ceil(total / limit));
-                    const start = Math.max(1, page - 3);
-                    const end = Math.min(totalPages, page + 3);
-                    const pages = [];
-                    for (let i = start; i <= end; i++) pages.push(i);
+              <table className="w-full table-auto">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((l) => {
+                    const totalP = l.metadata?.totalProducts || 0;
+                    const processed = l.metadata?.processed || 0;
+                    const percent = totalP > 0 ? Math.min(100, Math.round((processed / totalP) * 100)) : 0;
                     return (
-                      <>
-                        {start > 1 && (
-                          <button className="btn" onClick={() => setPage(1)}>1</button>
-                        )}
-                        {start > 2 && <div className="px-2">…</div>}
-                        {pages.map((pnum) => (
-                          <button key={pnum} onClick={() => setPage(pnum)} className={`px-3 py-1 rounded ${pnum === page ? 'bg-black text-white' : 'hover:bg-gray-100'}`}>
-                            {pnum}
-                          </button>
-                        ))}
-                        {end < totalPages - 1 && <div className="px-2">…</div>}
-                        {end < totalPages && (
-                          <button className="btn" onClick={() => setPage(totalPages)}>{totalPages}</button>
-                        )}
-                      </>
+                      <tr key={l._id} className="border-t">
+                        <td>
+                          <button className="text-blue-600" onClick={() => openDetails(l._id)}>{l._id}</button>
+                        </td>
+                        <td>{l.operationType}</td>
+                        <td>
+                          <span className={`px-2 py-1 rounded text-sm ${l.status === 'completed' ? 'bg-green-100 text-green-800' : l.status === 'failed' ? 'bg-rose-100 text-rose-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                            {l.status}
+                          </span>
+                        </td>
+                        <td style={{ minWidth: 180 }}>
+                          <div className="w-full bg-slate-100 rounded-full h-3">
+                            <div className="bg-blue-600 h-3 rounded-full" style={{ width: `${percent}%` }} />
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1">{processed}/{totalP} ({percent}%)</div>
+                        </td>
+                        <td>{new Date(l.createdAt).toLocaleString()}</td>
+                        <td>
+                          {l.status === "failed" && (
+                            <button onClick={() => handleRetry(l._id)} className="ghost-button">Retry</button>
+                          )}
+                        </td>
+                      </tr>
                     );
-                  })()}
+                  })}
+                </tbody>
+              </table>
+
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-sm text-slate-500">Total: {total}</div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      placeholder="Go to page"
+                      className="form-input w-28"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const v = Number(e.target.value || 1);
+                          if (v >= 1) setPage(Math.min(Math.max(1, v), totalPages));
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
 
-                <button className="btn" onClick={() => setPage((p) => p + 1)} disabled={page * limit >= total}>Next</button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button className="btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Prev</button>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {page > 4 && (
+                      <button className="btn" onClick={() => setPage(1)}>1</button>
+                    )}
+                    {page > 5 && <div className="px-2">...</div>}
+                    {Array.from({ length: Math.min(7, totalPages) }, (_, index) => {
+                      const pageNumber = Math.min(Math.max(1, page - 3 + index), totalPages);
+                      return (
+                        <button
+                          key={pageNumber}
+                          onClick={() => setPage(pageNumber)}
+                          className={`px-3 py-1 rounded ${pageNumber === page ? "bg-black text-white" : "hover:bg-gray-100"}`}
+                        >
+                          {pageNumber}
+                        </button>
+                      );
+                    })}
+                    {page < totalPages - 4 && <div className="px-2">...</div>}
+                    {page < totalPages - 3 && (
+                      <button className="btn" onClick={() => setPage(totalPages)}>{totalPages}</button>
+                    )}
+                  </div>
+                  <button className="btn" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</button>
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Search */}
-      <div className="mt-4">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by job id, branch id, or operation type"
-          className="form-input w-full"
-        />
-      </div>
-
-      {/* Details Modal */}
       {showModal && selectedLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={closeModal} />
@@ -283,7 +293,7 @@ const AdminOperationLogs = () => {
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-bold">Operation {selectedLog._id}</h3>
-                <p className="text-sm text-slate-500">{selectedLog.operationType} — {selectedLog.status}</p>
+                <p className="text-sm text-slate-500">{selectedLog.operationType} - {selectedLog.status}</p>
               </div>
               <div>
                 <button className="btn" onClick={closeModal}>Close</button>
@@ -313,7 +323,6 @@ const AdminOperationLogs = () => {
           </div>
         </div>
       )}
-
     </section>
   );
 };
