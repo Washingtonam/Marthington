@@ -4,6 +4,7 @@ import Product from "../products/product.model.js";
 import Customer from "../customers/customer.model.js";
 import Supplier from "../suppliers/supplier.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
+import BranchInventory from "../branches/branchInventory.model.js";
 
 const generateInvoiceNumber = () => {
   return (
@@ -90,25 +91,65 @@ const createInvoice = async (req, res) => {
           throw new Error(`Product not found for supplier item: ${item.name}`);
         }
 
-        const previousStock = product.stock;
-        product.stock += invoiceItem.quantity;
-        await product.save({ session });
+        if (req.user.branchId) {
+          const branchInventory = await BranchInventory.findOne({
+            business: businessId,
+            branch: req.user.branchId,
+            product: product._id
+          }).session(session);
 
-        await InventoryMovement.create(
-          [
+          const previousStock = branchInventory ? branchInventory.quantity : 0;
+          await BranchInventory.findOneAndUpdate(
+            { business: businessId, branch: req.user.branchId, product: product._id },
             {
-              business: businessId,
-              product: product._id,
-              type: "purchase",
-              quantity: invoiceItem.quantity,
-              previousStock,
-              newStock: product.stock,
-              note: "Supplier credit received",
-              createdBy: req.user.id
-            }
-          ],
-          { session }
-        );
+              $setOnInsert: {
+                business: businessId,
+                branch: req.user.branchId,
+                product: product._id,
+                createdBy: req.user.id
+              },
+              $inc: { quantity: invoiceItem.quantity }
+            },
+            { upsert: true, new: true, session }
+          );
+
+          await InventoryMovement.create(
+            [
+              {
+                business: businessId,
+                branch: req.user.branchId,
+                product: product._id,
+                type: "purchase",
+                quantity: invoiceItem.quantity,
+                previousStock,
+                newStock: previousStock + invoiceItem.quantity,
+                note: "Supplier credit received",
+                createdBy: req.user.id
+              }
+            ],
+            { session }
+          );
+        } else {
+          const previousStock = product.stock;
+          product.stock += invoiceItem.quantity;
+          await product.save({ session });
+
+          await InventoryMovement.create(
+            [
+              {
+                business: businessId,
+                product: product._id,
+                type: "purchase",
+                quantity: invoiceItem.quantity,
+                previousStock,
+                newStock: product.stock,
+                note: "Supplier credit received",
+                createdBy: req.user.id
+              }
+            ],
+            { session }
+          );
+        }
       }
 
       processedItems.push(invoiceItem);
@@ -220,25 +261,65 @@ const returnInvoiceItem = async (req, res) => {
     if (item.product) {
       const product = await Product.findById(item.product).session(session);
       if (product) {
-        const previousStock = product.stock;
-        product.stock += returnQuantity;
-        await product.save({ session });
+        if (invoice.branch) {
+          const branchInventory = await BranchInventory.findOne({
+            business: req.user.businessId,
+            branch: invoice.branch,
+            product: product._id
+          }).session(session);
 
-        await InventoryMovement.create(
-          [
+          const previousStock = branchInventory ? branchInventory.quantity : 0;
+          await BranchInventory.findOneAndUpdate(
+            { business: req.user.businessId, branch: invoice.branch, product: product._id },
             {
-              business: req.user.businessId,
-              product: product._id,
-              type: "return",
-              quantity: returnQuantity,
-              previousStock,
-              newStock: product.stock,
-              note: `Returned from invoice ${invoice._id}: ${reason}`,
-              createdBy: req.user.id
-            }
-          ],
-          { session }
-        );
+              $setOnInsert: {
+                business: req.user.businessId,
+                branch: invoice.branch,
+                product: product._id,
+                createdBy: req.user.id
+              },
+              $inc: { quantity: returnQuantity }
+            },
+            { upsert: true, new: true, session }
+          );
+
+          await InventoryMovement.create(
+            [
+              {
+                business: req.user.businessId,
+                branch: invoice.branch,
+                product: product._id,
+                type: "return",
+                quantity: returnQuantity,
+                previousStock,
+                newStock: previousStock + returnQuantity,
+                note: `Returned from invoice ${invoice._id}: ${reason}`,
+                createdBy: req.user.id
+              }
+            ],
+            { session }
+          );
+        } else {
+          const previousStock = product.stock;
+          product.stock += returnQuantity;
+          await product.save({ session });
+
+          await InventoryMovement.create(
+            [
+              {
+                business: req.user.businessId,
+                product: product._id,
+                type: "return",
+                quantity: returnQuantity,
+                previousStock,
+                newStock: product.stock,
+                note: `Returned from invoice ${invoice._id}: ${reason}`,
+                createdBy: req.user.id
+              }
+            ],
+            { session }
+          );
+        }
       }
     }
 
@@ -398,27 +479,58 @@ const deleteInvoice = async (req, res) => {
     if (invoice.transactionType === "incoming") {
       for (const item of invoice.items) {
         if (item.product && Number(item.receivedQuantity || 0) > 0) {
-          const product = await Product.findById(item.product).session(session);
-          if (product) {
-            const previousStock = product.stock;
-            product.stock = Math.max(0, product.stock - Number(item.receivedQuantity || 0));
-            await product.save({ session });
+          if (invoice.branch) {
+            const branchInventory = await BranchInventory.findOne({
+              business: req.user.businessId,
+              branch: invoice.branch,
+              product: item.product
+            }).session(session);
 
-            await InventoryMovement.create(
-              [
-                {
-                  business: req.user.businessId,
-                  product: product._id,
-                  type: "purchase_reversal",
-                  quantity: Number(item.receivedQuantity || 0),
-                  previousStock,
-                  newStock: product.stock,
-                  note: `Reversed supplier invoice ${invoice._id}`,
-                  createdBy: req.user.id
-                }
-              ],
-              { session }
-            );
+            if (branchInventory) {
+              const previousStock = branchInventory.quantity;
+              branchInventory.quantity = Math.max(0, branchInventory.quantity - Number(item.receivedQuantity || 0));
+              await branchInventory.save({ session });
+
+              await InventoryMovement.create(
+                [
+                  {
+                    business: req.user.businessId,
+                    branch: invoice.branch,
+                    product: item.product,
+                    type: "purchase_reversal",
+                    quantity: Number(item.receivedQuantity || 0),
+                    previousStock,
+                    newStock: branchInventory.quantity,
+                    note: `Reversed supplier invoice ${invoice._id}`,
+                    createdBy: req.user.id
+                  }
+                ],
+                { session }
+              );
+            }
+          } else {
+            const product = await Product.findById(item.product).session(session);
+            if (product) {
+              const previousStock = product.stock;
+              product.stock = Math.max(0, product.stock - Number(item.receivedQuantity || 0));
+              await product.save({ session });
+
+              await InventoryMovement.create(
+                [
+                  {
+                    business: req.user.businessId,
+                    product: product._id,
+                    type: "purchase_reversal",
+                    quantity: Number(item.receivedQuantity || 0),
+                    previousStock,
+                    newStock: product.stock,
+                    note: `Reversed supplier invoice ${invoice._id}`,
+                    createdBy: req.user.id
+                  }
+                ],
+                { session }
+              );
+            }
           }
         }
       }

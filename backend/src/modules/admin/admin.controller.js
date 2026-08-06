@@ -10,6 +10,8 @@ import Notification from "../notifications/notification.model.js";
 import PayoutHistory from "../affiliates/payoutHistory.model.js";
 import mongoose from "mongoose";
 import Audit from "./audit.model.js";
+import OperationLog from "../../models/operationLog.model.js";
+import importQueue from "../../queues/importQueue.js";
 
 // 🔥 NORMALIZER (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -426,6 +428,105 @@ const getWithdrawalHistory = async (req, res) => {
       .lean();
 
     res.json({ history });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ================= OPERATION LOGS (IMPORTS) =================
+const listOperationLogs = async (req, res) => {
+  try {
+    const {
+      status,
+      search,
+      operationType,
+      page = 1,
+      limit = 50,
+      sortBy = "createdAt",
+      sortDir = "desc",
+      from,
+      to,
+      user,
+      branch
+    } = req.query;
+
+    const q = {};
+    if (status) q.status = status;
+    if (operationType) q.operationType = operationType;
+    if (user && mongoose.Types.ObjectId.isValid(user)) q.user = mongoose.Types.ObjectId(user);
+    if (branch && mongoose.Types.ObjectId.isValid(branch)) q.branch = mongoose.Types.ObjectId(branch);
+
+    if (from || to) {
+      q.createdAt = {};
+      if (from) q.createdAt.$gte = new Date(from);
+      if (to) q.createdAt.$lte = new Date(to);
+    }
+
+    if (search) {
+      const or = [];
+      or.push({ operationType: { $regex: search, $options: "i" } });
+      or.push({ error: { $regex: search, $options: "i" } });
+      if (mongoose.Types.ObjectId.isValid(search)) {
+        try {
+          const oid = mongoose.Types.ObjectId(search);
+          or.push({ _id: oid });
+          or.push({ branch: oid });
+          or.push({ business: oid });
+          or.push({ user: oid });
+        } catch (e) {
+          // ignore
+        }
+      }
+      q.$or = or;
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const total = await OperationLog.countDocuments(q);
+
+    // validate sortBy against allowed fields
+    const allowedSort = ["createdAt", "status", "operationType"];
+    const sortField = allowedSort.includes(sortBy) ? sortBy : "createdAt";
+    const sortDirection = sortDir === "asc" ? 1 : -1;
+
+    const logs = await OperationLog.find(q)
+      .sort({ [sortField]: sortDirection })
+      .skip(skip)
+      .limit(Number(limit))
+      .lean();
+
+    res.json({ total, page: Number(page), limit: Number(limit), logs });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const retryOperationLog = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const log = await OperationLog.findById(id);
+    if (!log) return res.status(404).json({ message: "Operation log not found" });
+    if (log.status !== "failed") return res.status(400).json({ message: "Only failed jobs can be retried" });
+
+    // reset status and enqueue job
+    log.status = "pending";
+    log.error = undefined;
+    log.metadata = {};
+    await log.save();
+
+    await importQueue.add({ jobId: id.toString(), businessId: log.business.toString(), branchId: log.branch?.toString(), userId: log.user?.toString() });
+
+    res.json({ message: "Retry enqueued", jobId: id });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getOperationLog = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const log = await OperationLog.findById(id).lean();
+    if (!log) return res.status(404).json({ message: "Operation log not found" });
+    res.json({ log });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -925,4 +1026,8 @@ export default {
   // ledger and settlement
   getPartnersLedger,
   settleBalance
+  ,
+  // operation logs
+  listOperationLogs,
+  retryOperationLog
 };

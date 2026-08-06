@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import request from "../api/client.js";
 import { getServices } from "../api/services.js";
+import { getBranches, getBranchInventory } from "../api/branches.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -48,6 +49,9 @@ const POS = () => {
   const [activeTab, setActiveTab] = useState("products");
   const [pulseId, setPulseId] = useState(null);
   const [pulseType, setPulseType] = useState("product");
+  const [branches, setBranches] = useState([]);
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [branchInventory, setBranchInventory] = useState([]);
 
   const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
   const [autoSend, setAutoSend] = useState(false);
@@ -125,10 +129,15 @@ const POS = () => {
       try {
         setLoading(true);
         const limit = 5000;
-        const [prodRes, servRes] = await Promise.all([
+        const [prodRes, servRes, branchRes] = await Promise.all([
           request(`/products?limit=${limit}`),
-          getServices()
+          getServices(),
+          getBranches()
         ]);
+
+        setBranches(Array.isArray(branchRes) ? branchRes : []);
+        setSelectedBranch((Array.isArray(branchRes) && branchRes[0]?._id) || selectedBranch || "");
+
 
         // Ensure we are setting arrays.
         // If the API returns { products: [...] }, use prodRes.products.
@@ -150,28 +159,52 @@ const POS = () => {
     loadData();
   }, [isPro]);
 
-  const openCustomerDisplay = () => {
-    window.open('/app/customer-view', 'CustomerWindow', 'width=1000,height=700');
+useEffect(() => {
+  const loadBranchInventory = async () => {
+    if (!selectedBranch) {
+      setBranchInventory([]);
+      return;
+    }
+
+    try {
+      const data = await getBranchInventory(selectedBranch);
+      setBranchInventory(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Branch inventory load failed", err);
+      setBranchInventory([]);
+    }
   };
 
-  // ====================================
-  // SEARCH & FILTER
-  // ====================================
+  loadBranchInventory();
+}, [selectedBranch]);
   const filteredProducts = useMemo(() => {
     if (!Array.isArray(products)) return [];
 
     const keyword = search.toLowerCase();
-    return products.filter((p) => 
-      p?.name?.toLowerCase().includes(keyword) || 
+
+    // When a branch is selected, only show products that have been
+    // imported into that branch. If none exist, show an empty list.
+    let source = products;
+    if (selectedBranch) {
+      const allowed = new Set((branchInventory || []).map((it) => it?.product?._id).filter(Boolean));
+      if (allowed.size > 0) {
+        source = products.filter((p) => allowed.has(p._id));
+      } else {
+        source = [];
+      }
+    }
+
+    return source.filter((p) =>
+      p?.name?.toLowerCase().includes(keyword) ||
       p?.sku?.toLowerCase().includes(keyword) ||
       p?.category?.toLowerCase().includes(keyword)
     );
-  }, [products, search]);
+  }, [products, search, selectedBranch, branchInventory]);
 
   const filteredServices = useMemo(() => {
     const keyword = search.toLowerCase();
-    return services.filter((s) => 
-      s.name?.toLowerCase().includes(keyword) || 
+    return services.filter((s) =>
+      s.name?.toLowerCase().includes(keyword) ||
       s.category?.toLowerCase().includes(keyword)
     );
   }, [services, search]);
@@ -180,6 +213,17 @@ const POS = () => {
   // ACTIONS
   // ====================================
   const addToCart = useCallback((item, type) => {
+    const branchInventoryMap = branchInventory.reduce((map, inventoryItem) => {
+      if (inventoryItem?.product?._id) {
+        map[inventoryItem.product._id] = inventoryItem;
+      }
+      return map;
+    }, {});
+
+    const selectedStock = type === "product"
+      ? branchInventoryMap[item._id]?.quantity ?? item.stock
+      : null;
+
     setCart((prev) => {
       const isProduct = type === "product";
       const existingIndex = prev.findIndex(i => 
@@ -188,8 +232,8 @@ const POS = () => {
 
       if (existingIndex > -1) {
         const newCart = [...prev];
-        if (isProduct && newCart[existingIndex].quantity >= item.stock) {
-          setUpgradeMsg(`Limited Stock: Only ${item.stock} available.`);
+        if (isProduct && selectedStock !== null && newCart[existingIndex].quantity >= selectedStock) {
+          setUpgradeMsg(`Limited Stock: Only ${selectedStock} available.`);
           return prev;
         }
         newCart[existingIndex].quantity += 1;
@@ -203,7 +247,7 @@ const POS = () => {
         quantity: 1,
         sellingPrice: Number(item.sellingPrice || item.price || 0),
         ...(type === "service" && { serviceId: item._id }),
-        ...(isProduct && { maxStock: item.stock })
+        ...(isProduct && { maxStock: selectedStock ?? item.stock })
       }];
     });
 
@@ -229,6 +273,7 @@ const POS = () => {
         customerName: customer.name,
         customerPhone: customer.phone,
         notes: customer.notes,
+        branch: selectedBranch || undefined,
         items: cart.map(i => ({
           itemType: i.itemType,
           product: i.itemType === "product" ? i._id : undefined,
@@ -335,6 +380,11 @@ const POS = () => {
                     <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                       {formatDisplayText(p.category || "General")}
                     </p>
+                    {selectedBranch && (
+                      <p className="mt-2 text-[11px] text-slate-500">
+                        Branch stock: {branchInventory.find(item => item.product?._id === p._id)?.quantity ?? "Not imported"}
+                      </p>
+                    )}
                   </div>
                   <span className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm">
                     {formatCurrency(p.sellingPrice || p.price)}
@@ -426,6 +476,25 @@ const POS = () => {
                 className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0"
               />
             </div>
+            {branches && branches.length > 0 ? (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Branch</label>
+                <select
+                  value={selectedBranch}
+                  onChange={e => setSelectedBranch(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0"
+                >
+                  <option value="">Head office</option>
+                  {branches.map(branch => (
+                    <option key={branch._id} value={branch._id}>{branch.name}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-500">
+                No branches yet. <button onClick={() => navigate('/app/branches')} className="underline">Create one</button>
+              </div>
+            )}
 
             <textarea
               placeholder="Add notes (optional - will appear on receipt)"

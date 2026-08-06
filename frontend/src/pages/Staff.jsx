@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import request from "../api/client.js";
+import { getBranches } from "../api/branches.js";
 import "../styles.css";
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 
@@ -8,6 +9,7 @@ const initialForm = {
   email: "",
   password: "",
   role: "staff",
+  branch: "",
   permissions: {
     canViewDashboard: false,
     canManageProducts: false,
@@ -78,7 +80,24 @@ const Staff = () => {
   const [showDetails, setShowDetails] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [branches, setBranches] = useState([]);
   const drawerRef = useRef(null);
+
+  // =====================================
+  // LOAD BRANCHES
+  // =====================================
+  useEffect(() => {
+    const loadBranches = async () => {
+      try {
+        const data = await getBranches();
+        setBranches(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to load branches", err);
+      }
+    };
+
+    loadBranches();
+  }, []);
 
   // =====================================
   // LOAD STAFF
@@ -162,6 +181,7 @@ const Staff = () => {
       email: user.email || "",
       password: "",
       role: user.role || "staff",
+      branch: user.branch?._id || user.branch || "",
       permissions: user.permissions || initialForm.permissions
     });
     setShowDrawer(true);
@@ -199,6 +219,7 @@ const Staff = () => {
           <div className="product-row product-row-head table-header">
             <span>STAFF MEMBER</span>
             <span>ROLE</span>
+            <span>BRANCH</span>
             <span>ACCOUNT STATUS</span>
             <span />
           </div>
@@ -219,6 +240,9 @@ const Staff = () => {
               </span>
               <span>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'owner' ? 'bg-slate-800 text-white' : user.role === 'manager' ? 'bg-indigo-100 text-indigo-800' : user.role === 'cashier' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-800'}`}>{user.role}</span>
+              </span>
+              <span>
+                <span className="text-sm text-slate-700">{user.branch?.name || user.branch || 'Head office'}</span>
               </span>
               <span>
                 <div className="flex items-center gap-2">
@@ -281,6 +305,16 @@ const Staff = () => {
                   <option value="staff">Staff</option>
                   <option value="cashier">Cashier</option>
                   <option value="manager">Manager</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">Assigned branch</label>
+                <select className="input-field" name="branch" value={form.branch} onChange={handleChange}>
+                  <option value="">Head office</option>
+                  {branches.map((branch) => (
+                    <option key={branch._id} value={branch._id}>{branch.name}</option>
+                  ))}
                 </select>
               </div>
 

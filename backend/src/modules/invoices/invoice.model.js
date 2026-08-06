@@ -76,6 +76,12 @@ const invoiceSchema =
       required: true
     },
 
+    branch: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Branch",
+      default: null
+    },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User"

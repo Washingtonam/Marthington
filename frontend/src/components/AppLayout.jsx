@@ -20,6 +20,20 @@ const navItemsByIndustry = {
       isPremium: false
     },
     {
+      label: "Branches",
+      href: "/app/branches",
+      icon: "building",
+      permission: "canManageStaff",
+      isPremium: false
+    },
+    {
+      label: "Branch Inventory",
+      href: "/app/branches/inventory",
+      icon: "layers",
+      permission: "canViewProducts",
+      isPremium: false
+    },
+    {
       label: "Services",
       href: "/app/services",
       icon: "package",

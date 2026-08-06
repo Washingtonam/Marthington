@@ -104,6 +104,28 @@ router.get(
   adminController.listAffiliates
 );
 
+// Operation logs (imports)
+router.get(
+  "/operation-logs",
+  protect,
+  onlyAdmin,
+  adminController.listOperationLogs
+);
+
+router.post(
+  "/operation-logs/:id/retry",
+  protect,
+  onlyAdmin,
+  adminController.retryOperationLog
+);
+
+router.get(
+  "/operation-logs/:id",
+  protect,
+  onlyAdmin,
+  adminController.getOperationLog
+);
+
 router.post(
   "/affiliates/:id/payout",
   protect,

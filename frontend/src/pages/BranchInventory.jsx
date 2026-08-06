@@ -1,0 +1,217 @@
+import { useEffect, useState } from "react";
+import { getBranchInventory, importBranchInventory, getImportStatus } from "../api/branches.js";
+import { getBranches } from "../api/branches.js";
+
+const BranchInventory = () => {
+  const [branches, setBranches] = useState([]);
+  const [branchId, setBranchId] = useState("");
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadBranches = async () => {
+    try {
+      const data = await getBranches();
+      setBranches(data || []);
+      setBranchId((data?.[0]?._id) || "");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadInventory = async (branchIdValue) => {
+    if (!branchIdValue) return;
+    try {
+      setLoading(true);
+      const data = await getBranchInventory(branchIdValue);
+      setInventory(data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBranches();
+  }, []);
+
+  useEffect(() => {
+    if (branchId) {
+      loadInventory(branchId);
+    }
+  }, [branchId]);
+
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+
+  const handleImport = () => {
+    if (!branchId) return;
+    setShowConfirm(true);
+    setImportResult(null);
+  };
+
+  const confirmImport = async () => {
+    if (!branchId) return;
+    try {
+      setImporting(true);
+      setImportResult(null);
+      const res = await importBranchInventory(branchId);
+
+      // If backend returned a jobId, poll for status
+      if (res?.jobId) {
+        const jobId = res.jobId;
+        let attempts = 0;
+        const maxAttempts = 120; // ~2 minutes
+
+        while (attempts < maxAttempts) {
+          // eslint-disable-next-line no-await-in-loop
+          const statusRes = await getImportStatus(jobId);
+          const status = statusRes?.status;
+
+          if (status === "completed") {
+            setImportResult({ success: true, data: statusRes.metadata });
+            break;
+          }
+
+          if (status === "failed") {
+            setImportResult({ success: false, message: statusRes?.error || "Import failed" });
+            break;
+          }
+
+          // wait 1s
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((r) => setTimeout(r, 1000));
+          attempts += 1;
+        }
+
+        if (!importResult) {
+          setImportResult({ success: false, message: "Import timed out" });
+        }
+
+        await loadInventory(branchId);
+      } else {
+        // immediate response (legacy behavior)
+        setImportResult({ success: true, data: res });
+        await loadInventory(branchId);
+      }
+    } catch (err) {
+      setImportResult({ success: false, message: err.message || String(err) });
+    } finally {
+      setImporting(false);
+      setShowConfirm(false);
+    }
+  };
+
+  return (
+    <section className="page-stack">
+      <div className="page-heading">
+        <div>
+          <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Branch Inventory</span>
+          <h1 className="mt-2 text-4xl font-semibold text-slate-900">Branch Stock</h1>
+        </div>
+        <p className="max-w-2xl text-sm text-slate-500">
+          Import branch stock from your central catalog and view branch-specific inventory counts.
+        </p>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr,320px]">
+        <div className="page-card">
+            <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">Branch stock per location</h2>
+              <p className="text-sm text-slate-500">Select a branch to review and import inventory.</p>
+            </div>
+              <button onClick={handleImport} className="btn btn-secondary" disabled={!branchId || importing}>
+                {importing ? "Importing..." : "Import Product Stock"}
+              </button>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700">Branch</label>
+            <select
+              className="form-select mt-2 w-full"
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+            >
+              {branches.map((branch) => (
+                <option key={branch._id} value={branch._id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {loading ? (
+            <div className="text-sm text-slate-500">Loading inventory...</div>
+          ) : inventory.length === 0 ? (
+            <div className="space-y-3">
+              <div className="text-sm text-slate-500">No branch inventory found for this location.</div>
+                  {branchId ? (
+                <div>
+                  <p className="text-sm text-slate-500">You can import all catalog products into this branch to start tracking stock separately.</p>
+                  <button onClick={handleImport} className="btn btn-primary mt-3" disabled={importing}>
+                    {importing ? "Importing..." : "Import All Products Into Branch"}
+                  </button>
+                </div>
+              ) : (
+                <div className="text-sm text-slate-500">Select a branch to import inventory.</div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {inventory.map((item) => (
+                <div key={item._id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-slate-900">{item.product?.name || "Unnamed product"}</h3>
+                      <p className="text-sm text-slate-500">SKU: {item.product?.sku || "N/A"}</p>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-600">
+                      {item.quantity ?? 0}
+                    </span>
+                  </div>
+                  <div className="mt-3 text-sm text-slate-600">
+                    <p>Branch stock record</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="page-card">
+          <h2 className="text-xl font-semibold">Inventory actions</h2>
+          <p className="mt-2 text-sm text-slate-500">
+            Import all matching catalog products into the selected branch to begin tracking stock separately.
+          </p>
+        </div>
+      </div>
+
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { if (!importing) setShowConfirm(false); }} />
+          <div className="bg-white p-6 rounded-xl shadow-lg z-10 w-full max-w-md">
+            <h3 className="text-lg font-bold">Confirm Import</h3>
+            <p className="mt-3 text-sm text-slate-600">This will register all catalog products into the selected branch's inventory. Central stock will not be changed when performing a bulk import. Continue?</p>
+
+            {importResult && (
+              <div className={`mt-3 p-3 rounded ${importResult.success ? 'bg-green-50 text-green-800' : 'bg-rose-50 text-rose-800'}`}>
+                {importResult.success ? `Imported ${importResult.data?.imported ?? 0} items` : importResult.message}
+              </div>
+            )}
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button className="btn" onClick={() => setShowConfirm(false)} disabled={importing}>Cancel</button>
+              <button className="btn btn-primary" onClick={confirmImport} disabled={importing}>
+                {importing ? 'Importing…' : 'Confirm Import'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+};
+
+export default BranchInventory;

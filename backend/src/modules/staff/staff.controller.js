@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 
 import User from "../users/user.model.js";
-
+import Branch from "../branches/branch.model.js";
 import Business from "../businesses/business.model.js";
 
 // =====================================
@@ -84,7 +84,8 @@ const createStaff = async (
       email: rawEmail,
       password,
       role,
-      permissions
+      permissions,
+      branch
     } = req.body;
     const email = (rawEmail || "").toLowerCase().trim();
 
@@ -97,20 +98,33 @@ const createStaff = async (
       });
     }
 
+    if (branch) {
+      const branchRecord = await Branch.findOne({ _id: branch, business: req.user.businessId });
+      if (!branchRecord) {
+        return res.status(400).json({ message: "Invalid branch assignment" });
+      }
+    }
+
     const hashed =
       await bcrypt.hash(
         password,
         10
       );
 
-    const user = await User.create({
+    const userData = {
       name,
       email,
       password: hashed,
       role: role || "staff",
       permissions: permissions || {},
       business: req.user.businessId
-    });
+    };
+
+    if (branch) {
+      userData.branch = branch;
+    }
+
+    const user = await User.create(userData);
 
     res.json({
       message: "Staff created",
@@ -173,7 +187,8 @@ const updateStaff = async (
       name,
       role,
       permissions,
-      isActive
+      isActive,
+      branch
     } = req.body;
 
     if (name !== undefined) {
@@ -189,6 +204,14 @@ const updateStaff = async (
     ) {
       user.permissions =
         permissions;
+    }
+
+    if (branch !== undefined) {
+      const branchRecord = await Branch.findOne({ _id: branch, business: req.user.businessId });
+      if (!branchRecord) {
+        return res.status(400).json({ message: "Invalid branch assignment" });
+      }
+      user.branch = branch;
     }
 
     if (

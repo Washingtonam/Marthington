@@ -3,6 +3,7 @@ import Product from "../products/product.model.js";
 import Business from "../businesses/business.model.js";
 import Customer from "../customers/customer.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
+import BranchInventory from "../branches/branchInventory.model.js";
 import mongoose from "mongoose";
 import { canDeleteSale, buildSalesQuery } from "./sales.utils.js";
 
@@ -63,11 +64,6 @@ const createSale = async (req, res) => {
           throw new Error("Unauthorized product access");
         }
 
-        // Stock Check
-        if (product.stock < item.quantity) {
-          throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}`);
-        }
-
         const basePrice = Math.round(Number(product.price));
         const incomingPrice = Math.round(Number(item.sellingPrice ?? product.price));
         
@@ -85,20 +81,54 @@ const createSale = async (req, res) => {
         const itemTotal = finalPrice * quantity;
         totalAmount += itemTotal;
 
-        // 🔥 INVENTORY UPDATES
-        const previousStock = product.stock;
-        product.stock -= quantity;
-        await product.save({ session });
+        const branchId = req.user.branchId;
+        let previousStock;
 
-        await InventoryMovement.create([{
-          business: businessId,
-          product: product._id,
-          type: "sale",
-          quantity,
-          previousStock,
-          newStock: product.stock,
-          createdBy: req.user.id
-        }], { session });
+        if (branchId) {
+          const branchInventory = await BranchInventory.findOne({
+            business: businessId,
+            branch: branchId,
+            product: product._id
+          }).session(session);
+
+          if (!branchInventory || branchInventory.quantity < quantity) {
+            throw new Error(`Insufficient branch stock for ${product.name}.`);
+          }
+
+          previousStock = branchInventory.quantity;
+          branchInventory.quantity -= quantity;
+          await branchInventory.save({ session });
+
+          await InventoryMovement.create([{
+            business: businessId,
+            branch: branchId,
+            product: product._id,
+            type: "sale",
+            quantity,
+            previousStock,
+            newStock: branchInventory.quantity,
+            createdBy: req.user.id
+          }], { session });
+
+        } else {
+          if (product.stock < quantity) {
+            throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}`);
+          }
+
+          previousStock = product.stock;
+          product.stock -= quantity;
+          await product.save({ session });
+
+          await InventoryMovement.create([{
+            business: businessId,
+            product: product._id,
+            type: "sale",
+            quantity,
+            previousStock,
+            newStock: product.stock,
+            createdBy: req.user.id
+          }], { session });
+        }
 
         saleItems.push({
           itemType: "product",
@@ -133,11 +163,11 @@ const createSale = async (req, res) => {
       totalAmount,
       paymentMethod: paymentMethod || "Cash",
       business: businessId,
+      branch: req.user.branchId || null,
       createdBy: req.user.id,
       customer: customer?._id || null,
       customerName: customerName || customer?.name || "Walk-in",
       customerPhone: customerPhone || "",
-      notes: notes || "",
       receiptId: generateReceiptId()
     }], { session });
 

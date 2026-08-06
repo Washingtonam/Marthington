@@ -6,6 +6,7 @@ import connectDB from "./config/db.js";
 import runBusinessIndustryMigration from "./jobs/migrateBusinessIndustryType.job.js";
 import cron from "node-cron";
 import runSubscriptionCheck from "./jobs/subscription.job.js";
+// workers are now run in a separate process via src/worker.js
 
 const PORT = process.env.PORT || 5000;
 

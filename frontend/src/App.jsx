@@ -30,6 +30,8 @@ const Invoices = lazy(() => import("./pages/Invoices.jsx"));
 const VerifyPayment = lazy(() => import("./pages/VerifyPayment.jsx"));
 const Customers = lazy(() => import("./pages/Customers.jsx"));
 const Services = lazy(() => import("./pages/Services.jsx"));
+const Branches = lazy(() => import("./pages/Branches.jsx"));
+const BranchInventory = lazy(() => import("./pages/BranchInventory.jsx"));
 const StaffReports = lazy(() => import("./pages/StaffReports.jsx"));
 const InventoryReports = lazy(() => import("./pages/InventoryReports.jsx"));
 const CustomerView = lazy(() => import("./pages/CustomerView.jsx"));
@@ -37,6 +39,7 @@ const PublicReceipt = lazy(() => import("./pages/PublicReceipt.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
 const AdminBusinessView = lazy(() => import("./pages/AdminBusinessView.jsx"));
 const AdminBillingSettings = lazy(() => import("./pages/AdminBillingSettings.jsx"));
+const AdminOperationLogs = lazy(() => import("./pages/AdminOperationLogs.jsx"));
 const Expenses = lazy(() => import("./pages/Expenses.jsx"));
 const SchoolDashboard = lazy(() => import("./pages/SchoolDashboard.jsx"));
 const HospitalDashboard = lazy(() => import("./pages/HospitalDashboard.jsx"));
@@ -251,6 +254,8 @@ const App = () => {
             >
               <Route index element={<Dashboard />} />
               <Route path="products" element={<Products />} />
+              <Route path="branches" element={<Branches />} />
+              <Route path="branches/inventory" element={<BranchInventory />} />
               <Route path="pos" element={<POS />} />
               <Route path="sales" element={<Sales />} />
               <Route path="sales/:id" element={<SaleDetails />} />
@@ -307,6 +312,7 @@ const App = () => {
               <Route path="users" element={<AdminUsers />} />
               <Route path="analytics" element={<AdminAnalytics />} />
               <Route path="settings" element={<AdminSettings />} />
+              <Route path="operation-logs" element={<AdminOperationLogs />} />
               <Route path="business/:id" element={<AdminBusinessView />} />
             </Route>
 

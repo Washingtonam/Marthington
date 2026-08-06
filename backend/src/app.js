@@ -20,6 +20,8 @@ import schoolRoutes from "./modules/schools/school.routes.js";
 import hospitalRoutes from "./modules/hospitals/hospital.routes.js";
 import billingRoutes from "./modules/billing/billing.routes.js";
 import flutterwaveRoutes from "./modules/payments/flutterwave.routes.js";
+import branchRoutes from "./modules/branches/branch.routes.js";
+import branchInventoryRoutes from "./modules/branches/branchInventory.routes.js";
 
 // 🔥 ADD THIS
 import paymentRoutes from "./modules/payments/payment.routes.js";
@@ -69,6 +71,8 @@ app.use("/api/invoices", invoiceRoutes);
 app.use("/api/transactions", transactionRoutes);
 // 🔥 CUSTOMER ROUTE
 app.use("/api/customers", customerRoutes);
+app.use("/api/branches", branchRoutes);
+app.use("/api/branches/inventory", branchInventoryRoutes);
 // 🔥 EXPENSES ROUTE
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/affiliates", affiliateRoutes);

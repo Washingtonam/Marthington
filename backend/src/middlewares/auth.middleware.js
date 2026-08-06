@@ -105,6 +105,12 @@ const protect = async (req, res, next) => {
       });
     }
 
+    const branchId = user.branch
+      ? typeof user.branch === "string"
+        ? user.branch
+        : user.branch._id?.toString?.() || user.branch.toString()
+      : null;
+
     req.user = {
       id: user._id.toString(),
       _id: user._id.toString(),
@@ -112,6 +118,7 @@ const protect = async (req, res, next) => {
       name: user.name || "",
       role: user.role,
       businessId,
+      branchId,
       industryType:
         activeBusiness?.industryType ||
         user.business?.industryType ||

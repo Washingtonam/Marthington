@@ -58,6 +58,10 @@ const AdminLayout = () => {
               Settings ⚙️
             </NavLink>
 
+            <NavLink to="/admin/operation-logs" className={navItem}>
+              Operation Logs
+            </NavLink>
+
           </nav>
         </div>
 

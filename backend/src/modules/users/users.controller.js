@@ -1,10 +1,11 @@
 import User from "./user.model.js";
+import Branch from "../branches/branch.model.js";
 import bcrypt from "bcryptjs";
 
 // 🔥 CREATE STAFF
 export const createStaff = async (req, res) => {
   try {
-    const { name, email, password, permissions } = req.body;
+    const { name, email, password, permissions, branch } = req.body;
 
     if (req.user.role !== "owner" && req.user.role !== "super_admin") {
       return res.status(403).json({ message: "Unauthorized" });
@@ -12,6 +13,13 @@ export const createStaff = async (req, res) => {
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
+    }
+
+    if (branch) {
+      const branchRecord = await Branch.findOne({ _id: branch, business: req.user.businessId });
+      if (!branchRecord) {
+        return res.status(400).json({ message: "Invalid branch assignment" });
+      }
     }
 
     const existing = await User.findOne({ email });
@@ -27,6 +35,7 @@ export const createStaff = async (req, res) => {
       password: hashedPassword,
       role: "staff",
       business: req.user.businessId,
+      branch: branch || null,
       isActive: true,
       permissions: {
         canViewDashboard: false,
@@ -67,7 +76,7 @@ export const getStaff = async (req, res) => {
 // 🔥 UPDATE STAFF PERMISSIONS
 export const updateStaff = async (req, res) => {
   try {
-    const { permissions } = req.body;
+    const { permissions, branch } = req.body;
 
     const staff = await User.findById(req.params.id);
 
@@ -82,10 +91,20 @@ export const updateStaff = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    staff.permissions = {
-      ...staff.permissions,
-      ...permissions
-    };
+    if (permissions !== undefined) {
+      staff.permissions = {
+        ...staff.permissions,
+        ...permissions
+      };
+    }
+
+    if (branch !== undefined) {
+      const branchRecord = await Branch.findOne({ _id: branch, business: req.user.businessId });
+      if (!branchRecord) {
+        return res.status(400).json({ message: "Invalid branch assignment" });
+      }
+      staff.branch = branch;
+    }
 
     await staff.save();
 
