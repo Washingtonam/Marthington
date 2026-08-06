@@ -5,6 +5,8 @@ import { getBranches } from "../api/branches.js";
 const BranchInventory = () => {
   const [branches, setBranches] = useState([]);
   const [branchId, setBranchId] = useState("");
+  const [sourceType, setSourceType] = useState("headOffice");
+  const [sourceBranchId, setSourceBranchId] = useState("");
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -12,7 +14,10 @@ const BranchInventory = () => {
     try {
       const data = await getBranches();
       setBranches(data || []);
-      setBranchId((data?.[0]?._id) || "");
+      const firstBranchId = (data?.[0]?._id) || "";
+      setBranchId(firstBranchId);
+      const firstSourceBranch = (data || []).find((branch) => branch._id !== firstBranchId)?._id || "";
+      setSourceBranchId(firstSourceBranch);
     } catch (err) {
       console.error(err);
     }
@@ -41,24 +46,44 @@ const BranchInventory = () => {
     }
   }, [branchId]);
 
+  useEffect(() => {
+    if (!branches.length || !branchId) return;
+
+    if (!sourceBranchId || sourceBranchId === branchId) {
+      const nextSourceBranch = branches.find((branch) => branch._id !== branchId)?._id || "";
+      setSourceBranchId(nextSourceBranch);
+    }
+  }, [branches, branchId, sourceBranchId]);
+
   const [showConfirm, setShowConfirm] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
 
   const handleImport = () => {
     if (!branchId) return;
+    if (sourceType === "branch" && !sourceBranchId) {
+      setImportResult({ success: false, message: "Select a source branch before importing." });
+      return;
+    }
     setShowConfirm(true);
     setImportResult(null);
   };
 
   const confirmImport = async () => {
     if (!branchId) return;
+
+    const importPayload = {
+      branchId,
+      sourceType,
+      sourceBranchId: sourceType === "branch" ? sourceBranchId : undefined,
+    };
+
     try {
       setImporting(true);
       setImportResult(null);
-      const res = await importBranchInventory(branchId);
+      const res = await importBranchInventory(importPayload);
+      let result;
 
-      // If backend returned a jobId, poll for status
       if (res?.jobId) {
         const jobId = res.jobId;
         let attempts = 0;
@@ -70,12 +95,12 @@ const BranchInventory = () => {
           const status = statusRes?.status;
 
           if (status === "completed") {
-            setImportResult({ success: true, data: statusRes.metadata });
+            result = { success: true, data: statusRes.metadata };
             break;
           }
 
           if (status === "failed") {
-            setImportResult({ success: false, message: statusRes?.error || "Import failed" });
+            result = { success: false, message: statusRes?.error || "Import failed" };
             break;
           }
 
@@ -85,14 +110,15 @@ const BranchInventory = () => {
           attempts += 1;
         }
 
-        if (!importResult) {
-          setImportResult({ success: false, message: "Import timed out" });
+        if (!result) {
+          result = { success: false, message: "Import timed out" };
         }
 
+        setImportResult(result);
         await loadInventory(branchId);
       } else {
-        // immediate response (legacy behavior)
-        setImportResult({ success: true, data: res });
+        result = { success: true, data: res };
+        setImportResult(result);
         await loadInventory(branchId);
       }
     } catch (err) {
@@ -141,6 +167,38 @@ const BranchInventory = () => {
               ))}
             </select>
           </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700">Import Source</label>
+            <select
+              className="form-select mt-2 w-full"
+              value={sourceType}
+              onChange={(e) => setSourceType(e.target.value)}
+            >
+              <option value="headOffice">Head Office Catalog</option>
+              <option value="branch">Another Branch</option>
+            </select>
+          </div>
+
+          {sourceType === "branch" && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700">Source Branch</label>
+              <select
+                className="form-select mt-2 w-full"
+                value={sourceBranchId}
+                onChange={(e) => setSourceBranchId(e.target.value)}
+              >
+                <option value="">Select source branch</option>
+                {branches
+                  .filter((branch) => branch._id !== branchId)
+                  .map((branch) => (
+                    <option key={branch._id} value={branch._id}>
+                      {branch.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
 
           {loading ? (
             <div className="text-sm text-slate-500">Loading inventory...</div>
@@ -193,7 +251,14 @@ const BranchInventory = () => {
           <div className="absolute inset-0 bg-black/40" onClick={() => { if (!importing) setShowConfirm(false); }} />
           <div className="bg-white p-6 rounded-xl shadow-lg z-10 w-full max-w-md">
             <h3 className="text-lg font-bold">Confirm Import</h3>
-            <p className="mt-3 text-sm text-slate-600">This will register all catalog products into the selected branch's inventory. Central stock will not be changed when performing a bulk import. Continue?</p>
+            <p className="mt-3 text-sm text-slate-600">
+              This will register all catalog products into the selected branch&apos;s inventory.
+              Central stock will not be changed when performing a bulk import.
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              Import source: {sourceType === "headOffice" ? "Head Office Catalog" : "Branch stock"}
+              {sourceType === "branch" && sourceBranchId ? ` from ${branches.find((b) => b._id === sourceBranchId)?.name || "selected branch"}` : ""}.
+            </p>
 
             {importResult && (
               <div className={`mt-3 p-3 rounded ${importResult.success ? 'bg-green-50 text-green-800' : 'bg-rose-50 text-rose-800'}`}>

@@ -9,11 +9,22 @@ import importQueue from "../../queues/importQueue.js";
 
 const importProductToBranch = async (req, res) => {
   try {
-    const { branchId, productId, quantity, branchPrice } = req.body;
+    const {
+      branchId,
+      productId,
+      quantity,
+      branchPrice,
+      sourceType = "headOffice",
+      sourceBranchId
+    } = req.body;
     const businessId = req.user.businessId;
 
     if (!branchId) {
       return res.status(400).json({ message: "branchId is required" });
+    }
+
+    if (sourceType !== "headOffice" && sourceType !== "branch") {
+      return res.status(400).json({ message: "sourceType must be either 'headOffice' or 'branch'" });
     }
 
     const branch = await Branch.findOne({ _id: branchId, business: businessId });
@@ -21,10 +32,23 @@ const importProductToBranch = async (req, res) => {
       return res.status(404).json({ message: "Branch not found" });
     }
 
-    // BULK IMPORT: when no productId supplied, register all central products
-    // in the branch inventory (without touching central stock). This makes
-    // branch-level inventory records available for managers to update.
+    // BULK IMPORT: when no productId supplied, register branch inventory items
+    // in the target branch without changing head office stock.
     if (!productId) {
+      if (sourceType === "branch") {
+        if (!sourceBranchId) {
+          return res.status(400).json({ message: "sourceBranchId is required when importing from another branch" });
+        }
+        if (sourceBranchId.toString() === branchId.toString()) {
+          return res.status(400).json({ message: "sourceBranchId must be different from target branchId" });
+        }
+
+        const sourceBranch = await Branch.findOne({ _id: sourceBranchId, business: businessId });
+        if (!sourceBranch) {
+          return res.status(404).json({ message: "Source branch not found" });
+        }
+      }
+
       // Create an operation log and enqueue a background job for processing.
       const jobDoc = await OperationLog.create({
         business: businessId,
@@ -32,11 +56,31 @@ const importProductToBranch = async (req, res) => {
         operationType: "branch_bulk_import",
         user: req.user.id,
         status: "pending",
-        metadata: {}
+        metadata: { sourceType, sourceBranchId }
       });
 
-      // enqueue job in Redis-backed queue
-      await importQueue.add({ jobId: jobDoc._id.toString(), businessId, branchId, userId: req.user.id });
+      try {
+        await importQueue.add({
+          jobId: jobDoc._id.toString(),
+          businessId,
+          branchId,
+          userId: req.user.id,
+          sourceType,
+          sourceBranchId
+        });
+      } catch (err) {
+        console.error("Branch import enqueue failed; falling back to inline processing:", err.message || err);
+        if (importQueue.addInline) {
+          await importQueue.addInline({
+            jobId: jobDoc._id.toString(),
+            businessId,
+            branchId,
+            userId: req.user.id,
+            sourceType,
+            sourceBranchId
+          });
+        }
+      }
 
       return res.json({ jobId: jobDoc._id });
     }

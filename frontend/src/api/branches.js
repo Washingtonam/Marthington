@@ -28,10 +28,10 @@ export const getBranchInventory = async (branchId) => {
   return request(`/branches/inventory?branchId=${encodeURIComponent(branchId)}`);
 };
 
-export const importBranchInventory = async (branchId) => {
+export const importBranchInventory = async ({ branchId, sourceType = "headOffice", sourceBranchId } = {}) => {
   return request("/branches/inventory/import", {
     method: "POST",
-    body: JSON.stringify({ branchId })
+    body: JSON.stringify({ branchId, sourceType, sourceBranchId })
   });
 };
 

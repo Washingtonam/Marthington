@@ -513,7 +513,14 @@ const retryOperationLog = async (req, res) => {
     log.metadata = {};
     await log.save();
 
-    await importQueue.add({ jobId: id.toString(), businessId: log.business.toString(), branchId: log.branch?.toString(), userId: log.user?.toString() });
+    try {
+      await importQueue.add({ jobId: id.toString(), businessId: log.business.toString(), branchId: log.branch?.toString(), userId: log.user?.toString() });
+    } catch (err) {
+      console.error("Retry enqueue failed; falling back to inline processing:", err.message || err);
+      if (importQueue.addInline) {
+        await importQueue.addInline({ jobId: id.toString(), businessId: log.business.toString(), branchId: log.branch?.toString(), userId: log.user?.toString() });
+      }
+    }
 
     res.json({ message: "Retry enqueued", jobId: id });
   } catch (err) {
