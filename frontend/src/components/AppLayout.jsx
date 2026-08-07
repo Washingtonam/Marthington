@@ -27,7 +27,7 @@ const navItemsByIndustry = {
       isPremium: false
     },
     {
-      label: "Branch Inventory",
+      label: "Inventory",
       href: "/app/branches/inventory",
       icon: "layers",
       permission: "canViewProducts",

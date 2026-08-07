@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getBranchInventory, importBranchInventory, getImportStatus } from "../api/branches.js";
+import { getBranchInventory, importBranchInventory, getImportStatus, updateBranchInventory } from "../api/branches.js";
 import { getBranches } from "../api/branches.js";
 
 const BranchInventory = () => {
@@ -8,6 +8,11 @@ const BranchInventory = () => {
   const [sourceType, setSourceType] = useState("headOffice");
   const [sourceBranchId, setSourceBranchId] = useState("");
   const [inventory, setInventory] = useState([]);
+  const [inventoryEdits, setInventoryEdits] = useState({});
+  const [savingItemId, setSavingItemId] = useState(null);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkSaveMessage, setBulkSaveMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
   const loadBranches = async () => {
@@ -29,6 +34,16 @@ const BranchInventory = () => {
       setLoading(true);
       const data = await getBranchInventory(branchIdValue);
       setInventory(data || []);
+      const edits = (data || []).reduce((map, item) => {
+        map[item._id] = {
+          quantity: item.quantity ?? 0,
+          branchPrice: item.branchPrice ?? item.product?.price ?? 0
+        };
+        return map;
+      }, {});
+      setInventoryEdits(edits);
+      setSaveMessage("");
+      setBulkSaveMessage("");
     } catch (err) {
       console.error(err);
     } finally {
@@ -67,6 +82,63 @@ const BranchInventory = () => {
     }
     setShowConfirm(true);
     setImportResult(null);
+  };
+
+  const handleInventoryChange = (itemId, field, value) => {
+    setInventoryEdits((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        [field]: field === "quantity" ? Number(value) : Number(value)
+      }
+    }));
+  };
+
+  const saveInventoryItem = async (item) => {
+    const edit = inventoryEdits[item._id];
+    if (!edit) return;
+
+    try {
+      setSavingItemId(item._id);
+      setSaveMessage("");
+      await updateBranchInventory({
+        branchId,
+        productId: item.product?._id,
+        quantity: edit.quantity,
+        branchPrice: edit.branchPrice
+      });
+      setSaveMessage(`Updated ${item.product?.name || "product"} successfully.`);
+      await loadInventory(branchId);
+    } catch (err) {
+      setSaveMessage(err.message || "Failed to save inventory item.");
+    } finally {
+      setSavingItemId(null);
+    }
+  };
+
+  const saveAllInventoryItems = async () => {
+    if (!inventory.length) return;
+
+    try {
+      setBulkSaving(true);
+      setBulkSaveMessage("");
+      for (const item of inventory) {
+        const edit = inventoryEdits[item._id];
+        if (!edit) continue;
+        await updateBranchInventory({
+          branchId,
+          productId: item.product?._id,
+          quantity: edit.quantity,
+          branchPrice: edit.branchPrice
+        });
+      }
+      setBulkSaveMessage("All inventory items updated successfully.");
+      await loadInventory(branchId);
+    } catch (err) {
+      setBulkSaveMessage(err.message || "Failed to save inventory changes.");
+    } finally {
+      setBulkSaving(false);
+    }
   };
 
   const confirmImport = async () => {
@@ -133,11 +205,11 @@ const BranchInventory = () => {
     <section className="page-stack">
       <div className="page-heading">
         <div>
-          <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Branch Inventory</span>
-          <h1 className="mt-2 text-4xl font-semibold text-slate-900">Branch Stock</h1>
+          <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Inventory</span>
+          <h1 className="mt-2 text-4xl font-semibold text-slate-900">Inventory Stock</h1>
         </div>
         <p className="max-w-2xl text-sm text-slate-500">
-          Import branch stock from your central catalog and view branch-specific inventory counts.
+          Import products into a branch location and manage inventory counts in one place.
         </p>
       </div>
 
@@ -145,11 +217,11 @@ const BranchInventory = () => {
         <div className="page-card">
             <div className="mb-4 flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold">Branch stock per location</h2>
-              <p className="text-sm text-slate-500">Select a branch to review and import inventory.</p>
+              <h2 className="text-xl font-semibold">Inventory per location</h2>
+              <p className="text-sm text-slate-500">Select a branch to review and manage inventory.</p>
             </div>
               <button onClick={handleImport} className="btn btn-secondary" disabled={!branchId || importing}>
-                {importing ? "Importing..." : "Import Product Stock"}
+                {importing ? "Importing..." : "Import Inventory"}
               </button>
           </div>
 
@@ -204,12 +276,12 @@ const BranchInventory = () => {
             <div className="text-sm text-slate-500">Loading inventory...</div>
           ) : inventory.length === 0 ? (
             <div className="space-y-3">
-              <div className="text-sm text-slate-500">No branch inventory found for this location.</div>
+              <div className="text-sm text-slate-500">No inventory found for this location.</div>
                   {branchId ? (
                 <div>
-                  <p className="text-sm text-slate-500">You can import all catalog products into this branch to start tracking stock separately.</p>
+                  <p className="text-sm text-slate-500">You can import all catalog products into this branch to start tracking stock.</p>
                   <button onClick={handleImport} className="btn btn-primary mt-3" disabled={importing}>
-                    {importing ? "Importing..." : "Import All Products Into Branch"}
+                    {importing ? "Importing..." : "Import All Inventory"}
                   </button>
                 </div>
               ) : (
@@ -218,22 +290,60 @@ const BranchInventory = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {inventory.map((item) => (
-                <div key={item._id} className="rounded-xl border border-slate-200 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold text-slate-900">{item.product?.name || "Unnamed product"}</h3>
-                      <p className="text-sm text-slate-500">SKU: {item.product?.sku || "N/A"}</p>
-                    </div>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-600">
-                      {item.quantity ?? 0}
-                    </span>
-                  </div>
-                  <div className="mt-3 text-sm text-slate-600">
-                    <p>Branch stock record</p>
-                  </div>
+              {saveMessage && (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-800">
+                  {saveMessage}
                 </div>
-              ))}
+              )}
+              {inventory.map((item) => {
+                const edit = inventoryEdits[item._id] || { quantity: item.quantity ?? 0, branchPrice: item.branchPrice ?? item.product?.price ?? 0 };
+                return (
+                  <div key={item._id} className="rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold text-slate-900">{item.product?.name || "Unnamed product"}</h3>
+                        <p className="text-sm text-slate-500">SKU: {item.product?.sku || "N/A"}</p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-600">
+                        {item.quantity ?? 0}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <label className="block text-sm text-slate-500">
+                        Quantity
+                        <input
+                          type="number"
+                          min="0"
+                          value={edit.quantity}
+                          onChange={(e) => handleInventoryChange(item._id, "quantity", e.target.value)}
+                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700"
+                        />
+                      </label>
+                      <label className="block text-sm text-slate-500">
+                        Price
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={edit.branchPrice}
+                          onChange={(e) => handleInventoryChange(item._id, "branchPrice", e.target.value)}
+                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700"
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <button
+                        onClick={() => saveInventoryItem(item)}
+                        className="btn btn-primary"
+                        disabled={savingItemId === item._id}
+                      >
+                        {savingItemId === item._id ? "Saving..." : "Save"}
+                      </button>
+                      <p className="text-xs text-slate-500">Last saved inventory entry</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -241,8 +351,20 @@ const BranchInventory = () => {
         <div className="page-card">
           <h2 className="text-xl font-semibold">Inventory actions</h2>
           <p className="mt-2 text-sm text-slate-500">
-            Import all matching catalog products into the selected branch to begin tracking stock separately.
+            Import all matching catalog products into the selected branch and manage inventory counts here.
           </p>
+          <button
+            onClick={saveAllInventoryItems}
+            className="btn btn-primary mt-4 w-full"
+            disabled={bulkSaving || inventory.length === 0}
+          >
+            {bulkSaving ? "Saving all..." : "Save all inventory changes"}
+          </button>
+          {bulkSaveMessage && (
+            <p className={`mt-3 text-sm ${bulkSaveMessage.includes("failed") ? "text-rose-700" : "text-emerald-700"}`}>
+              {bulkSaveMessage}
+            </p>
+          )}
         </div>
       </div>
 
@@ -256,8 +378,7 @@ const BranchInventory = () => {
               Central stock will not be changed when performing a bulk import.
             </p>
             <p className="mt-2 text-sm text-slate-600">
-              Import source: {sourceType === "headOffice" ? "Head Office Catalog" : "Branch stock"}
-              {sourceType === "branch" && sourceBranchId ? ` from ${branches.find((b) => b._id === sourceBranchId)?.name || "selected branch"}` : ""}.
+              Import source: {sourceType === "headOffice" ? "Head Office Catalog" : "Branch inventory"}
             </p>
 
             {importResult && (

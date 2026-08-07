@@ -35,6 +35,13 @@ export const importBranchInventory = async ({ branchId, sourceType = "headOffice
   });
 };
 
+export const updateBranchInventory = async ({ branchId, productId, quantity, branchPrice }) => {
+  return request("/branches/inventory", {
+    method: "PUT",
+    body: JSON.stringify({ branchId, productId, quantity, branchPrice })
+  });
+};
+
 export const getImportStatus = async (jobId) => {
   return request(`/branches/inventory/import/${jobId}`);
 };
