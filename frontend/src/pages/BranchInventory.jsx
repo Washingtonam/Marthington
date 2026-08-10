@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { getBranchInventory, importBranchInventory, getImportStatus, updateBranchInventory } from "../api/branches.js";
 import { getBranches } from "../api/branches.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const BranchInventory = () => {
+  const { user } = useAuth();
   const [branches, setBranches] = useState([]);
   const [branchId, setBranchId] = useState("");
   const [sourceType, setSourceType] = useState("headOffice");
@@ -14,6 +16,9 @@ const BranchInventory = () => {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkSaveMessage, setBulkSaveMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalItems: 0, hasNextPage: false, hasPrevPage: false });
 
   const loadBranches = async () => {
     try {
@@ -28,13 +33,15 @@ const BranchInventory = () => {
     }
   };
 
-  const loadInventory = async (branchIdValue) => {
+  const loadInventory = async (branchIdValue, pageValue = 1, searchValue = search) => {
     if (!branchIdValue) return;
     try {
       setLoading(true);
-      const data = await getBranchInventory(branchIdValue);
-      setInventory(data || []);
-      const edits = (data || []).reduce((map, item) => {
+      const data = await getBranchInventory({ branchId: branchIdValue, page: pageValue, limit: 20, search: searchValue });
+      const responseInventory = Array.isArray(data) ? data : data?.inventory || [];
+      setInventory(responseInventory);
+      setPagination(data?.pagination || { currentPage: 1, totalPages: 1, totalItems: responseInventory.length, hasNextPage: false, hasPrevPage: false });
+      const edits = responseInventory.reduce((map, item) => {
         map[item._id] = {
           quantity: item.quantity ?? 0,
           branchPrice: item.branchPrice ?? item.product?.price ?? 0
@@ -46,6 +53,7 @@ const BranchInventory = () => {
       setBulkSaveMessage("");
     } catch (err) {
       console.error(err);
+      setInventory([]);
     } finally {
       setLoading(false);
     }
@@ -57,9 +65,19 @@ const BranchInventory = () => {
 
   useEffect(() => {
     if (branchId) {
-      loadInventory(branchId);
+      setPage(1);
+      loadInventory(branchId, 1, search);
     }
   }, [branchId]);
+
+  useEffect(() => {
+    if (!branchId) return;
+    const timeout = window.setTimeout(() => {
+      setPage(1);
+      loadInventory(branchId, 1, search);
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
 
   useEffect(() => {
     if (!branches.length || !branchId) return;
@@ -108,7 +126,7 @@ const BranchInventory = () => {
         branchPrice: edit.branchPrice
       });
       setSaveMessage(`Updated ${item.product?.name || "product"} successfully.`);
-      await loadInventory(branchId);
+      await loadInventory(branchId, page, search);
     } catch (err) {
       setSaveMessage(err.message || "Failed to save inventory item.");
     } finally {
@@ -133,7 +151,7 @@ const BranchInventory = () => {
         });
       }
       setBulkSaveMessage("All inventory items updated successfully.");
-      await loadInventory(branchId);
+      await loadInventory(branchId, page, search);
     } catch (err) {
       setBulkSaveMessage(err.message || "Failed to save inventory changes.");
     } finally {
@@ -187,11 +205,11 @@ const BranchInventory = () => {
         }
 
         setImportResult(result);
-        await loadInventory(branchId);
+        await loadInventory(branchId, 1, search);
       } else {
         result = { success: true, data: res };
         setImportResult(result);
-        await loadInventory(branchId);
+        await loadInventory(branchId, 1, search);
       }
     } catch (err) {
       setImportResult({ success: false, message: err.message || String(err) });
@@ -232,6 +250,9 @@ const BranchInventory = () => {
               value={branchId}
               onChange={(e) => setBranchId(e.target.value)}
             >
+              {user?.role === "owner" && (
+                <option value="headOffice">Head Office</option>
+              )}
               {branches.map((branch) => (
                 <option key={branch._id} value={branch._id}>
                   {branch.name}
@@ -272,6 +293,16 @@ const BranchInventory = () => {
             </div>
           )}
 
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700">Search products</label>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or SKU"
+              className="form-input mt-2 w-full"
+            />
+          </div>
+
           {loading ? (
             <div className="text-sm text-slate-500">Loading inventory...</div>
           ) : inventory.length === 0 ? (
@@ -295,43 +326,36 @@ const BranchInventory = () => {
                   {saveMessage}
                 </div>
               )}
-              {inventory.map((item) => {
-                const edit = inventoryEdits[item._id] || { quantity: item.quantity ?? 0, branchPrice: item.branchPrice ?? item.product?.price ?? 0 };
-                return (
-                  <div key={item._id} className="rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between gap-3">
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <div className="grid grid-cols-[2fr,1fr,1fr,auto] gap-3 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <span>Product</span>
+                  <span>Stock</span>
+                  <span>Price</span>
+                  <span>Action</span>
+                </div>
+                {inventory.map((item) => {
+                  const edit = inventoryEdits[item._id] || { quantity: item.quantity ?? 0, branchPrice: item.branchPrice ?? item.product?.price ?? 0 };
+                  return (
+                    <div key={item._id} className="grid grid-cols-[2fr,1fr,1fr,auto] items-center gap-3 border-t border-slate-200 px-4 py-3">
                       <div>
-                        <h3 className="font-semibold text-slate-900">{item.product?.name || "Unnamed product"}</h3>
-                        <p className="text-sm text-slate-500">SKU: {item.product?.sku || "N/A"}</p>
+                        <div className="font-semibold text-slate-900">{item.product?.name || "Unnamed product"}</div>
+                        <div className="text-sm text-slate-500">SKU: {item.product?.sku || "N/A"}</div>
                       </div>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-600">
-                        {item.quantity ?? 0}
-                      </span>
-                    </div>
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <label className="block text-sm text-slate-500">
-                        Quantity
-                        <input
-                          type="number"
-                          min="0"
-                          value={edit.quantity}
-                          onChange={(e) => handleInventoryChange(item._id, "quantity", e.target.value)}
-                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700"
-                        />
-                      </label>
-                      <label className="block text-sm text-slate-500">
-                        Price
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={edit.branchPrice}
-                          onChange={(e) => handleInventoryChange(item._id, "branchPrice", e.target.value)}
-                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700"
-                        />
-                      </label>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <input
+                        type="number"
+                        min="0"
+                        value={edit.quantity}
+                        onChange={(e) => handleInventoryChange(item._id, "quantity", e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={edit.branchPrice}
+                        onChange={(e) => handleInventoryChange(item._id, "branchPrice", e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700"
+                      />
                       <button
                         onClick={() => saveInventoryItem(item)}
                         className="btn btn-primary"
@@ -339,11 +363,38 @@ const BranchInventory = () => {
                       >
                         {savingItemId === item._id ? "Saving..." : "Save"}
                       </button>
-                      <p className="text-xs text-slate-500">Last saved inventory entry</p>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-slate-500">Showing {inventory.length} of {pagination.totalItems} items</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="btn"
+                    disabled={!pagination.hasPrevPage || loading}
+                    onClick={() => {
+                      const nextPage = Math.max(page - 1, 1);
+                      setPage(nextPage);
+                      loadInventory(branchId, nextPage, search);
+                    }}
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-slate-600">Page {pagination.currentPage} of {pagination.totalPages}</span>
+                  <button
+                    className="btn"
+                    disabled={!pagination.hasNextPage || loading}
+                    onClick={() => {
+                      const nextPage = page + 1;
+                      setPage(nextPage);
+                      loadInventory(branchId, nextPage, search);
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

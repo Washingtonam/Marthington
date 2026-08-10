@@ -153,16 +153,90 @@ const getBranchInventory = async (req, res) => {
       return res.status(400).json({ message: "branchId is required" });
     }
 
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const requestedLimit = Number(req.query.limit) || 20;
+    const limit = Math.min(Math.max(requestedLimit, 1), 100);
+    const skip = (page - 1) * limit;
+    const search = String(req.query.search || "").trim();
+
+    if (branchId === "headOffice") {
+      if (req.user.role !== "owner") {
+        return res.status(403).json({ message: "Only the owner can view head office stock" });
+      }
+
+      const filter = { business: businessId };
+      if (search) {
+        filter.$or = [
+          { name: { $regex: search, $options: "i" } },
+          { sku: { $regex: search, $options: "i" } }
+        ];
+      }
+
+      const totalItems = await Product.countDocuments(filter);
+      const products = await Product.find(filter)
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      const inventory = products.map((product) => ({
+        _id: `head-office-${product._id}`,
+        product: {
+          _id: product._id,
+          name: product.name,
+          sku: product.sku,
+          category: product.category,
+          price: product.price,
+          costPrice: product.costPrice
+        },
+        quantity: Number(product.stock || 0),
+        branchPrice: Number(product.price || 0),
+        isHeadOffice: true,
+        sourceLocation: "headOffice"
+      }));
+
+      return res.json({
+        inventory,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalItems / limit),
+          totalItems,
+          hasNextPage: page * limit < totalItems,
+          hasPrevPage: page > 1
+        }
+      });
+    }
+
     const branch = await Branch.findOne({ _id: branchId, business: businessId });
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
 
-    const inventory = await BranchInventory.find({ business: businessId, branch: branchId })
+    const inventoryRecords = await BranchInventory.find({ business: businessId, branch: branchId })
       .populate("product", "name sku category price costPrice")
+      .sort({ createdAt: -1 })
       .lean();
 
-    res.json(inventory);
+    const filtered = search
+      ? inventoryRecords.filter((entry) => {
+          const name = entry.product?.name || "";
+          const sku = entry.product?.sku || "";
+          return [name, sku].some((value) => value.toLowerCase().includes(search.toLowerCase()));
+        })
+      : inventoryRecords;
+
+    const paged = filtered.slice(skip, skip + limit);
+
+    res.json({
+      inventory: paged,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(filtered.length / limit),
+        totalItems: filtered.length,
+        hasNextPage: page * limit < filtered.length,
+        hasPrevPage: page > 1
+      }
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -176,6 +250,27 @@ const updateBranchInventory = async (req, res) => {
 
     if (!branchId || !productId) {
       return res.status(400).json({ message: "branchId and productId are required" });
+    }
+
+    if (branchId === "headOffice") {
+      if (req.user.role !== "owner") {
+        return res.status(403).json({ message: "Only the owner can update head office stock" });
+      }
+
+      const product = await Product.findOne({ _id: productId, business: businessId });
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      if (quantity !== undefined) {
+        product.stock = Number(quantity);
+      }
+      if (branchPrice !== undefined) {
+        product.price = Number(branchPrice);
+      }
+
+      await product.save();
+      return res.json(product);
     }
 
     const branch = await Branch.findOne({ _id: branchId, business: businessId });

@@ -24,8 +24,14 @@ export const deleteBranch = async (branchId) => {
   });
 };
 
-export const getBranchInventory = async (branchId) => {
-  return request(`/branches/inventory?branchId=${encodeURIComponent(branchId)}`);
+export const getBranchInventory = async ({ branchId, page = 1, limit = 20, search = "" } = {}) => {
+  const params = new URLSearchParams({
+    branchId,
+    page: String(page),
+    limit: String(limit),
+    ...(search ? { search } : {})
+  });
+  return request(`/branches/inventory?${params.toString()}`);
 };
 
 export const importBranchInventory = async ({ branchId, sourceType = "headOffice", sourceBranchId } = {}) => {
