@@ -308,6 +308,7 @@ const Staff = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showDrawer, setShowDrawer] = useState(false);
+  const [isDrawerMounted, setIsDrawerMounted] = useState(false);
   const [openGroup, setOpenGroup] = useState("inventory");
   const [showDetails, setShowDetails] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -431,6 +432,20 @@ const Staff = () => {
     setShowDrawer(true);
   };
 
+  // keep drawer mounted while animating close
+  useEffect(() => {
+    if (showDrawer) setIsDrawerMounted(true);
+  }, [showDrawer]);
+
+  useEffect(() => {
+    if (!showDrawer && isDrawerMounted) {
+      const t = setTimeout(() => setIsDrawerMounted(false), 300);
+      return () => clearTimeout(t);
+    }
+  }, [showDrawer, isDrawerMounted]);
+
+  const closeDrawer = () => setShowDrawer(false);
+
   // =====================================
   // DELETE
   // =====================================
@@ -446,7 +461,7 @@ const Staff = () => {
   };
 
   return (
-    <section className="products-layout">
+    <section className="products-layout single-column">
       {/* STAFF LIST */}
       <div className="w-full">
         <div className="page-heading flex items-center justify-between">
@@ -511,10 +526,10 @@ const Staff = () => {
       </div>
 
       {/* DRAWER: form slides in from right */}
-      {showDrawer && (
+      {isDrawerMounted && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDrawer(false)} />
-          <div ref={drawerRef} className="ml-auto w-full max-w-md bg-white h-full shadow-2xl p-6 transform transition-transform">
+          <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm drawer-backdrop ${showDrawer ? 'open' : ''}`} onClick={closeDrawer} />
+          <div ref={drawerRef} className={`ml-auto w-full max-w-md bg-white h-full shadow-2xl p-6 transform transition-transform drawer-panel ${showDrawer ? 'open' : ''}`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold">{editingId ? 'Modify Staff' : 'New Team Member'}</h2>
               <button onClick={() => setShowDrawer(false)} className="text-gray-500">✕</button>

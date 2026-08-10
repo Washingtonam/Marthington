@@ -812,6 +812,32 @@ a {
   gap: 20px;
 }
 
+/* When a page doesn't need the secondary column, use this modifier to collapse it */
+.products-layout.single-column {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Drawer overlay animations for pages that use an overlay drawer */
+.drawer-panel {
+  transform: translateX(100%);
+  transition: transform 240ms cubic-bezier(.2,.9,.2,1);
+}
+
+.drawer-panel.open {
+  transform: translateX(0);
+}
+
+.drawer-backdrop {
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+.drawer-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .table-heading {
   align-items: center;
 }
