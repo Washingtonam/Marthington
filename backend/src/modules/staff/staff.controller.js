@@ -202,8 +202,10 @@ const updateStaff = async (
     if (
       permissions !== undefined
     ) {
-      user.permissions =
-        permissions;
+      user.permissions = {
+        ...user.permissions,
+        ...permissions
+      };
     }
 
     if (branch !== undefined) {

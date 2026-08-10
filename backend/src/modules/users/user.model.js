@@ -41,14 +41,136 @@ const permissionSchema = new mongoose.Schema(
       default: false
     },
 
-    // STAFF
-    canManageStaff: {
+    // BRANCHES
+    canViewBranches: {
+      type: Boolean,
+      default: false
+    },
+
+    canManageBranches: {
+      type: Boolean,
+      default: false
+    },
+
+    canViewBranchInventory: {
+      type: Boolean,
+      default: false
+    },
+
+    canManageBranchInventory: {
+      type: Boolean,
+      default: false
+    },
+
+    // CUSTOMERS
+    canViewCustomers: {
+      type: Boolean,
+      default: false
+    },
+
+    canManageCustomers: {
+      type: Boolean,
+      default: false
+    },
+
+    // INVOICES
+    canViewInvoices: {
+      type: Boolean,
+      default: false
+    },
+
+    canManageInvoices: {
+      type: Boolean,
+      default: false
+    },
+
+    // EXPENSES
+    canViewExpenses: {
+      type: Boolean,
+      default: false
+    },
+
+    canManageExpenses: {
+      type: Boolean,
+      default: false
+    },
+
+    // PAYMENTS
+    canViewPayments: {
+      type: Boolean,
+      default: false
+    },
+
+    canManagePayments: {
+      type: Boolean,
+      default: false
+    },
+
+    // POS
+    canAccessPOS: {
+      type: Boolean,
+      default: true
+    },
+
+    canApplyDiscounts: {
+      type: Boolean,
+      default: false
+    },
+
+    canProcessReturns: {
+      type: Boolean,
+      default: false
+    },
+
+    // REPORTS BREAKDOWN
+    canViewSalesReports: {
+      type: Boolean,
+      default: false
+    },
+
+    canViewFinancialReports: {
+      type: Boolean,
+      default: false
+    },
+
+    canViewStaffReports: {
+      type: Boolean,
+      default: false
+    },
+
+    // STAFF CONTROL
+    canInviteStaff: {
+      type: Boolean,
+      default: false
+    },
+
+    canEditStaffPermissions: {
+      type: Boolean,
+      default: false
+    },
+
+    canDeactivateStaff: {
       type: Boolean,
       default: false
     },
 
     // SETTINGS
     canManageSettings: {
+      type: Boolean,
+      default: false
+    },
+
+    canManageBilling: {
+      type: Boolean,
+      default: false
+    },
+
+    canManageBusinessProfile: {
+      type: Boolean,
+      default: false
+    },
+
+    canManageIntegrations: {
       type: Boolean,
       default: false
     }
@@ -133,7 +255,31 @@ const userSchema = new mongoose.Schema(
         canViewReports: false,
         canOverridePrice: false,
         canManageStaff: false,
-        canManageSettings: false
+        canManageSettings: false,
+        canViewBranches: false,
+        canManageBranches: false,
+        canViewBranchInventory: false,
+        canManageBranchInventory: false,
+        canViewCustomers: false,
+        canManageCustomers: false,
+        canViewInvoices: false,
+        canManageInvoices: false,
+        canViewExpenses: false,
+        canManageExpenses: false,
+        canViewPayments: false,
+        canManagePayments: false,
+        canAccessPOS: true,
+        canApplyDiscounts: false,
+        canProcessReturns: false,
+        canViewSalesReports: false,
+        canViewFinancialReports: false,
+        canViewStaffReports: false,
+        canInviteStaff: false,
+        canEditStaffPermissions: false,
+        canDeactivateStaff: false,
+        canManageBilling: false,
+        canManageBusinessProfile: false,
+        canManageIntegrations: false
       })
     },
 

@@ -9,9 +9,9 @@ import {
 
 const router = express.Router();
 
-router.get("/", protect, getStaff);
-router.post("/staff", protect, createStaff);
-router.put("/:id", protect, updateStaff);
-router.patch("/:id/status", protect, toggleStaffStatus);
+router.get("/", protect, checkPermission("canManageStaff"), getStaff);
+router.post("/staff", protect, checkPermission("canInviteStaff"), createStaff);
+router.put("/:id", protect, checkPermission("canEditStaffPermissions"), updateStaff);
+router.patch("/:id/status", protect, checkPermission("canDeactivateStaff"), toggleStaffStatus);
 
 export default router;

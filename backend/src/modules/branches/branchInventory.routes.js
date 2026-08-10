@@ -8,28 +8,28 @@ const router = express.Router();
 router.get(
   "/",
   protect,
-  checkPermission("canViewProducts"),
+  checkPermission("canViewBranchInventory"),
   branchInventoryController.getBranchInventory
 );
 
 router.post(
   "/import",
   protect,
-  checkPermission("canManageProducts"),
+  checkPermission("canManageBranchInventory"),
   branchInventoryController.importProductToBranch
 );
 
 router.get(
   "/import/:id",
   protect,
-  checkPermission("canManageProducts"),
+  checkPermission("canManageBranchInventory"),
   branchInventoryController.getImportStatus
 );
 
 router.put(
   "/",
   protect,
-  checkPermission("canManageProducts"),
+  checkPermission("canManageBranchInventory"),
   branchInventoryController.updateBranchInventory
 );
 

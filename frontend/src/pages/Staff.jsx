@@ -19,7 +19,31 @@ const initialForm = {
     canViewReports: false,
     canOverridePrice: false,
     canManageStaff: false,
-    canManageSettings: false
+    canManageSettings: false,
+    canViewBranches: false,
+    canManageBranches: false,
+    canViewBranchInventory: false,
+    canManageBranchInventory: false,
+    canViewCustomers: false,
+    canManageCustomers: false,
+    canViewInvoices: false,
+    canManageInvoices: false,
+    canViewExpenses: false,
+    canManageExpenses: false,
+    canViewPayments: false,
+    canManagePayments: false,
+    canAccessPOS: true,
+    canApplyDiscounts: false,
+    canProcessReturns: false,
+    canViewSalesReports: false,
+    canViewFinancialReports: false,
+    canViewStaffReports: false,
+    canInviteStaff: false,
+    canEditStaffPermissions: false,
+    canDeactivateStaff: false,
+    canManageBilling: false,
+    canManageBusinessProfile: false,
+    canManageIntegrations: false
   }
 };
 
@@ -59,13 +83,221 @@ const permissionLabels = {
   canManageSettings: {
     label: "Manage settings",
     description: "Change business settings, billing, and integrations."
+  },
+  canViewBranches: {
+    label: "View branches",
+    description: "See branch listings and branch details."
+  },
+  canManageBranches: {
+    label: "Manage branches",
+    description: "Create, update, and delete branch locations."
+  },
+  canViewBranchInventory: {
+    label: "View branch inventory",
+    description: "See inventory quantities for branch locations."
+  },
+  canManageBranchInventory: {
+    label: "Manage branch inventory",
+    description: "Import and edit branch-specific inventory and pricing."
+  },
+  canViewCustomers: {
+    label: "View customers",
+    description: "See customer records and order history."
+  },
+  canManageCustomers: {
+    label: "Manage customers",
+    description: "Create and update customer records."
+  },
+  canViewInvoices: {
+    label: "View invoices",
+    description: "See invoices and sales receipts."
+  },
+  canManageInvoices: {
+    label: "Manage invoices",
+    description: "Create, update, and delete invoices."
+  },
+  canViewExpenses: {
+    label: "View expenses",
+    description: "See expense records and reports."
+  },
+  canManageExpenses: {
+    label: "Manage expenses",
+    description: "Create, update, and delete expense entries."
+  },
+  canViewPayments: {
+    label: "View payments",
+    description: "See payment records and transaction details."
+  },
+  canManagePayments: {
+    label: "Manage payments",
+    description: "Process and reconcile payment transactions."
+  },
+  canAccessPOS: {
+    label: "Access POS",
+    description: "Open and use the POS interface."
+  },
+  canApplyDiscounts: {
+    label: "Apply discounts",
+    description: "Allow discount or promotion application during checkout."
+  },
+  canProcessReturns: {
+    label: "Process returns",
+    description: "Handle returned items and refunds in sales."
+  },
+  canViewSalesReports: {
+    label: "View sales reports",
+    description: "See detailed sales performance analytics."
+  },
+  canViewFinancialReports: {
+    label: "View financial reports",
+    description: "See financial performance and profit analytics."
+  },
+  canViewStaffReports: {
+    label: "View staff reports",
+    description: "See team performance and staff activity reports."
+  },
+  canInviteStaff: {
+    label: "Invite staff",
+    description: "Create new staff accounts and invite team members."
+  },
+  canEditStaffPermissions: {
+    label: "Edit staff permissions",
+    description: "Change staff permissions and role settings."
+  },
+  canDeactivateStaff: {
+    label: "Deactivate staff",
+    description: "Disable or remove staff accounts."
+  },
+  canManageBilling: {
+    label: "Manage billing",
+    description: "Change billing details and subscription plans."
+  },
+  canManageBusinessProfile: {
+    label: "Manage business profile",
+    description: "Edit business details and company profile."
+  },
+  canManageIntegrations: {
+    label: "Manage integrations",
+    description: "Configure external services and integrations."
+  }
+};
+
+const rolePermissionPresets = {
+  staff: {
+    canViewDashboard: false,
+    canManageProducts: false,
+    canViewProducts: true,
+    canMakeSale: true,
+    canViewSales: true,
+    canViewReports: false,
+    canOverridePrice: false,
+    canManageStaff: false,
+    canManageSettings: false,
+    canViewBranches: false,
+    canManageBranches: false,
+    canViewBranchInventory: false,
+    canManageBranchInventory: false,
+    canViewCustomers: false,
+    canManageCustomers: false,
+    canViewInvoices: false,
+    canManageInvoices: false,
+    canViewExpenses: false,
+    canManageExpenses: false,
+    canViewPayments: false,
+    canManagePayments: false,
+    canAccessPOS: true,
+    canApplyDiscounts: false,
+    canProcessReturns: false,
+    canViewSalesReports: false,
+    canViewFinancialReports: false,
+    canViewStaffReports: false,
+    canInviteStaff: false,
+    canEditStaffPermissions: false,
+    canDeactivateStaff: false,
+    canManageBilling: false,
+    canManageBusinessProfile: false,
+    canManageIntegrations: false
+  },
+  cashier: {
+    canViewDashboard: false,
+    canManageProducts: false,
+    canViewProducts: true,
+    canMakeSale: true,
+    canViewSales: true,
+    canViewReports: false,
+    canOverridePrice: false,
+    canManageStaff: false,
+    canManageSettings: false,
+    canViewBranches: false,
+    canManageBranches: false,
+    canViewBranchInventory: false,
+    canManageBranchInventory: false,
+    canViewCustomers: true,
+    canManageCustomers: false,
+    canViewInvoices: false,
+    canManageInvoices: false,
+    canViewExpenses: false,
+    canManageExpenses: false,
+    canViewPayments: false,
+    canManagePayments: false,
+    canAccessPOS: true,
+    canApplyDiscounts: false,
+    canProcessReturns: false,
+    canViewSalesReports: false,
+    canViewFinancialReports: false,
+    canViewStaffReports: false,
+    canInviteStaff: false,
+    canEditStaffPermissions: false,
+    canDeactivateStaff: false,
+    canManageBilling: false,
+    canManageBusinessProfile: false,
+    canManageIntegrations: false
+  },
+  manager: {
+    canViewDashboard: true,
+    canManageProducts: true,
+    canViewProducts: true,
+    canMakeSale: true,
+    canViewSales: true,
+    canViewReports: true,
+    canOverridePrice: false,
+    canManageStaff: true,
+    canManageSettings: false,
+    canViewBranches: true,
+    canManageBranches: true,
+    canViewBranchInventory: true,
+    canManageBranchInventory: true,
+    canViewCustomers: true,
+    canManageCustomers: true,
+    canViewInvoices: true,
+    canManageInvoices: false,
+    canViewExpenses: true,
+    canManageExpenses: false,
+    canViewPayments: true,
+    canManagePayments: false,
+    canAccessPOS: true,
+    canApplyDiscounts: false,
+    canProcessReturns: false,
+    canViewSalesReports: true,
+    canViewFinancialReports: true,
+    canViewStaffReports: true,
+    canInviteStaff: true,
+    canEditStaffPermissions: true,
+    canDeactivateStaff: true,
+    canManageBilling: false,
+    canManageBusinessProfile: false,
+    canManageIntegrations: false
   }
 };
 
 const permissionGroups = {
-  inventory: ["canManageProducts", "canViewProducts"],
-  financials: ["canMakeSale", "canViewSales", "canOverridePrice"],
-  administration: ["canViewDashboard", "canViewReports", "canManageStaff", "canManageSettings"]
+  inventory: ["canManageProducts", "canViewProducts", "canViewBranches", "canManageBranches", "canViewBranchInventory", "canManageBranchInventory"],
+  customers: ["canViewCustomers", "canManageCustomers"],
+  finance: ["canViewInvoices", "canManageInvoices", "canViewExpenses", "canManageExpenses", "canViewPayments", "canManagePayments", "canViewFinancialReports"],
+  pos: ["canAccessPOS", "canMakeSale", "canViewSales", "canApplyDiscounts", "canProcessReturns"],
+  reports: ["canViewReports", "canViewSalesReports", "canViewStaffReports"],
+  staff: ["canManageStaff", "canInviteStaff", "canEditStaffPermissions", "canDeactivateStaff"],
+  settings: ["canManageSettings", "canManageBilling", "canManageBusinessProfile", "canManageIntegrations"]
 };
 
 const Staff = () => {
@@ -121,6 +353,18 @@ const Staff = () => {
   // =====================================
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === "role" && !editingId) {
+      setForm((prev) => ({
+        ...prev,
+        role: value,
+        permissions: {
+          ...rolePermissionPresets[value]
+        }
+      }));
+      return;
+    }
+
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -300,12 +544,13 @@ const Staff = () => {
               )}
 
               <div className="space-y-1">
-                <label className="text-sm font-semibold text-slate-700">Designated role</label>
+                <label className="text-sm font-semibold text-slate-700">Role preset</label>
                 <select className="input-field capitalize" name="role" value={form.role} onChange={handleChange}>
                   <option value="staff">Staff</option>
                   <option value="cashier">Cashier</option>
                   <option value="manager">Manager</option>
                 </select>
+                <p className="text-xs text-slate-500">Choose a role preset to preload default permissions for this team member.</p>
               </div>
 
               <div className="space-y-1">
@@ -325,10 +570,17 @@ const Staff = () => {
                 {Object.keys(permissionGroups).map((groupKey) => (
                   <div key={groupKey} className="mb-3">
                     <button type="button" onClick={() => setOpenGroup(openGroup === groupKey ? '' : groupKey)} className="w-full flex items-center justify-between p-3 bg-white rounded-xl border">
-                      <div className="text-sm font-semibold capitalize">{groupKey === 'inventory' ? 'Inventory Management' : groupKey === 'financials' ? 'Financials & POS' : 'Administration'}</div>
-                      <div className="text-xs text-gray-400">{openGroup === groupKey ? '−' : '+'}</div>
+                          <div className="text-sm font-semibold capitalize">
+                            {groupKey === 'inventory' && 'Inventory Management'}
+                            {groupKey === 'customers' && 'Customer Management'}
+                            {groupKey === 'finance' && 'Finance'}
+                            {groupKey === 'pos' && 'POS & Sales'}
+                            {groupKey === 'reports' && 'Reports'}
+                            {groupKey === 'staff' && 'Staff Management'}
+                            {groupKey === 'settings' && 'Settings'}
+                          </div>
+                          <div className="text-xs text-gray-400">{openGroup === groupKey ? '−' : '+'}</div>
                     </button>
-
                     {openGroup === groupKey && (
                       <div className="mt-2 space-y-2">
                         {permissionGroups[groupKey].map((permission) => {

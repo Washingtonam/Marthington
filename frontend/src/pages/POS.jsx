@@ -28,6 +28,7 @@ const formatDisplayText = (value = "") => {
 const POS = () => {
   const navigate = useNavigate();
   const { user, business } = useAuth();
+  const userBranchId = user?.branch?._id || user?.branch || "";
   
   // ====================================
   // REFS
@@ -50,7 +51,7 @@ const POS = () => {
   const [pulseId, setPulseId] = useState(null);
   const [pulseType, setPulseType] = useState("product");
   const [branches, setBranches] = useState([]);
-  const [selectedBranch, setSelectedBranch] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState(userBranchId);
   const [branchInventory, setBranchInventory] = useState([]);
 
   const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
@@ -135,9 +136,14 @@ const POS = () => {
           getBranches()
         ]);
 
-        setBranches(Array.isArray(branchRes) ? branchRes : []);
-        setSelectedBranch((Array.isArray(branchRes) && branchRes[0]?._id) || selectedBranch || "");
+        const branchList = Array.isArray(branchRes) ? branchRes : [];
+        setBranches(branchList);
 
+        if (!userBranchId) {
+          setSelectedBranch("");
+        } else if (!branchList.some((branch) => branch._id === userBranchId)) {
+          setSelectedBranch("");
+        }
 
         // Ensure we are setting arrays.
         // If the API returns { products: [...] }, use prodRes.products.

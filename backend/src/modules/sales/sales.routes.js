@@ -19,6 +19,7 @@ router.post(
 router.get(
   "/",
   protect,
+  checkPermission("canViewSales"),
   salesController.getSales
 );
 
@@ -53,6 +54,7 @@ router.get(
 router.get(
   "/:id",
   protect,
+  checkPermission("canViewSales"),
   salesController.getSaleById
 );
 

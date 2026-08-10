@@ -11,7 +11,7 @@ router.post(
   "/",
   protect,
   checkSubscription,
-  checkPermission("canViewReports"),
+  checkPermission("canManageExpenses"),
   expenseController.createExpense
 );
 
@@ -19,6 +19,7 @@ router.post(
 router.get(
   "/",
   protect,
+  checkPermission("canViewExpenses"),
   expenseController.getExpenses
 );
 
@@ -26,6 +27,7 @@ router.get(
 router.get(
   "/summary/metrics",
   protect,
+  checkPermission("canViewExpenses"),
   expenseController.getExpenseSummary
 );
 
@@ -33,6 +35,7 @@ router.get(
 router.get(
   "/:id",
   protect,
+  checkPermission("canViewExpenses"),
   expenseController.getExpenseById
 );
 
@@ -40,7 +43,7 @@ router.get(
 router.put(
   "/:id",
   protect,
-  checkPermission("canViewReports"),
+  checkPermission("canManageExpenses"),
   expenseController.updateExpense
 );
 
@@ -48,7 +51,7 @@ router.put(
 router.delete(
   "/:id",
   protect,
-  checkPermission("canViewReports"),
+  checkPermission("canManageExpenses"),
   expenseController.deleteExpense
 );
 
@@ -56,7 +59,7 @@ router.delete(
 router.post(
   "/bulk/delete",
   protect,
-  checkPermission("canViewReports"),
+  checkPermission("canManageExpenses"),
   expenseController.bulkDeleteExpenses
 );
 
