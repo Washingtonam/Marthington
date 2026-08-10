@@ -5,9 +5,17 @@ import { useAuth } from "../../context/AuthContext.jsx";
 const getPageTitle = (pathname) => {
   if (pathname.startsWith("/app/analytics")) return "Analytics";
   if (pathname.startsWith("/app/customers")) return "Customers / CRM";
+  if (pathname.startsWith("/app/products")) return "Products";
+  if (pathname.startsWith("/app/services")) return "Services";
+  if (pathname.startsWith("/app/pos")) return "POS";
   if (pathname.startsWith("/app/sales")) return "Sales & POS";
   if (pathname.startsWith("/app/invoices")) return "Invoices";
+  if (pathname.startsWith("/app/payments")) return "Payments";
   if (pathname.startsWith("/app/inventory")) return "Inventory";
+  if (pathname.startsWith("/app/suppliers")) return "Suppliers";
+  if (pathname.startsWith("/app/purchase-orders")) return "Purchase Orders";
+  if (pathname.startsWith("/app/expenses")) return "Expenses";
+  if (pathname.startsWith("/app/branches")) return "Branches";
   if (pathname.startsWith("/app/staff")) return "Staff";
   if (pathname.startsWith("/app/billing")) return "Billing";
   if (pathname.startsWith("/app/settings")) return "Settings";
