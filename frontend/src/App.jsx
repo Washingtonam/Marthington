@@ -5,7 +5,7 @@ import { AuthProvider } from "./context/AuthContext.jsx";
 // ====================================
 // CORE COMPONENTS
 // ====================================
-import AppLayout from "./components/AppLayout.jsx";
+import AppShell from "./components/layout/AppShell.jsx";
 import AdminLayout from "./components/AdminLayout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
@@ -24,6 +24,7 @@ const SaleDetails = lazy(() => import("./pages/SaleDetails.jsx"));
 const Staff = lazy(() => import("./pages/Staff.jsx"));
 const Settings = lazy(() => import("./pages/Settings.jsx"));
 const Reports = lazy(() => import("./pages/Reports.jsx"));
+const Analytics = lazy(() => import("./pages/Analytics.jsx"));
 const DeletedSales = lazy(() => import("./pages/DeletedSales.jsx"));
 const Billing = lazy(() => import("./pages/Billing.jsx"));
 const Invoices = lazy(() => import("./pages/Invoices.jsx"));
@@ -248,7 +249,7 @@ const App = () => {
               path="/app"
               element={
                 <ProtectedRoute>
-                  <AppLayout />
+                  <AppShell />
                 </ProtectedRoute>
               }
             >
@@ -261,7 +262,9 @@ const App = () => {
               <Route path="sales/:id" element={<SaleDetails />} />
               <Route path="staff" element={<Staff />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="analytics" element={<Analytics />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="inventory" element={<BranchInventory />} />
               <Route path="deleted-sales" element={<DeletedSales />} />
               <Route path="staff-reports" element={<StaffReports />} />
               <Route path="inventory-reports" element={<InventoryReports />} />
