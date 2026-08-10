@@ -1,6 +1,7 @@
 import express from "express";
 
 import protect from "../../middlewares/auth.middleware.js";
+import checkPermission from "../../middlewares/permission.middleware.js";
 import checkSubscription from "../../middlewares/subscription.middleware.js";
 
 import invoiceController from "./invoice.controller.js";
