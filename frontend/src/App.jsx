@@ -49,6 +49,7 @@ const PartnerProfile = lazy(() => import("./pages/PartnerProfile.jsx"));
 const PartnersReferrals = lazy(() => import("./pages/PartnersReferrals.jsx"));
 const AdminPayouts = lazy(() => import("./pages/AdminPayouts.jsx"));
 const AdminPartnersLedger = lazy(() => import("./pages/AdminPartnersLedger.jsx"));
+const UserGuide = lazy(() => import("./pages/UserGuide.jsx"));
 
 const Students = () => (
   <div className="page-shell">
@@ -269,6 +270,7 @@ const App = () => {
               <Route path="staff-reports" element={<StaffReports />} />
               <Route path="inventory-reports" element={<InventoryReports />} />
               <Route path="billing" element={<Billing />} />
+              <Route path="user-guide" element={<UserGuide />} />
               <Route path="verify-payment" element={<VerifyPayment />} />
               <Route path="invoices" element={<Invoices />} />
               <Route path="customers" element={<Customers />} />
