@@ -31,6 +31,8 @@ const Invoices = lazy(() => import("./pages/Invoices.jsx"));
 const VerifyPayment = lazy(() => import("./pages/VerifyPayment.jsx"));
 const Customers = lazy(() => import("./pages/Customers.jsx"));
 const Services = lazy(() => import("./pages/Services.jsx"));
+const Suppliers = lazy(() => import("./pages/Suppliers.jsx"));
+const PurchaseOrders = lazy(() => import("./pages/PurchaseOrders.jsx"));
 const Branches = lazy(() => import("./pages/Branches.jsx"));
 const BranchInventory = lazy(() => import("./pages/BranchInventory.jsx"));
 const StaffReports = lazy(() => import("./pages/StaffReports.jsx"));
@@ -272,9 +274,12 @@ const App = () => {
               <Route path="billing" element={<Billing />} />
               <Route path="user-guide" element={<UserGuide />} />
               <Route path="verify-payment" element={<VerifyPayment />} />
+              <Route path="payments" element={<VerifyPayment />} />
               <Route path="invoices" element={<Invoices />} />
               <Route path="customers" element={<Customers />} />
               <Route path="services" element={<Services />} />
+              <Route path="suppliers" element={<Suppliers />} />
+              <Route path="purchase-orders" element={<PurchaseOrders />} />
               <Route path="expenses" element={<Expenses />} />
               <Route
                 path="school-dashboard"

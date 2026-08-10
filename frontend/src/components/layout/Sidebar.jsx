@@ -6,25 +6,44 @@ const defaultNavGroups = [
     items: [{ to: "/app", label: "Dashboard", icon: "◉" }],
   },
   {
-    label: "Operations",
+    label: "Sales & Operations",
     items: [
-      { to: "/app/sales", label: "Sales & POS", icon: "▣" },
+      { to: "/app/pos", label: "POS", icon: "🛒" },
+      { to: "/app/sales", label: "Sales", icon: "▣" },
       { to: "/app/invoices", label: "Invoices", icon: "◫" },
-      { to: "/app/inventory", label: "Inventory", icon: "◧" },
-    ],
-  },
-  {
-    label: "Relationships",
-    items: [
+      { to: "/app/payments", label: "Payments", icon: "💳" },
       { to: "/app/customers", label: "Customers / CRM", icon: "◌" },
-      { to: "/app/staff", label: "Staff", icon: "◎" },
     ],
   },
   {
-    label: "Insights & Admin",
+    label: "Catalog & Inventory",
     items: [
-      { to: "/app/analytics", label: "Analytics", icon: "⬢" },
+      { to: "/app/products", label: "Products", icon: "📦" },
+      { to: "/app/services", label: "Services", icon: "🛠️" },
+      { to: "/app/inventory", label: "Inventory", icon: "◧" },
+      { to: "/app/suppliers", label: "Suppliers", icon: "🏭" },
+      { to: "/app/purchase-orders", label: "Purchase Orders", icon: "🧾" },
+    ],
+  },
+  {
+    label: "Finance & Control",
+    items: [
+      { to: "/app/expenses", label: "Expenses", icon: "💸" },
       { to: "/app/billing", label: "Billing", icon: "⬡" },
+      { to: "/app/reports", label: "Reports", icon: "📊" },
+      { to: "/app/analytics", label: "Analytics", icon: "⬢" },
+    ],
+  },
+  {
+    label: "People & Locations",
+    items: [
+      { to: "/app/staff", label: "Staff", icon: "◎" },
+      { to: "/app/branches", label: "Branches", icon: "🏢" },
+    ],
+  },
+  {
+    label: "System",
+    items: [
       { to: "/app/settings", label: "Settings", icon: "⚙" },
       { to: "/app/user-guide", label: "User Guide", icon: "📘" },
     ],
