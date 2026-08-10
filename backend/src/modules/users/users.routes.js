@@ -1,5 +1,6 @@
 import express from "express";
 import protect from "../../middlewares/auth.middleware.js";
+import checkPermission from "../../middlewares/permission.middleware.js";
 import {
   createStaff,
   getStaff,
