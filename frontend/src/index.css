@@ -8,14 +8,32 @@
   box-sizing: border-box;
 }
 
+:root {
+  color-scheme: light;
+}
+
 html {
   scroll-behavior: smooth;
+}
+
+html.light {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
   font-family: 'Inter', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
   background: #f8fafc;
   color: #0f172a;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+html.dark body {
+  background: #020617;
+  color: #f8fafc;
 }
 
 button,
