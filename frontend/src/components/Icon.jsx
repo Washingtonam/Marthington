@@ -53,6 +53,7 @@ const Icon = ({ name, className = "" }) => {
     add: '+',
     alert: '!',
     arrow: '→',
+    book: '📘',
     boxes: '#',
     building: 'B',
     chart: '%',

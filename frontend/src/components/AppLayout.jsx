@@ -159,6 +159,13 @@ const sharedNavItems = [
     icon: "settings",
     permission: "canManageSettings",
     isPremium: false
+  },
+  {
+    label: "User Guide",
+    href: "/app/user-guide",
+    icon: "book",
+    permission: "canManageSettings",
+    isPremium: false
   }
 ];
 

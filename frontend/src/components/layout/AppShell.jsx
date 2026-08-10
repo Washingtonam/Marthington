@@ -29,6 +29,7 @@ const defaultNavGroups = [
       { to: "/app/analytics", label: "Analytics", icon: "⬢" },
       { to: "/app/billing", label: "Billing", icon: "⬡" },
       { to: "/app/settings", label: "Settings", icon: "⚙" },
+      { to: "/app/user-guide", label: "User Guide", icon: "📘" },
     ],
   },
 ];
