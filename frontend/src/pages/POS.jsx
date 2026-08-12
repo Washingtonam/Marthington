@@ -54,6 +54,10 @@ const POS = () => {
   const [selectedBranch, setSelectedBranch] = useState(userBranchId);
   const [branchInventory, setBranchInventory] = useState([]);
 
+  useEffect(() => {
+    setSelectedBranch(userBranchId || "");
+  }, [userBranchId]);
+
   const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
   const [autoSend, setAutoSend] = useState(false);
 
