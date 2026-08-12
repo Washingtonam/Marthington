@@ -4,6 +4,19 @@ import User from "../users/user.model.js";
 import Branch from "../branches/branch.model.js";
 import Business from "../businesses/business.model.js";
 
+export const normalizeBranchAssignment = (branch) => {
+  if (branch === undefined || branch === null) {
+    return null;
+  }
+
+  if (typeof branch === "string") {
+    const trimmed = branch.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  return branch;
+};
+
 // =====================================
 // GET STAFF
 // =====================================
@@ -98,8 +111,10 @@ const createStaff = async (
       });
     }
 
-    if (branch) {
-      const branchRecord = await Branch.findOne({ _id: branch, business: req.user.businessId });
+    const normalizedBranch = normalizeBranchAssignment(branch);
+
+    if (normalizedBranch) {
+      const branchRecord = await Branch.findOne({ _id: normalizedBranch, business: req.user.businessId });
       if (!branchRecord) {
         return res.status(400).json({ message: "Invalid branch assignment" });
       }
@@ -208,12 +223,16 @@ const updateStaff = async (
       };
     }
 
+    const normalizedBranch = normalizeBranchAssignment(branch);
+
     if (branch !== undefined) {
-      const branchRecord = await Branch.findOne({ _id: branch, business: req.user.businessId });
-      if (!branchRecord) {
-        return res.status(400).json({ message: "Invalid branch assignment" });
+      if (normalizedBranch) {
+        const branchRecord = await Branch.findOne({ _id: normalizedBranch, business: req.user.businessId });
+        if (!branchRecord) {
+          return res.status(400).json({ message: "Invalid branch assignment" });
+        }
       }
-      user.branch = branch;
+      user.branch = normalizedBranch;
     }
 
     if (
@@ -297,5 +316,7 @@ export default {
 
   updateStaff,
 
-  deleteStaff
+  deleteStaff,
+
+  normalizeBranchAssignment
 };

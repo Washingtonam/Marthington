@@ -15,8 +15,10 @@ export const createStaff = async (req, res) => {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    if (branch) {
-      const branchRecord = await Branch.findOne({ _id: branch, business: req.user.businessId });
+    const normalizedBranch = branch && typeof branch === "string" ? branch.trim() || null : branch || null;
+
+    if (normalizedBranch) {
+      const branchRecord = await Branch.findOne({ _id: normalizedBranch, business: req.user.businessId });
       if (!branchRecord) {
         return res.status(400).json({ message: "Invalid branch assignment" });
       }
@@ -102,6 +104,8 @@ export const updateStaff = async (req, res) => {
   try {
     const { permissions, branch } = req.body;
 
+    const normalizedBranch = branch && typeof branch === "string" ? branch.trim() || null : branch || null;
+
     const staff = await User.findById(req.params.id);
 
     if (!staff) {
@@ -123,11 +127,13 @@ export const updateStaff = async (req, res) => {
     }
 
     if (branch !== undefined) {
-      const branchRecord = await Branch.findOne({ _id: branch, business: req.user.businessId });
-      if (!branchRecord) {
-        return res.status(400).json({ message: "Invalid branch assignment" });
+      if (normalizedBranch) {
+        const branchRecord = await Branch.findOne({ _id: normalizedBranch, business: req.user.businessId });
+        if (!branchRecord) {
+          return res.status(400).json({ message: "Invalid branch assignment" });
+        }
       }
-      staff.branch = branch;
+      staff.branch = normalizedBranch;
     }
 
     await staff.save();
