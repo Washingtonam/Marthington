@@ -46,7 +46,16 @@ const createBranch = async (req, res) => {
 
 const getBranches = async (req, res) => {
   try {
-    const branches = await Branch.find({ business: req.user.businessId })
+    let branchQuery = { business: req.user.businessId };
+
+    if (req.user.role !== "owner" && req.user.role !== "super_admin" && req.user.branchId) {
+      branchQuery = {
+        ...branchQuery,
+        _id: req.user.branchId
+      };
+    }
+
+    const branches = await Branch.find(branchQuery)
       .populate("manager", "name email role")
       .lean();
 

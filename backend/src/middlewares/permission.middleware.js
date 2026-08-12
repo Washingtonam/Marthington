@@ -11,8 +11,13 @@ const checkPermission = (permission) => {
         return next();
       }
 
-      // 🔥 USE PERMISSIONS FROM AUTH (FIX)
-      if (!req.user.permissions || !req.user.permissions[permission]) {
+      const permissions = req.user.permissions || {};
+
+      const branchScopedPosAccess =
+        (permission === "canViewBranches" || permission === "canViewBranchInventory") &&
+        permissions.canAccessPOS === true;
+
+      if (!permissions[permission] && !branchScopedPosAccess) {
         return res.status(403).json({
           message: "Permission denied"
         });

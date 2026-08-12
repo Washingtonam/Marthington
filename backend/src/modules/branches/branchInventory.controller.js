@@ -204,7 +204,11 @@ const importProductToBranch = async (req, res) => {
 const getBranchInventory = async (req, res) => {
   try {
     const businessId = req.user.businessId;
-    const branchId = req.query.branchId || req.user.branchId;
+    let branchId = req.query.branchId || req.user.branchId;
+
+    if (req.user.role !== "owner" && req.user.role !== "super_admin") {
+      branchId = req.user.branchId || branchId;
+    }
 
     if (!branchId) {
       return res.status(400).json({ message: "branchId is required" });
