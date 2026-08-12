@@ -85,10 +85,10 @@ const importProductToBranch = async (req, res) => {
       return res.json({ jobId: jobDoc._id });
     }
 
-    // SINGLE PRODUCT TRANSFER: keep existing semantics (move stock)
+    // SINGLE PRODUCT TRANSFER: move stock from the valid source to the target branch
     const transferQuantity = Number(quantity || 0);
 
-    if (transferQuantity <= 0) {
+    if (!Number.isFinite(transferQuantity) || transferQuantity <= 0) {
       return res.status(400).json({ message: "Quantity must be a positive number" });
     }
 
@@ -97,12 +97,89 @@ const importProductToBranch = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    if (product.stock < transferQuantity) {
-      return res.status(400).json({ message: "Insufficient central stock for transfer" });
+    let sourceBranchIdForTransfer = null;
+    let sourceStockBefore = null;
+
+    if (sourceType === "branch") {
+      if (!sourceBranchId) {
+        return res.status(400).json({ message: "sourceBranchId is required when transferring from another branch" });
+      }
+
+      if (sourceBranchId.toString() === branchId.toString()) {
+        return res.status(400).json({ message: "sourceBranchId must be different from target branchId" });
+      }
+
+      const sourceBranch = await Branch.findOne({ _id: sourceBranchId, business: businessId });
+      if (!sourceBranch) {
+        return res.status(404).json({ message: "Source branch not found" });
+      }
+
+      sourceBranchIdForTransfer = sourceBranch._id;
+
+      const sourceInventory = await BranchInventory.findOne({
+        business: businessId,
+        branch: sourceBranchIdForTransfer,
+        product: productId
+      });
+
+      if (!sourceInventory || sourceInventory.quantity < transferQuantity) {
+        return res.status(400).json({ message: "Insufficient stock in source branch for transfer" });
+      }
+
+      sourceStockBefore = sourceInventory.quantity;
+      sourceInventory.quantity -= transferQuantity;
+      await sourceInventory.save();
+
+      await InventoryMovement.create({
+        business: businessId,
+        branch: sourceBranchIdForTransfer,
+        product: productId,
+        type: "transfer",
+        quantity: transferQuantity,
+        previousStock: sourceStockBefore,
+        newStock: sourceInventory.quantity,
+        note: `Transferred to branch ${branch.name}`,
+        createdBy: req.user.id
+      });
+    } else {
+      if (product.stock < transferQuantity) {
+        return res.status(400).json({ message: "Insufficient central stock for transfer" });
+      }
+
+      sourceStockBefore = product.stock;
+      product.stock -= transferQuantity;
+      await product.save();
+
+      await InventoryMovement.create({
+        business: businessId,
+        product: productId,
+        branch: branchId,
+        type: "transfer",
+        quantity: transferQuantity,
+        previousStock: sourceStockBefore,
+        newStock: product.stock,
+        note: `Transferred to branch ${branch.name}`,
+        createdBy: req.user.id
+      });
     }
 
-    product.stock -= transferQuantity;
-    await product.save();
+    const targetInventory = await BranchInventory.findOne({ business: businessId, branch: branchId, product: productId });
+    const targetPreviousStock = targetInventory ? targetInventory.quantity : 0;
+
+    const inventory = await BranchInventory.findOneAndUpdate(
+      { business: businessId, branch: branchId, product: productId },
+      {
+        $setOnInsert: {
+          business: businessId,
+          branch: branchId,
+          product: productId,
+          createdBy: req.user.id
+        },
+        $inc: { quantity: transferQuantity },
+        ...(branchPrice !== undefined ? { $set: { branchPrice: Number(branchPrice) } } : {})
+      },
+      { upsert: true, new: true }
+    );
 
     await InventoryMovement.create({
       business: businessId,
@@ -110,33 +187,13 @@ const importProductToBranch = async (req, res) => {
       product: productId,
       type: "transfer",
       quantity: transferQuantity,
-      previousStock: product.stock + transferQuantity,
-      newStock: product.stock,
-      note: `Transferred to branch ${branch.name}`,
+      previousStock: targetPreviousStock,
+      newStock: inventory.quantity,
+      note: sourceType === "branch"
+        ? `Received from branch ${sourceBranchIdForTransfer}`
+        : "Received from head office",
       createdBy: req.user.id
     });
-
-    const update = {
-      $setOnInsert: {
-        business: businessId,
-        branch: branchId,
-        product: productId,
-        createdBy: req.user.id
-      },
-      $inc: {
-        quantity: transferQuantity
-      }
-    };
-
-    if (branchPrice !== undefined) {
-      update.$set = { branchPrice: Number(branchPrice) };
-    }
-
-    const inventory = await BranchInventory.findOneAndUpdate(
-      { business: businessId, branch: branchId, product: productId },
-      update,
-      { upsert: true, new: true }
-    );
 
     res.json(inventory);
   } catch (err) {

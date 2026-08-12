@@ -230,6 +230,11 @@ useEffect(() => {
       ? branchInventoryMap[item._id]?.quantity ?? item.stock
       : null;
 
+    if (type === "product" && selectedStock !== null && Number(selectedStock) <= 0) {
+      setUpgradeMsg(`${item.name} is out of stock in the selected branch.`);
+      return;
+    }
+
     setCart((prev) => {
       const isProduct = type === "product";
       const existingIndex = prev.findIndex(i => 
@@ -239,11 +244,16 @@ useEffect(() => {
       if (existingIndex > -1) {
         const newCart = [...prev];
         if (isProduct && selectedStock !== null && newCart[existingIndex].quantity >= selectedStock) {
-          setUpgradeMsg(`Limited Stock: Only ${selectedStock} available.`);
+          setUpgradeMsg(`Low stock alert: only ${selectedStock} ${selectedStock === 1 ? "unit" : "units"} left in the selected branch.`);
           return prev;
         }
         newCart[existingIndex].quantity += 1;
         return newCart;
+      }
+
+      if (isProduct && selectedStock !== null && selectedStock < 1) {
+        setUpgradeMsg(`Low stock alert: ${item.name} is unavailable in the selected branch.`);
+        return prev;
       }
 
       return [...prev, {
@@ -385,16 +395,26 @@ useEffect(() => {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="truncate text-sm font-semibold text-slate-800">{formatDisplayText(p.name)}</h3>
-                      <span className={`stock-badge ${Number(p.stock) < 5 ? "stock-warning" : ""}`}>
-                        {Number(p.stock) < 5 ? `${p.stock} left` : `${p.stock} left`}
+                      <span className={`stock-badge ${(Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock) <= 5) ? "stock-warning" : ""}`}>
+                        {Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock) <= 5
+                          ? `${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock} left`
+                          : `${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock} left`}
                       </span>
                     </div>
                     <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                       {formatDisplayText(p.category || "General")}
                     </p>
-                    {selectedBranch && (
+                    {selectedBranch ? (
+                      <p className={`mt-2 text-[11px] ${Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 0 ? "text-rose-600" : Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 5 ? "text-amber-600" : "text-slate-500"}`}>
+                        {Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 0
+                          ? "Out of stock in selected branch"
+                          : Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 5
+                            ? `Low stock in selected branch: ${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0} left`
+                            : `Branch stock: ${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0}`}
+                      </p>
+                    ) : (
                       <p className="mt-2 text-[11px] text-slate-500">
-                        Branch stock: {branchInventory.find(item => item.product?._id === p._id)?.quantity ?? "Not imported"}
+                        Head office stock: {p.stock ?? 0}
                       </p>
                     )}
                   </div>
@@ -431,6 +451,11 @@ useEffect(() => {
 
       {/* RIGHT COLUMN: CART */}
       <div className="xl:w-[400px]">
+        {selectedBranch && branchInventory.length === 0 && (
+          <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+            No inventory has been imported for the selected branch yet. Import stock before selling products from this location.
+          </div>
+        )}
         <div className="sticky top-4 rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)]">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-black text-slate-900">Cart</h2>

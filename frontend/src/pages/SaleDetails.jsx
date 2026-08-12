@@ -234,6 +234,12 @@ const SaleDetails = () => {
                 <span className="receipt-row-label">Cashier</span>
                 <strong className="receipt-row-value font-mono text-right">{sale.createdBy?.name || "Staff"}</strong>
               </div>
+              {sale.branch?.name && (
+                <div className="receipt-row">
+                  <span className="receipt-row-label">Branch</span>
+                  <strong className="receipt-row-value font-mono text-right">{sale.branch.name}</strong>
+                </div>
+              )}
               {sale.customerName && (
                 <div className="receipt-row">
                   <span className="receipt-row-label">Customer</span>

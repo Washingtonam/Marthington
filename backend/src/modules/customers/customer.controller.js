@@ -6,14 +6,16 @@ const createCustomer =
   async (req, res) => {
 
     try {
+      const normalizedPhone = req.body.phone
+        ? Customer.normalizePhoneNumber(req.body.phone)
+        : "";
 
       const customer =
         await Customer.create({
-
           ...req.body,
-
-          business:
-            req.user.businessId
+          phone: normalizedPhone || req.body.phone || "",
+          phoneNormalized: normalizedPhone,
+          business: req.user.businessId
         });
 
       res.json(customer);

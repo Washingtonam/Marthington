@@ -306,17 +306,27 @@ const BranchInventory = () => {
           {loading ? (
             <div className="text-sm text-slate-500">Loading inventory...</div>
           ) : inventory.length === 0 ? (
-            <div className="space-y-3">
-              <div className="text-sm text-slate-500">No inventory found for this location.</div>
-                  {branchId ? (
-                <div>
-                  <p className="text-sm text-slate-500">You can import all catalog products into this branch to start tracking stock.</p>
-                  <button onClick={handleImport} className="btn btn-primary mt-3" disabled={importing}>
-                    {importing ? "Importing..." : "Import All Inventory"}
+            <div className="space-y-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+              <div>
+                <p className="text-base font-semibold text-slate-800">This branch has no inventory imported yet.</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {branchId === "headOffice"
+                    ? "Head office inventory is visible here, but no product has been assigned to this branch yet."
+                    : `No stock has been imported for ${branches.find((branch) => branch._id === branchId)?.name || "this branch"} yet.`}
+                </p>
+              </div>
+
+              {branchId ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-slate-600">
+                    Import from the head office catalog or another branch to begin tracking stock movements and sales for this location.
+                  </p>
+                  <button onClick={handleImport} className="btn btn-primary" disabled={importing}>
+                    {importing ? "Importing..." : "Import Inventory"}
                   </button>
                 </div>
               ) : (
-                <div className="text-sm text-slate-500">Select a branch to import inventory.</div>
+                <div className="text-sm text-slate-500">Select a branch first to import inventory.</div>
               )}
             </div>
           ) : (

@@ -17,7 +17,7 @@ test('owners and super admins can restore archived sales', () => {
 test('sales queries exclude deleted records by default', () => {
   assert.deepEqual(buildSalesQuery({ businessId: 'business-1', isSuperAdmin: false }), {
     business: 'business-1',
-    isDeleted: false
+    isDeleted: { $ne: true }
   });
 });
 

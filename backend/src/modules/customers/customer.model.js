@@ -1,5 +1,31 @@
 import mongoose from "mongoose";
 
+const normalizePhoneNumber = (value = "") => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const digits = value.replace(/\D/g, "").trim();
+
+  if (!digits) {
+    return "";
+  }
+
+  if (digits.startsWith("234")) {
+    return digits;
+  }
+
+  if (digits.startsWith("0")) {
+    return `234${digits.slice(1)}`;
+  }
+
+  if (digits.length === 10) {
+    return `234${digits}`;
+  }
+
+  return digits;
+};
+
 const customerSchema =
   new mongoose.Schema({
 
@@ -18,6 +44,13 @@ const customerSchema =
     phone: {
       type: String,
       default: ""
+    },
+
+    phoneNormalized: {
+      type: String,
+      default: "",
+      index: true,
+      sparse: true
     },
 
     email: {
@@ -68,6 +101,21 @@ const customerSchema =
   }, {
     timestamps: true
   });
+
+customerSchema.statics.normalizePhoneNumber = normalizePhoneNumber;
+
+customerSchema.pre("save", function (next) {
+  if (this.phone) {
+    const normalized = normalizePhoneNumber(this.phone);
+    this.phone = normalized || this.phone.trim();
+    this.phoneNormalized = normalized;
+  } else {
+    this.phoneNormalized = "";
+  }
+  next();
+});
+
+customerSchema.index({ business: 1, phoneNormalized: 1 }, { sparse: true });
 
 export default mongoose.model(
   "Customer",

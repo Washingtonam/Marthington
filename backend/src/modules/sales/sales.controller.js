@@ -18,8 +18,9 @@ const createSale = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { items, autoSend, customerName, customerPhone, notes, paymentMethod } = req.body;
+    const { items, autoSend, customerName, customerPhone, notes, paymentMethod, branch } = req.body;
     const businessId = req.user.businessId;
+    const branchId = branch || req.user.branchId || null;
 
     // 1. Fetch Business & Check Subscription
     const business = await Business.findById(businessId).session(session);
@@ -39,12 +40,18 @@ const createSale = async (req, res) => {
     // 2. Handle Customer Logic
     let customer = null;
     if (customerPhone) {
-      customer = await Customer.findOne({ business: businessId, phone: customerPhone }).session(session);
+      const normalizedPhone = Customer.normalizePhoneNumber(customerPhone);
+      customer = await Customer.findOne({
+        business: businessId,
+        phoneNormalized: normalizedPhone
+      }).session(session);
+
       if (!customer) {
         customer = await Customer.create([{
           business: businessId,
           name: customerName || "Walk-in Customer",
-          phone: customerPhone
+          phone: normalizedPhone,
+          phoneNormalized: normalizedPhone
         }], { session }).then(res => res[0]);
       }
     }
@@ -81,7 +88,6 @@ const createSale = async (req, res) => {
         const itemTotal = finalPrice * quantity;
         totalAmount += itemTotal;
 
-        const branchId = req.user.branchId;
         let previousStock;
 
         if (branchId) {
@@ -163,7 +169,7 @@ const createSale = async (req, res) => {
       totalAmount,
       paymentMethod: paymentMethod || "Cash",
       business: businessId,
-      branch: req.user.branchId || null,
+      branch: branchId || null,
       createdBy: req.user.id,
       customer: customer?._id || null,
       customerName: customerName || customer?.name || "Walk-in",
@@ -203,6 +209,7 @@ const getSales = async (req, res) => {
     const sales = await Sale.find(query)
       .sort({ createdAt: -1 })
       .populate("createdBy", "name")
+      .populate("branch", "name")
       .populate("items.product", "name price")
       .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
 
@@ -242,6 +249,7 @@ const getSaleById = async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id)
       .populate("createdBy", "name")
+      .populate("branch", "name")
       .populate("items.product", "name price")
       .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
 
@@ -314,6 +322,7 @@ const getPublicSale = async (req, res) => {
   try {
     const { id } = req.params;
     const sale = await Sale.findOne({ $or: [{ _id: id }, { receiptId: id }] })
+      .populate("branch", "name")
       .populate("items.product", "name price")
       .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
 

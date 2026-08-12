@@ -9,10 +9,7 @@ export const buildSalesQuery = ({ businessId, isSuperAdmin = false, includeDelet
   const query = {};
 
   if (!isSuperAdmin) {
-    query.$or = [
-      { business: businessId },
-      { businessId: businessId }
-    ];
+    query.business = businessId;
   }
 
   if (includeDeleted) {

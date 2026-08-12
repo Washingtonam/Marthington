@@ -69,6 +69,10 @@ const PublicReceipt = () => {
             {business.name}
           </h2>
 
+          {sale.branch?.name && (
+            <p className="text-xs opacity-70">Branch: {sale.branch.name}</p>
+          )}
+
           {business.address && (
             <p className="text-xs opacity-70">{business.address}</p>
           )}

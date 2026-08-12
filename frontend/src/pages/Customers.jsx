@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiMail, FiPhone, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi";
-import { getCustomers } from "../api/customers.js";
+import { createCustomer, getCustomers } from "../api/customers.js";
 import { formatCurrency } from "../utils/formatters.js";
 
 const createEmptyForm = () => ({
@@ -92,25 +92,51 @@ const Customers = () => {
     setForm((current) => ({ ...current, [name]: value }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    const newCustomer = {
-      _id: `local-${Date.now()}`,
-      name: form.name.trim() || "Unnamed customer",
-      phone: form.phone.trim(),
-      email: form.email.trim(),
-      address: form.address.trim(),
-      totalSpent: Number(form.totalSpent || 0),
-      totalOrders: Number(form.totalOrders || 1),
-      status: form.status || "active",
-      outstandingBalance: Number(form.outstandingBalance || 0),
-      createdAt: new Date().toISOString(),
-    };
+    const trimmedName = form.name.trim();
+    const trimmedPhone = form.phone.trim();
+    const trimmedEmail = form.email.trim();
+    const emailIsValid = !trimmedEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+    const phoneIsValid = !trimmedPhone || /^[+()\d\s-]{7,20}$/.test(trimmedPhone);
 
-    setCustomers((current) => [newCustomer, ...current]);
-    setDrawerOpen(false);
-    setPreviewCustomer(newCustomer);
+    if (!trimmedName) {
+      alert("Customer name is required.");
+      return;
+    }
+
+    if (!emailIsValid) {
+      alert("Please enter a valid email address, or leave it blank.");
+      return;
+    }
+
+    if (!phoneIsValid) {
+      alert("Please enter a valid phone number, or leave it blank.");
+      return;
+    }
+
+    try {
+      const payload = {
+        name: trimmedName,
+        phone: trimmedPhone,
+        email: trimmedEmail,
+        address: form.address.trim(),
+        notes: "",
+        totalSpent: Number(form.totalSpent || 0),
+        totalOrders: Number(form.totalOrders || 1),
+        outstandingBalance: Number(form.outstandingBalance || 0),
+        isActive: form.status !== "inactive"
+      };
+
+      const newCustomer = await createCustomer(payload);
+      setCustomers((current) => [newCustomer, ...current]);
+      setDrawerOpen(false);
+      setPreviewCustomer(newCustomer);
+    } catch (err) {
+      console.error("Failed to create customer:", err);
+      alert(err.message || "Failed to create customer");
+    }
   };
 
   return (

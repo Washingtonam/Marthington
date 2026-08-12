@@ -23,7 +23,7 @@ export const processBranchImportJob = async ({
       const cursor = Product.find(query).select("_id price").lean().cursor();
 
       for (let doc = await cursor.next(); doc != null; doc = await cursor.next()) {
-        items.push({ productId: doc._id, branchPrice: doc.price || 0 });
+        items.push({ productId: doc._id, branchPrice: doc.price || 0, quantity: 0 });
       }
     } else if (sourceType === "branch") {
       if (!sourceBranchId) {
@@ -40,7 +40,7 @@ export const processBranchImportJob = async ({
           ? doc.branchPrice
           : doc.product?.price || 0;
 
-        items.push({ productId: doc.product._id, branchPrice });
+        items.push({ productId: doc.product._id, branchPrice, quantity: Number(doc.quantity || 0) });
       }
       totalProducts = items.length;
     } else {
@@ -62,7 +62,12 @@ export const processBranchImportJob = async ({
               branch: branchId,
               product: item.productId,
               createdBy: userId,
-              branchPrice: item.branchPrice
+              branchPrice: item.branchPrice,
+              quantity: Number(item.quantity || 0)
+            },
+            $set: {
+              branchPrice: item.branchPrice,
+              quantity: Number(item.quantity || 0)
             }
           },
           upsert: true

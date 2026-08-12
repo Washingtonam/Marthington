@@ -52,8 +52,32 @@ const register = async (req, res) => {
         canViewSales: true,
         canViewReports: true,
         canOverridePrice: true,
+        canViewBranches: true,
+        canManageBranches: true,
+        canViewBranchInventory: true,
+        canManageBranchInventory: true,
+        canViewCustomers: true,
+        canManageCustomers: true,
+        canViewInvoices: true,
+        canManageInvoices: true,
+        canViewExpenses: true,
+        canManageExpenses: true,
+        canViewPayments: true,
+        canManagePayments: true,
+        canAccessPOS: true,
+        canApplyDiscounts: true,
+        canProcessReturns: true,
+        canViewSalesReports: true,
+        canViewFinancialReports: true,
+        canViewStaffReports: true,
+        canInviteStaff: true,
+        canEditStaffPermissions: true,
+        canDeactivateStaff: true,
         canManageStaff: true,
-        canManageSettings: true
+        canManageSettings: true,
+        canManageBilling: true,
+        canManageBusinessProfile: true,
+        canManageIntegrations: true
       }
     });
 

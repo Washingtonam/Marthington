@@ -24,13 +24,18 @@ export const deleteBranch = async (branchId) => {
   });
 };
 
-export const getBranchInventory = async ({ branchId, page = 1, limit = 20, search = "" } = {}) => {
+export const getBranchInventory = async (branchOrOptions = {}) => {
+  const options = typeof branchOrOptions === "string"
+    ? { branchId: branchOrOptions, page: 1, limit: 20, search: "" }
+    : ({ page: 1, limit: 20, search: "", ...branchOrOptions });
+
   const params = new URLSearchParams({
-    branchId,
-    page: String(page),
-    limit: String(limit),
-    ...(search ? { search } : {})
+    branchId: options.branchId || "",
+    page: String(options.page ?? 1),
+    limit: String(options.limit ?? 20),
+    ...(options.search ? { search: options.search } : {})
   });
+
   return request(`/branches/inventory?${params.toString()}`);
 };
 
