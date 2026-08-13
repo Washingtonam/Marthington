@@ -447,8 +447,8 @@ const Invoices = () => {
 
     try {
       // Fetch full invoice data with all populated fields
-      const response = await request.get(`/invoices/${invoice._id}/pdf`);
-      const invoiceData = response.data.invoice;
+      const pdfData = await request(`/invoices/${invoice._id}/pdf`);
+      const invoiceData = pdfData.invoice || pdfData;
       setPdfInvoice(invoiceData);
     } catch (err) {
       console.error("Failed to load invoice for PDF:", err);
@@ -459,20 +459,25 @@ const Invoices = () => {
     }
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (format = 'pdf') => {
     if (!pdfRef.current || !pdfInvoice) return;
 
     try {
       setPdfLoading(true);
+      const fileName = format === 'jpg' 
+        ? `invoice-${pdfInvoice.invoiceNumber}.jpg`
+        : `invoice-${pdfInvoice.invoiceNumber}.pdf`;
+      
       await downloadInvoicePDF(
         pdfInvoice,
         "invoice-pdf-template",
-        `invoice-${pdfInvoice.invoiceNumber}.pdf`
+        fileName,
+        format
       );
-      alert("PDF downloaded successfully!");
+      alert(`${format.toUpperCase()} downloaded successfully!`);
     } catch (err) {
-      console.error("PDF download failed:", err);
-      alert("Failed to download PDF. Please try again.");
+      console.error("Download failed:", err);
+      alert(`Failed to download ${format.toUpperCase()}. Please try again.`);
     } finally {
       setPdfLoading(false);
     }
@@ -1230,11 +1235,20 @@ const Invoices = () => {
                 🖨️ Print
               </button>
               <button
-                onClick={handleDownloadPdf}
+                onClick={() => handleDownloadPdf('jpg')}
+                disabled={pdfLoading}
+                className="rounded-2xl border border-green-300 px-6 py-3 text-sm font-bold text-green-600 hover:bg-green-50 disabled:opacity-50"
+                title="Download as JPG image"
+              >
+                {pdfLoading ? "Downloading..." : "📷 JPG"}
+              </button>
+              <button
+                onClick={() => handleDownloadPdf('pdf')}
                 disabled={pdfLoading}
                 className="rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                title="Download as PDF"
               >
-                {pdfLoading ? "Downloading..." : "📥 Download PDF"}
+                {pdfLoading ? "Downloading..." : "📥 PDF"}
               </button>
             </div>
           </div>

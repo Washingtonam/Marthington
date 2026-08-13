@@ -2,12 +2,13 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 /**
- * Generate Invoice PDF from invoice data
+ * Generate Invoice PDF/JPG from invoice data
  * @param {Object} invoice - Invoice data object
  * @param {string} elementId - ID of the HTML element to convert to PDF
- * @param {string} fileName - Name for the downloaded PDF file
+ * @param {string} fileName - Name for the downloaded file
+ * @param {string} format - Output format: 'pdf' or 'jpg' (default: 'pdf')
  */
-export const downloadInvoicePDF = async (invoice, elementId, fileName) => {
+export const downloadInvoicePDF = async (invoice, elementId, fileName, format = 'pdf') => {
   try {
     const element = document.getElementById(elementId);
     if (!element) {
@@ -23,6 +24,20 @@ export const downloadInvoicePDF = async (invoice, elementId, fileName) => {
     });
 
     const imgData = canvas.toDataURL("image/png");
+
+    if (format === 'jpg') {
+      // Export as JPG
+      const jpgData = canvas.toDataURL("image/jpeg", 0.95);
+      const link = document.createElement('a');
+      link.href = jpgData;
+      link.download = fileName?.replace('.pdf', '.jpg') || `invoice-${invoice.invoiceNumber}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return true;
+    }
+
+    // Default: Export as PDF
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
@@ -52,7 +67,7 @@ export const downloadInvoicePDF = async (invoice, elementId, fileName) => {
     pdf.save(fileName || `invoice-${invoice.invoiceNumber}.pdf`);
     return true;
   } catch (error) {
-    console.error("Error generating PDF:", error);
+    console.error("Error generating document:", error);
     throw error;
   }
 };
