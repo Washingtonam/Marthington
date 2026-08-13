@@ -28,6 +28,7 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
     dueDate,
     transactionType,
     notes,
+    paymentStatus = "Unpaid",
   } = invoice;
 
   const isOutgoing = transactionType === "outgoing";
@@ -47,6 +48,24 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
       month: "long",
       day: "numeric",
     });
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "Fully Paid":
+        return "#22c55e"; // Green
+      case "Partially Paid":
+        return "#f59e0b"; // Amber
+      case "Returned":
+        return "#8b5cf6"; // Purple
+      case "Unpaid":
+      default:
+        return "#ef4444"; // Red
+    }
+  };
+
+  const getStatusDisplay = (status) => {
+    return (status || "Unpaid").toUpperCase();
   };
 
   return (
@@ -82,12 +101,12 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
               <span style={{
                 padding: "4px 8px",
                 borderRadius: "4px",
-                backgroundColor: amountPaid >= totalAmount ? "#22c55e" : amountPaid > 0 ? "#f59e0b" : "#ef4444",
+                backgroundColor: getStatusColor(paymentStatus),
                 color: "white",
                 fontSize: "12px",
                 fontWeight: "bold"
               }}>
-                {amountPaid >= totalAmount ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID"}
+                {getStatusDisplay(paymentStatus)}
               </span>
             </p>
             {dueDate && (
@@ -229,6 +248,7 @@ InvoicePDFTemplate.propTypes = {
     dueDate: PropTypes.string,
     transactionType: PropTypes.string,
     notes: PropTypes.string,
+    paymentStatus: PropTypes.oneOf(["Unpaid", "Partially Paid", "Fully Paid", "Returned"]),
   }),
 };
 
