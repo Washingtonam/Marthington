@@ -168,6 +168,11 @@ const invoiceSchema =
       default: "Unpaid"
     },
 
+    stockFinalized: {
+      type: Boolean,
+      default: false
+    },
+
     status: {
       type: String,
 

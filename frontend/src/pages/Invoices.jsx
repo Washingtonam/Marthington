@@ -5,6 +5,7 @@ import request from "../api/client.js";
 import { getInvoices, createInvoice, updateInvoicePayment, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory } from "../api/invoices.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { getBranches } from "../api/branches.js";
+import { getProducts } from "../api/products.js";
 import InvoicePDFTemplate from "../components/InvoicePDFTemplate.jsx";
 import { downloadInvoicePDF } from "../utils/pdfGenerator.js";
 
@@ -60,6 +61,20 @@ const Invoices = () => {
   const [sharing, setSharing] = useState(false);
   const [emailHistoryOpen, setEmailHistoryOpen] = useState(false);
   const [emailHistory, setEmailHistory] = useState([]);
+  const [newInvoiceModalOpen, setNewInvoiceModalOpen] = useState(false);
+  const [productCatalog, setProductCatalog] = useState([]);
+  const [newInvoiceDraft, setNewInvoiceDraft] = useState({
+    transactionType: "outgoing",
+    customerName: "",
+    customerPhone: "",
+    customerEmail: "",
+    dueDate: "",
+    notes: "",
+    invoiceType: "invoice",
+    tax: 0,
+    discount: 0,
+    items: [{ product: "", name: "", quantity: 1, price: 0, total: 0 }]
+  });
 
   const { isPro, loadingBusiness, branchId: userBranchId } = useAuth();
 
@@ -104,8 +119,19 @@ const Invoices = () => {
       }
     };
 
+    const loadProducts = async () => {
+      try {
+        const data = await getProducts();
+        setProductCatalog(Array.isArray(data) ? data : data?.products || []);
+      } catch (err) {
+        console.error("Failed to load products:", err);
+        setProductCatalog([]);
+      }
+    };
+
     loadInvoices();
     loadBranches();
+    loadProducts();
   }, []);
 
   // ====================================
@@ -196,30 +222,132 @@ const Invoices = () => {
     }
   };
 
-  const handleCreateInvoice = async () => {
+  const openNewInvoiceModal = () => {
     if (!isPro && !loadingBusiness) {
       navigate("/app/billing");
       return;
     }
 
+    setNewInvoiceDraft({
+      transactionType: "outgoing",
+      customerName: "",
+      customerPhone: "",
+      customerEmail: "",
+      dueDate: "",
+      notes: "",
+      invoiceType: "invoice",
+      tax: 0,
+      discount: 0,
+      items: [{ product: "", name: "", quantity: 1, price: 0, total: 0 }]
+    });
+    setNewInvoiceModalOpen(true);
+  };
+
+  const updateNewInvoiceItem = (index, field, value) => {
+    setNewInvoiceDraft(prev => {
+      const nextItems = [...prev.items];
+      nextItems[index] = { ...nextItems[index], [field]: value };
+
+      if (field === "product") {
+        const selectedProduct = productCatalog.find(product => product._id === value);
+        if (selectedProduct) {
+          nextItems[index].name = selectedProduct.name || "";
+          nextItems[index].price = Number(selectedProduct.price || selectedProduct.sellingPrice || 0);
+        }
+      }
+
+      if (field === "quantity" || field === "price") {
+        const quantity = Number(nextItems[index].quantity || 0);
+        const price = Number(nextItems[index].price || 0);
+        nextItems[index].total = quantity * price;
+      }
+
+      return { ...prev, items: nextItems };
+    });
+  };
+
+  const addNewInvoiceItem = () => {
+    setNewInvoiceDraft(prev => ({
+      ...prev,
+      items: [...prev.items, { product: "", name: "", quantity: 1, price: 0, total: 0 }]
+    }));
+  };
+
+  const removeNewInvoiceItem = (index) => {
+    setNewInvoiceDraft(prev => ({
+      ...prev,
+      items: prev.items.filter((_, itemIndex) => itemIndex !== index)
+    }));
+  };
+
+  const calculateInvoiceDraftTotals = () => {
+    const subtotal = (newInvoiceDraft.items || []).reduce((sum, item) => sum + Number(item.total || 0), 0);
+    const tax = Number(newInvoiceDraft.tax || 0);
+    const discount = Number(newInvoiceDraft.discount || 0);
+    const totalAmount = subtotal + tax - discount;
+
+    return { subtotal, tax, discount, totalAmount };
+  };
+
+  const handleCreateInvoice = async () => {
+    const { items = [], customerName, customerPhone, customerEmail, dueDate, notes, invoiceType, tax, discount, transactionType } = newInvoiceDraft;
+
+    const validItems = items.filter(item => item && (item.product || item.name));
+    if (!validItems.length) {
+      alert("Add at least one product to the invoice.");
+      return;
+    }
+
+    const itemPayload = validItems.map(item => {
+      const quantity = Number(item.quantity || 0);
+      const price = Number(item.price || 0);
+
+      if (!item.product) {
+        throw new Error("Each invoice item must include a product.");
+      }
+
+      return {
+        product: item.product,
+        name: item.name || "Product",
+        quantity,
+        price,
+        total: quantity * price
+      };
+    });
+
     try {
       setCreatingInvoice(true);
       const invoice = await createInvoice({
-        customerName: "New Invoice",
+        transactionType,
+        customerName,
+        customerPhone,
+        customerEmail,
+        dueDate: dueDate || null,
+        notes,
+        invoiceType,
+        items: itemPayload,
+        tax: Number(tax || 0),
+        discount: Number(discount || 0)
+      });
+
+      setInvoices([invoice, ...invoices]);
+      setNewInvoiceModalOpen(false);
+      setNewInvoiceDraft({
+        transactionType: "outgoing",
+        customerName: "",
         customerPhone: "",
         customerEmail: "",
-        items: [],
+        dueDate: "",
+        notes: "",
+        invoiceType: "invoice",
         tax: 0,
         discount: 0,
-        invoiceType: "invoice"
+        items: [{ product: "", name: "", quantity: 1, price: 0, total: 0 }]
       });
-      setInvoices([invoice, ...invoices]);
-      alert("Invoice created successfully. Refresh or view the list to continue.");
+      alert("Invoice created successfully.");
     } catch (err) {
       console.error("Failed to create invoice:", err);
-      if (!isPro) {
-        navigate("/app/billing");
-      }
+      alert(err.message || "Failed to create invoice. Please try again.");
     } finally {
       setCreatingInvoice(false);
     }
@@ -488,7 +616,7 @@ const Invoices = () => {
           Start creating invoices to track your billing and manage customer payments efficiently.
         </p>
         <button
-          onClick={handleCreateInvoice}
+          onClick={openNewInvoiceModal}
           disabled={creatingInvoice || loadingBusiness}
           className="mt-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all disabled:opacity-50"
         >
@@ -516,7 +644,7 @@ const Invoices = () => {
             <h1 className="text-4xl font-black text-gray-900">Invoices</h1>
           </div>
           <button
-            onClick={handleCreateInvoice}
+            onClick={openNewInvoiceModal}
             disabled={creatingInvoice || loadingBusiness}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg disabled:opacity-50"
           >
@@ -1093,6 +1221,254 @@ const Invoices = () => {
                 className="rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {pdfLoading ? "Downloading..." : "📥 Download PDF"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {newInvoiceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto">
+          <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="flex items-start justify-between gap-4 p-6 border-b border-slate-200">
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-widest">new invoice</p>
+                <h2 className="text-2xl font-black text-slate-900">Create invoice</h2>
+              </div>
+              <button
+                onClick={() => setNewInvoiceModalOpen(false)}
+                className="text-slate-500 hover:text-slate-900 text-2xl"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  Invoice Type
+                  <select
+                    value={newInvoiceDraft.invoiceType}
+                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, invoiceType: e.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="invoice">Invoice</option>
+                    <option value="quotation">Quotation</option>
+                    <option value="proforma">Proforma</option>
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  Transaction Type
+                  <select
+                    value={newInvoiceDraft.transactionType}
+                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, transactionType: e.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="outgoing">Customer Invoice</option>
+                    <option value="incoming">Supplier Invoice</option>
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  {newInvoiceDraft.transactionType === "incoming" ? "Supplier Name" : "Customer Name"}
+                  <input
+                    value={newInvoiceDraft.customerName}
+                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, customerName: e.target.value }))}
+                    placeholder={newInvoiceDraft.transactionType === "incoming" ? "Supplier name" : "Customer name"}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  {newInvoiceDraft.transactionType === "incoming" ? "Supplier Email" : "Customer Email"}
+                  <input
+                    type="email"
+                    value={newInvoiceDraft.customerEmail}
+                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, customerEmail: e.target.value }))}
+                    placeholder="email@example.com"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  {newInvoiceDraft.transactionType === "incoming" ? "Supplier Phone" : "Customer Phone"}
+                  <input
+                    value={newInvoiceDraft.customerPhone}
+                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, customerPhone: e.target.value }))}
+                    placeholder="+234..."
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  Due Date
+                  <input
+                    type="date"
+                    value={newInvoiceDraft.dueDate}
+                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, dueDate: e.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-black text-slate-900">Invoice Items</h3>
+                  <button
+                    type="button"
+                    onClick={addNewInvoiceItem}
+                    className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700"
+                  >
+                    + Add Item
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {(newInvoiceDraft.items || []).map((item, index) => {
+                    const selectedProduct = productCatalog.find(product => product._id === item.product);
+                    const availableStock = selectedProduct ? Number(selectedProduct.stock || 0) : 0;
+
+                    return (
+                      <div key={`${item.product || "new"}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <span className="text-sm font-bold text-slate-700">Item {index + 1}</span>
+                          {(newInvoiceDraft.items.length > 1) && (
+                            <button
+                              type="button"
+                              onClick={() => removeNewInvoiceItem(index)}
+                              className="text-xs font-bold text-red-600 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                          <label className="space-y-2 text-sm font-bold text-slate-700 md:col-span-2">
+                            Product
+                            <select
+                              value={item.product}
+                              onChange={(e) => updateNewInvoiceItem(index, "product", e.target.value)}
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                            >
+                              <option value="">Select product</option>
+                              {productCatalog.map(product => (
+                                <option key={product._id} value={product._id}>
+                                  {product.name} ({product.stock ?? 0} in stock)
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="space-y-2 text-sm font-bold text-slate-700">
+                            Quantity
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => updateNewInvoiceItem(index, "quantity", Number(e.target.value || 0))}
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                            />
+                          </label>
+
+                          <label className="space-y-2 text-sm font-bold text-slate-700">
+                            Unit Price
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.price}
+                              onChange={(e) => updateNewInvoiceItem(index, "price", Number(e.target.value || 0))}
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                          <span>
+                            {selectedProduct ? `Available stock: ${availableStock}` : "Choose a product to see stock"}
+                          </span>
+                          <span className="font-bold text-slate-700">
+                            Line total: {formatCurrency(Number(item.total || 0))}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  Tax
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newInvoiceDraft.tax}
+                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, tax: Number(e.target.value || 0) }))}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  Discount
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newInvoiceDraft.discount}
+                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, discount: Number(e.target.value || 0) }))}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(calculateInvoiceDraftTotals().subtotal)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-sm text-slate-600">
+                  <span>Tax</span>
+                  <span>{formatCurrency(Number(newInvoiceDraft.tax || 0))}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-sm text-slate-600">
+                  <span>Discount</span>
+                  <span>-{formatCurrency(Number(newInvoiceDraft.discount || 0))}</span>
+                </div>
+                <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3 text-lg font-black text-slate-900">
+                  <span>Total</span>
+                  <span>{formatCurrency(calculateInvoiceDraftTotals().totalAmount)}</span>
+                </div>
+              </div>
+
+              <label className="block space-y-2 text-sm font-bold text-slate-700">
+                Notes
+                <textarea
+                  value={newInvoiceDraft.notes}
+                  onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, notes: e.target.value }))}
+                  rows={3}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-6 sm:flex-row sm:justify-end">
+              <button
+                onClick={() => setNewInvoiceModalOpen(false)}
+                className="rounded-2xl border border-slate-300 px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateInvoice}
+                disabled={creatingInvoice}
+                className="rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {creatingInvoice ? "Creating..." : "Create Invoice"}
               </button>
             </div>
           </div>

@@ -9,6 +9,7 @@ import BranchInventory from "../branches/branchInventory.model.js";
 import Payment from "../payments/payment.model.js";
 import EmailHistory from "../../models/emailHistory.model.js";
 import { sendInvoiceCreatedEmail, sendPaymentReceivedEmail, sendInvoiceSharedEmail } from "../../utils/emailService.js";
+import { getOutgoingStockDelta, validateOutgoingStockAvailability } from "./invoice.stock.js";
 
 const generateInvoiceNumber = async (businessId) => {
   const now = new Date();
@@ -89,9 +90,37 @@ const createInvoice = async (req, res) => {
     }
 
     const processedItems = [];
-
-    // Generate invoice number at the start
     const invoiceNumber = await generateInvoiceNumber(businessId);
+
+    if (transactionType === "outgoing") {
+      const productAvailability = {};
+      for (const item of items) {
+        if (!item || !item.product) continue;
+
+        const product = await Product.findById(item.product).session(session);
+        if (!product) {
+          throw new Error(`Product not found for sale item: ${item.name || "Unknown product"}`);
+        }
+
+        if (branchId) {
+          const branchInventory = await BranchInventory.findOne({
+            business: businessId,
+            branch: branchId,
+            product: product._id
+          }).session(session);
+
+          productAvailability[String(product._id)] = branchInventory ? Number(branchInventory.quantity || 0) : 0;
+        } else {
+          productAvailability[String(product._id)] = Number(product.stock || 0);
+        }
+      }
+
+      const availabilityCheck = validateOutgoingStockAvailability(productAvailability, items);
+      if (!availabilityCheck.ok) {
+        const issue = availabilityCheck.issues[0];
+        throw new Error(`Insufficient stock for product ${issue.product}. Available: ${issue.available}, Requested: ${issue.required}`);
+      }
+    }
 
     for (const item of items) {
       const invoiceItem = {
@@ -168,73 +197,6 @@ const createInvoice = async (req, res) => {
                 previousStock,
                 newStock: product.stock,
                 note: "Supplier credit received",
-                createdBy: req.user.id
-              }
-            ],
-            { session }
-          );
-        }
-      } else if (transactionType === "outgoing" && item.product) {
-        // 🔥 HANDLE OUTGOING INVOICE STOCK DEDUCTION
-        const product = await Product.findById(item.product).session(session);
-        if (!product) {
-          throw new Error(`Product not found for sale item: ${item.name}`);
-        }
-
-        if (branchId) {
-          const branchInventory = await BranchInventory.findOne({
-            business: businessId,
-            branch: branchId,
-            product: product._id
-          }).session(session);
-
-          const availableStock = branchInventory ? branchInventory.quantity : 0;
-          if (availableStock < invoiceItem.quantity) {
-            throw new Error(`Insufficient stock for ${product.name} at this branch. Available: ${availableStock}, Requested: ${invoiceItem.quantity}`);
-          }
-
-          const previousStock = availableStock;
-          await BranchInventory.findOneAndUpdate(
-            { business: businessId, branch: branchId, product: product._id },
-            { $inc: { quantity: -invoiceItem.quantity } },
-            { session }
-          );
-
-          await InventoryMovement.create(
-            [
-              {
-                business: businessId,
-                branch: branchId,
-                product: product._id,
-                type: "sale",
-                quantity: invoiceItem.quantity,
-                previousStock,
-                newStock: previousStock - invoiceItem.quantity,
-                note: `Sold via invoice ${invoiceNumber}`,
-                createdBy: req.user.id
-              }
-            ],
-            { session }
-          );
-        } else {
-          if (product.stock < invoiceItem.quantity) {
-            throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${invoiceItem.quantity}`);
-          }
-
-          const previousStock = product.stock;
-          product.stock -= invoiceItem.quantity;
-          await product.save({ session });
-
-          await InventoryMovement.create(
-            [
-              {
-                business: businessId,
-                product: product._id,
-                type: "sale",
-                quantity: invoiceItem.quantity,
-                previousStock,
-                newStock: product.stock,
-                note: `Sold via invoice ${invoiceNumber}`,
                 createdBy: req.user.id
               }
             ],
@@ -459,18 +421,107 @@ const returnInvoiceItem = async (req, res) => {
   }
 };
 
+const finalizeInvoiceStockDeduction = async ({ invoice, userId, session }) => {
+  if (invoice.transactionType !== "outgoing") return;
+
+  const byProduct = new Map();
+  for (const item of invoice.items || []) {
+    if (!item || !item.product) continue;
+
+    const productId = String(item.product);
+    const quantity = Number(item.quantity || 0);
+    if (quantity <= 0) continue;
+    byProduct.set(productId, (byProduct.get(productId) || 0) + quantity);
+  }
+
+  if (byProduct.size === 0) return;
+
+  for (const [productId, quantity] of byProduct.entries()) {
+    const product = await Product.findById(productId).session(session);
+    if (!product) {
+      throw new Error(`Product not found for invoice item ${productId}`);
+    }
+
+    if (invoice.branch) {
+      const branchInventory = await BranchInventory.findOne({
+        business: invoice.business,
+        branch: invoice.branch,
+        product: product._id
+      }).session(session);
+
+      const availableStock = branchInventory ? Number(branchInventory.quantity || 0) : 0;
+      if (availableStock < quantity) {
+        throw new Error(`Insufficient stock for ${product.name}. Available: ${availableStock}, Requested: ${quantity}`);
+      }
+
+      const previousStock = availableStock;
+      await BranchInventory.findOneAndUpdate(
+        { business: invoice.business, branch: invoice.branch, product: product._id },
+        { $inc: { quantity: -quantity } },
+        { session }
+      );
+
+      await InventoryMovement.create(
+        [{
+          business: invoice.business,
+          branch: invoice.branch,
+          product: product._id,
+          type: "sale",
+          quantity,
+          previousStock,
+          newStock: previousStock - quantity,
+          note: `Invoice finalized: ${invoice.invoiceNumber}`,
+          createdBy: userId
+        }],
+        { session }
+      );
+    } else {
+      const availableStock = Number(product.stock || 0);
+      if (availableStock < quantity) {
+        throw new Error(`Insufficient stock for ${product.name}. Available: ${availableStock}, Requested: ${quantity}`);
+      }
+
+      const previousStock = availableStock;
+      product.stock = previousStock - quantity;
+      await product.save({ session });
+
+      await InventoryMovement.create(
+        [{
+          business: invoice.business,
+          product: product._id,
+          type: "sale",
+          quantity,
+          previousStock,
+          newStock: product.stock,
+          note: `Invoice finalized: ${invoice.invoiceNumber}`,
+          createdBy: userId
+        }],
+        { session }
+      );
+    }
+  }
+};
+
 const updateInvoicePayment = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { invoiceId } = req.params;
     const { paymentAmount = 0, paymentMethod = "cash", referenceNumber = "", notes = "" } = req.body;
 
-    const invoice = await Invoice.findOne({ _id: invoiceId, business: req.user.businessId });
+    const invoice = await Invoice.findOne({ _id: invoiceId, business: req.user.businessId }).session(session);
     if (!invoice) {
       return res.status(404).json({ message: "Invoice not found" });
     }
 
     if (paymentAmount <= 0) {
       return res.status(400).json({ message: "Payment amount must be greater than zero" });
+    }
+
+    if (invoice.transactionType === "outgoing" && invoice.status !== "paid" && invoice.stockFinalized !== true) {
+      await finalizeInvoiceStockDeduction({ invoice, userId: req.user.id, session });
+      invoice.stockFinalized = true;
     }
 
     invoice.amountPaid = Number(invoice.amountPaid || 0) + Number(paymentAmount || 0);
@@ -482,26 +533,26 @@ const updateInvoicePayment = async (req, res) => {
       returnedAmount: invoice.returnedAmount
     });
 
-    // Auto-update status to paid if fully paid
     if (invoice.balanceDue === 0 && invoice.status !== "paid") {
       invoice.status = "paid";
     } else if (invoice.balanceDue > 0 && invoice.amountPaid > 0 && invoice.status !== "overdue") {
       invoice.status = "partial";
     }
 
-    await invoice.save();
+    await invoice.save({ session });
 
-    // 🔥 CREATE PAYMENT RECORD
-    await Payment.create({
-      business: req.user.businessId,
-      invoice: invoiceId,
-      paymentMethod,
-      amount: Number(paymentAmount || 0),
-      referenceNumber,
-      notes,
-      createdBy: req.user.id,
-      status: "confirmed"
-    });
+    await Payment.create([
+      {
+        business: req.user.businessId,
+        invoice: invoiceId,
+        paymentMethod,
+        amount: Number(paymentAmount || 0),
+        referenceNumber,
+        notes,
+        createdBy: req.user.id,
+        status: "confirmed"
+      }
+    ], { session });
 
     if (invoice.transactionType === "outgoing" && invoice.customer) {
       await Customer.findOneAndUpdate(
@@ -511,12 +562,14 @@ const updateInvoicePayment = async (req, res) => {
       );
     }
 
+    await session.commitTransaction();
+    session.endSession();
+
     const populatedInvoice = await Invoice.findById(invoice._id)
       .populate("customer", "name phone email outstandingBalance")
       .populate("supplier", "name phone email isActive")
       .populate("business", "name email");
 
-    // 📧 Send payment received email (non-blocking)
     if (invoice.transactionType === "outgoing" && invoice.customerEmail) {
       setImmediate(() => {
         sendPaymentReceivedEmail({
@@ -537,6 +590,8 @@ const updateInvoicePayment = async (req, res) => {
 
     res.json(populatedInvoice);
   } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ message: err.message });
   }
 };
