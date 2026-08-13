@@ -835,7 +835,7 @@ const Invoices = () => {
                             <button
                               onClick={() => handleViewPDF(invoice)}
                               className="px-3 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="View PDF"
+                              title="View Invoice"
                             >
                               📄
                             </button>

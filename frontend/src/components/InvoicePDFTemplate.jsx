@@ -91,12 +91,18 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
         <div className="bill-to">
           <h4>{isOutgoing ? "BILL TO:" : "FROM:"}</h4>
           <div className="counterparty-details">
-            <p className="name">
-              <strong>{counterparty.name || "N/A"}</strong>
-            </p>
-            {counterparty.address && <p>{counterparty.address}</p>}
-            {counterparty.email && <p>Email: {counterparty.email}</p>}
-            {counterparty.phone && <p>Phone: {counterparty.phone}</p>}
+            {counterparty ? (
+              <>
+                <p className="name">
+                  <strong>{counterparty.name || "N/A"}</strong>
+                </p>
+                {counterparty.address && <p>{counterparty.address}</p>}
+                {counterparty.email && <p>Email: {counterparty.email}</p>}
+                {counterparty.phone && <p>Phone: {counterparty.phone}</p>}
+              </>
+            ) : (
+              <p className="name"><strong>N/A</strong></p>
+            )}
           </div>
         </div>
       </div>
