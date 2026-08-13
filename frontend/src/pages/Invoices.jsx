@@ -65,6 +65,7 @@ const Invoices = () => {
   const [productCatalog, setProductCatalog] = useState([]);
   const [productSearch, setProductSearch] = useState("");
   const [productDropdownIndex, setProductDropdownIndex] = useState(null);
+  const [loadingProducts, setLoadingProducts] = useState(false);
   const [newInvoiceDraft, setNewInvoiceDraft] = useState({
     transactionType: "outgoing",
     branch: "",
@@ -122,19 +123,8 @@ const Invoices = () => {
       }
     };
 
-    const loadProducts = async () => {
-      try {
-        const data = await getProducts();
-        setProductCatalog(Array.isArray(data) ? data : data?.products || []);
-      } catch (err) {
-        console.error("Failed to load products:", err);
-        setProductCatalog([]);
-      }
-    };
-
     loadInvoices();
     loadBranches();
-    loadProducts();
   }, []);
 
   // ====================================
@@ -225,10 +215,24 @@ const Invoices = () => {
     }
   };
 
-  const openNewInvoiceModal = () => {
+  const openNewInvoiceModal = async () => {
     if (!isPro && !loadingBusiness) {
       navigate("/app/billing");
       return;
+    }
+
+    // Load products only when modal opens
+    if (productCatalog.length === 0 && !loadingProducts) {
+      setLoadingProducts(true);
+      try {
+        const data = await getProducts();
+        setProductCatalog(Array.isArray(data) ? data : data?.products || []);
+      } catch (err) {
+        console.error("Failed to load products:", err);
+        setProductCatalog([]);
+      } finally {
+        setLoadingProducts(false);
+      }
     }
 
     setNewInvoiceDraft({
@@ -1426,6 +1430,10 @@ const Invoices = () => {
                                       </div>
                                     )}
                                   </>
+                                ) : loadingProducts ? (
+                                  <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                                    Loading products...
+                                  </div>
                                 ) : (
                                   <div className="px-4 py-3 text-sm text-slate-500 text-center">
                                     Loading products...
