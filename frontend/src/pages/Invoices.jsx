@@ -1378,7 +1378,7 @@ const Invoices = () => {
                             Product
                             <input
                               type="text"
-                              placeholder="Search or select product..."
+                              placeholder="Type product name..."
                               value={productDropdownIndex === index ? productSearch : (selectedProduct?.name || "")}
                               onChange={(e) => {
                                 setProductDropdownIndex(index);
@@ -1387,13 +1387,12 @@ const Invoices = () => {
                               onFocus={() => setProductDropdownIndex(index)}
                               className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                             />
-                            {productDropdownIndex === index && (
+                            {productDropdownIndex === index && productSearch.length > 0 && (
                               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg z-10 max-h-48 overflow-y-auto">
                                 {productCatalog.length > 0 ? (
                                   <>
                                     {productCatalog
                                       .filter(product => {
-                                        if (!productSearch) return true;
                                         const searchLower = productSearch.toLowerCase();
                                         return product.name.toLowerCase().includes(searchLower) ||
                                           (product.sku && product.sku.toLowerCase().includes(searchLower));
@@ -1410,7 +1409,7 @@ const Invoices = () => {
                                               setProductDropdownIndex(null);
                                               setProductSearch("");
                                             }}
-                                            className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-b-0 text-sm text-slate-700"
+                                            className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-b-0 text-sm text-slate-700 transition-colors"
                                           >
                                             <div className="font-medium">{product.name}</div>
                                             <div className="text-xs text-slate-500">{stockDisplay} in stock</div>
@@ -1418,7 +1417,6 @@ const Invoices = () => {
                                         );
                                       })}
                                     {productCatalog.filter(p => {
-                                      if (!productSearch) return true;
                                       const searchLower = productSearch.toLowerCase();
                                       return p.name.toLowerCase().includes(searchLower) ||
                                         (p.sku && p.sku.toLowerCase().includes(searchLower));
