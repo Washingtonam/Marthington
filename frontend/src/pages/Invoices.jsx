@@ -211,7 +211,7 @@ const Invoices = () => {
       const updatedInvoice = await updateInvoicePayment(
         invoiceId,
         invoice.balanceDue || invoice.totalAmount,
-        "manual",
+        "other",
         "Mark as Paid",
         "Marked as paid by admin"
       );
