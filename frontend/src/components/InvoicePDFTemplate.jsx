@@ -124,7 +124,9 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
                 <td className="desc-col">
                   <div className="item-name">{item.name}</div>
                   {item.product && (
-                    <div className="item-product">Product ID: {item.product}</div>
+                    <div className="item-product">
+                      Product ID: {typeof item.product === 'object' ? item.product._id : item.product}
+                    </div>
                   )}
                 </td>
                 <td className="qty-col">{item.quantity}</td>
