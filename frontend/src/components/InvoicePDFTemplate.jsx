@@ -77,6 +77,19 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
               <strong>Type:</strong>{" "}
               {isOutgoing ? "Customer Invoice" : "Supplier Invoice"}
             </p>
+            <p>
+              <strong>Status:</strong>{" "}
+              <span style={{
+                padding: "4px 8px",
+                borderRadius: "4px",
+                backgroundColor: amountPaid >= totalAmount ? "#22c55e" : amountPaid > 0 ? "#f59e0b" : "#ef4444",
+                color: "white",
+                fontSize: "12px",
+                fontWeight: "bold"
+              }}>
+                {amountPaid >= totalAmount ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID"}
+              </span>
+            </p>
             {dueDate && (
               <p>
                 <strong>Due Date:</strong> {formatDate(dueDate)}
