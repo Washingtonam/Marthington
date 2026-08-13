@@ -414,9 +414,12 @@ const Invoices = () => {
         paymentReference,
         paymentNotes
       );
+      
+      // Update invoices list with fresh data
       setInvoices(invoices.map(inv =>
         inv._id === updatedInvoice._id ? updatedInvoice : inv
       ));
+      
       setPaymentHistory(prev => ({
         ...prev,
         [updatedInvoice._id]: [
@@ -429,7 +432,14 @@ const Invoices = () => {
           }
         ]
       }));
-      alert("Payment recorded successfully!");
+      
+      // Close PDF modal if open to force fresh data on next view
+      if (pdfModalOpen) {
+        setPdfModalOpen(false);
+        setPdfInvoice(null);
+      }
+      
+      alert("Payment recorded successfully! Stock has been deducted from inventory.");
       handleClosePaymentModal();
     } catch (err) {
       console.error("Failed to log payment:", err);
@@ -446,8 +456,8 @@ const Invoices = () => {
     setPdfLoading(true);
 
     try {
-      // Fetch full invoice data with all populated fields
-      const pdfData = await request(`/invoices/${invoice._id}/pdf`);
+      // Add timestamp to force fresh data fetch (bypass any caching)
+      const pdfData = await request(`/invoices/${invoice._id}/pdf?t=${Date.now()}`);
       const invoiceData = pdfData.invoice || pdfData;
       setPdfInvoice(invoiceData);
     } catch (err) {
