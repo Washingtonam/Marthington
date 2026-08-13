@@ -12,19 +12,15 @@ export const createProduct = async (payload) => {
 
 // 🔥 GET PRODUCTS
 export const getProducts = async () => {
-
   const data = await request("/products");
+  
+  // Handle both array and paginated response formats
+  const productsList = Array.isArray(data) ? data : (data?.products || []);
 
-  return data.map((product) => ({
+  return productsList.map((product) => ({
     ...product,
-
-    price:
-      product.sellingPrice ||
-      product.price ||
-      0,
-
-    stock:
-      product.stock || 0
+    price: product.sellingPrice || product.price || 0,
+    stock: product.stock || 0
   }));
 };
 
