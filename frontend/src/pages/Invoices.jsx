@@ -203,15 +203,27 @@ const Invoices = () => {
   const handleMarkAsPaid = async (invoiceId) => {
     if (!confirm("Mark this invoice as paid?")) return;
     try {
-      await request(`/invoices/${invoiceId}`, {
-        method: "PUT",
-        body: JSON.stringify({ status: "paid" })
-      });
+      const invoice = invoices.find(inv => inv._id === invoiceId);
+      if (!invoice) return;
+
+      // Record a payment for the full outstanding balance to mark as paid
+      // This ensures amountPaid is updated, so paymentStatus is correctly recalculated
+      const updatedInvoice = await updateInvoicePayment(
+        invoiceId,
+        invoice.balanceDue || invoice.totalAmount,
+        "manual",
+        "Mark as Paid",
+        "Marked as paid by admin"
+      );
+
+      // Update local state with fresh data from backend
       setInvoices(invoices.map(inv =>
-        inv._id === invoiceId ? { ...inv, status: "paid", paymentStatus: "Fully Paid", amountPaid: inv.totalAmount, balanceDue: 0, balance: 0 } : inv
+        inv._id === invoiceId ? updatedInvoice : inv
       ));
+      alert("Invoice marked as paid successfully.");
     } catch (err) {
-      console.error("Failed to update invoice:", err);
+      console.error("Failed to mark invoice as paid:", err);
+      alert("Failed to mark invoice as paid. Please try again.");
     }
   };
 
