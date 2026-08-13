@@ -63,8 +63,11 @@ const Invoices = () => {
   const [emailHistory, setEmailHistory] = useState([]);
   const [newInvoiceModalOpen, setNewInvoiceModalOpen] = useState(false);
   const [productCatalog, setProductCatalog] = useState([]);
+  const [productSearch, setProductSearch] = useState("");
+  const [productDropdownIndex, setProductDropdownIndex] = useState(null);
   const [newInvoiceDraft, setNewInvoiceDraft] = useState({
     transactionType: "outgoing",
+    branch: "",
     customerName: "",
     customerPhone: "",
     customerEmail: "",
@@ -230,6 +233,7 @@ const Invoices = () => {
 
     setNewInvoiceDraft({
       transactionType: "outgoing",
+      branch: userBranchId || "",
       customerName: "",
       customerPhone: "",
       customerEmail: "",
@@ -240,6 +244,8 @@ const Invoices = () => {
       discount: 0,
       items: [{ product: "", name: "", quantity: 1, price: 0, total: 0 }]
     });
+    setProductSearch("");
+    setProductDropdownIndex(null);
     setNewInvoiceModalOpen(true);
   };
 
@@ -290,7 +296,7 @@ const Invoices = () => {
   };
 
   const handleCreateInvoice = async () => {
-    const { items = [], customerName, customerPhone, customerEmail, dueDate, notes, invoiceType, tax, discount, transactionType } = newInvoiceDraft;
+    const { items = [], customerName, customerPhone, customerEmail, dueDate, notes, invoiceType, tax, discount, transactionType, branch } = newInvoiceDraft;
 
     const validItems = items.filter(item => item && (item.product || item.name));
     if (!validItems.length) {
@@ -319,6 +325,7 @@ const Invoices = () => {
       setCreatingInvoice(true);
       const invoice = await createInvoice({
         transactionType,
+        branch: branch || null,
         customerName,
         customerPhone,
         customerEmail,
@@ -334,6 +341,7 @@ const Invoices = () => {
       setNewInvoiceModalOpen(false);
       setNewInvoiceDraft({
         transactionType: "outgoing",
+        branch: userBranchId || "",
         customerName: "",
         customerPhone: "",
         customerEmail: "",
@@ -344,6 +352,8 @@ const Invoices = () => {
         discount: 0,
         items: [{ product: "", name: "", quantity: 1, price: 0, total: 0 }]
       });
+      setProductSearch("");
+      setProductDropdownIndex(null);
       alert("Invoice created successfully.");
     } catch (err) {
       console.error("Failed to create invoice:", err);
@@ -1228,8 +1238,10 @@ const Invoices = () => {
       )}
 
       {newInvoiceModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto">
-          <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto" onClick={() => {
+          setProductDropdownIndex(null);
+        }}>
+          <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 p-6 border-b border-slate-200">
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-widest">new invoice</p>
@@ -1245,7 +1257,7 @@ const Invoices = () => {
             </div>
 
             <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <label className="space-y-2 text-sm font-bold text-slate-700">
                   Invoice Type
                   <select
@@ -1268,6 +1280,22 @@ const Invoices = () => {
                   >
                     <option value="outgoing">Customer Invoice</option>
                     <option value="incoming">Supplier Invoice</option>
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  Branch
+                  <select
+                    value={newInvoiceDraft.branch}
+                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, branch: e.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="">Head Office</option>
+                    {branches.map(branch => (
+                      <option key={branch._id} value={branch._id}>
+                        {branch.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
 
@@ -1346,20 +1374,67 @@ const Invoices = () => {
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                          <label className="space-y-2 text-sm font-bold text-slate-700 md:col-span-2">
+                          <label className="space-y-2 text-sm font-bold text-slate-700 md:col-span-2 relative">
                             Product
-                            <select
-                              value={item.product}
-                              onChange={(e) => updateNewInvoiceItem(index, "product", e.target.value)}
+                            <input
+                              type="text"
+                              placeholder="Search or select product..."
+                              value={productDropdownIndex === index ? productSearch : (selectedProduct?.name || "")}
+                              onChange={(e) => {
+                                setProductDropdownIndex(index);
+                                setProductSearch(e.target.value);
+                              }}
+                              onFocus={() => setProductDropdownIndex(index)}
                               className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                            >
-                              <option value="">Select product</option>
-                              {productCatalog.map(product => (
-                                <option key={product._id} value={product._id}>
-                                  {product.name} ({product.stock ?? 0} in stock)
-                                </option>
-                              ))}
-                            </select>
+                            />
+                            {productDropdownIndex === index && (
+                              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg z-10 max-h-48 overflow-y-auto">
+                                {productCatalog.length > 0 ? (
+                                  <>
+                                    {productCatalog
+                                      .filter(product => {
+                                        if (!productSearch) return true;
+                                        const searchLower = productSearch.toLowerCase();
+                                        return product.name.toLowerCase().includes(searchLower) ||
+                                          (product.sku && product.sku.toLowerCase().includes(searchLower));
+                                      })
+                                      .slice(0, 15)
+                                      .map(product => {
+                                        const stockDisplay = product.stock ?? 0;
+                                        return (
+                                          <button
+                                            key={product._id}
+                                            type="button"
+                                            onClick={() => {
+                                              updateNewInvoiceItem(index, "product", product._id);
+                                              setProductDropdownIndex(null);
+                                              setProductSearch("");
+                                            }}
+                                            className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-b-0 text-sm text-slate-700"
+                                          >
+                                            <div className="font-medium">{product.name}</div>
+                                            <div className="text-xs text-slate-500">{stockDisplay} in stock</div>
+                                          </button>
+                                        );
+                                      })}
+                                    {productCatalog.filter(p => {
+                                      if (!productSearch) return true;
+                                      const searchLower = productSearch.toLowerCase();
+                                      return p.name.toLowerCase().includes(searchLower) ||
+                                        (p.sku && p.sku.toLowerCase().includes(searchLower));
+                                    }).length === 0 && (
+                                      <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                                        No products found for "{productSearch}"
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                                    Loading products...
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </label>
 
                           <label className="space-y-2 text-sm font-bold text-slate-700">
