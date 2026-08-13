@@ -25,6 +25,7 @@
     "multer": "^2.1.1",
     "nanoid": "^5.1.11",
     "node-cron": "^4.2.1",
+    "nodemailer": "^9.0.5",
     "recharts": "^3.8.1",
     "xlsx": "^0.18.5"
   },

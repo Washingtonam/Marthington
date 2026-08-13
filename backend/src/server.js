@@ -6,6 +6,7 @@ import connectDB from "./config/db.js";
 import runBusinessIndustryMigration from "./jobs/migrateBusinessIndustryType.job.js";
 import cron from "node-cron";
 import runSubscriptionCheck from "./jobs/subscription.job.js";
+import startOverdueEmailCron from "./jobs/overduEmailReminder.job.js";
 // workers are now run in a separate process via src/worker.js
 
 const PORT = process.env.PORT || 5000;
@@ -41,7 +42,10 @@ const startServer = async () => {
       await safeRunSubscriptionCheck("cron");
     });
 
-    // 🔥 HEALTH CHECK (IMPORTANT FOR DEPLOYMENT)
+    // � START OVERDUE EMAIL CRON JOB (DAILY AT 6 PM)
+    startOverdueEmailCron();
+
+    // �🔥 HEALTH CHECK (IMPORTANT FOR DEPLOYMENT)
     app.get("/health", (req, res) => {
       res.status(200).json({ status: "ok" });
     });

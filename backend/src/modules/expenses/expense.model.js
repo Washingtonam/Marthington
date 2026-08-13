@@ -8,6 +8,12 @@ const expenseSchema = new mongoose.Schema(
       required: true
     },
 
+    branch: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Branch",
+      default: null
+    },
+
     amount: {
       type: Number,
       required: true,
@@ -63,6 +69,17 @@ const expenseSchema = new mongoose.Schema(
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending"
+    },
+
+    linkedInvoice: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Invoice",
+      default: null
+    },
+
+    budgetAllocation: {
+      type: Number,
+      default: null
     }
   },
   { timestamps: true }
@@ -72,6 +89,9 @@ const expenseSchema = new mongoose.Schema(
 expenseSchema.index({ business: 1, date: -1 });
 expenseSchema.index({ business: 1, category: 1 });
 expenseSchema.index({ business: 1, createdAt: -1 });
+expenseSchema.index({ business: 1, branch: 1 });
+expenseSchema.index({ business: 1, status: 1 });
+expenseSchema.index({ linkedInvoice: 1 });
 
 const Expense = mongoose.model("Expense", expenseSchema);
 

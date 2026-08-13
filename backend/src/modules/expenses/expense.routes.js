@@ -63,4 +63,52 @@ router.post(
   expenseController.bulkDeleteExpenses
 );
 
+// 🔥 APPROVE EXPENSE (OWNER/ADMIN ONLY)
+router.post(
+  "/:id/approve",
+  protect,
+  checkPermission("canManageExpenses"),
+  expenseController.approveExpense
+);
+
+// 🔥 REJECT EXPENSE (OWNER/ADMIN ONLY)
+router.post(
+  "/:id/reject",
+  protect,
+  checkPermission("canManageExpenses"),
+  expenseController.rejectExpense
+);
+
+// 🔥 GET EXPENSE TRENDS
+router.get(
+  "/trends/analysis",
+  protect,
+  checkPermission("canViewExpenses"),
+  expenseController.getExpenseTrends
+);
+
+// 🔥 GET RECONCILIATION REPORT
+router.get(
+  "/reconciliation/report",
+  protect,
+  checkPermission("canViewExpenses"),
+  expenseController.getReconciliationReport
+);
+
+// 🔥 GET BUDGET VS ACTUAL
+router.get(
+  "/budget/analysis",
+  protect,
+  checkPermission("canViewExpenses"),
+  expenseController.getBudgetVsActual
+);
+
+// 🔥 LINK SUPPLIER INVOICE TO EXPENSE
+router.post(
+  "/:id/link-invoice",
+  protect,
+  checkPermission("canManageExpenses"),
+  expenseController.linkInvoice
+);
+
 export default router;

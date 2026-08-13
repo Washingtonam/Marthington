@@ -59,4 +59,25 @@ router.get(
   invoiceController.getInvoiceById
 );
 
+router.get(
+  "/:invoiceId/pdf",
+  protect,
+  checkPermission("canViewInvoices"),
+  invoiceController.getInvoicePDF
+);
+
+router.post(
+  "/:invoiceId/share",
+  protect,
+  checkPermission("canManageInvoices"),
+  invoiceController.shareInvoice
+);
+
+router.get(
+  "/:invoiceId/email-history",
+  protect,
+  checkPermission("canViewInvoices"),
+  invoiceController.getInvoiceEmailHistory
+);
+
 export default router;

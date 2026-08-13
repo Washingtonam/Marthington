@@ -34,6 +34,13 @@ router.get(
 );
 
 router.get(
+  "/ledger",
+  protect,
+  checkPermission("canViewPayments"),
+  transactionController.getLedgerEntries
+);
+
+router.get(
   "/deleted-records",
   protect,
   ownerOnly,

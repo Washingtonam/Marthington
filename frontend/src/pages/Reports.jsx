@@ -83,12 +83,28 @@ const Reports = () => {
             <span className="metric-caption">Rolling monthly trend</span>
           </div>
         </div>
+        <div className="tool-panel metric-card success">
+          <div className="metric-icon">◔</div>
+          <div>
+            <span className="metric-label">Gross Profit</span>
+            {renderMetricValue(overview.monthlyGrossProfit)}
+            <span className="metric-caption">Revenue minus COGS</span>
+          </div>
+        </div>
+        <div className="tool-panel metric-card warning">
+          <div className="metric-icon">⚠</div>
+          <div>
+            <span className="metric-label">Operating Expenses</span>
+            {renderMetricValue(overview.monthlyOperatingExpenses)}
+            <span className="metric-caption">Total business costs</span>
+          </div>
+        </div>
         <div className="tool-panel metric-card warning">
           <div className="metric-icon">◎</div>
           <div>
             <span className="metric-label">Monthly Profit</span>
             {renderMetricValue(overview.monthlyProfit)}
-            <span className="metric-caption">Net after costs</span>
+            <span className="metric-caption">Net profit (Gross - Expenses)</span>
           </div>
         </div>
         <div className="tool-panel metric-card">

@@ -11,6 +11,8 @@ const Dashboard = () => {
   const analyticsFallback = {
     metrics: {
       totalRevenue: 0,
+      grossProfit: 0,
+      totalOperatingExpenses: 0,
       totalProfit: 0,
       totalSales: 0,
       averageOrderValue: 0,
@@ -28,6 +30,10 @@ const Dashboard = () => {
       activePatients: 0,
       emergencyCases: 0,
       activeClasses: 0,
+      totalReceivable: 0,
+      totalPayable: 0,
+      overdueReceivables: 0,
+      overduePayables: 0,
     },
     salesTrend: [],
   };
@@ -70,6 +76,8 @@ const Dashboard = () => {
     return {
       metrics: {
         totalRevenue: metricValues.totalRevenue || 0,
+        grossProfit: metricValues.grossProfit || 0,
+        totalOperatingExpenses: metricValues.totalOperatingExpenses || 0,
         totalProfit: metricValues.totalProfit || 0,
         totalSales: metricValues.totalSales || 0,
         inventoryValue: metricValues.inventoryValue || 0,
@@ -82,6 +90,10 @@ const Dashboard = () => {
         appointmentsToday: metricValues.appointmentsToday || 0,
         emergencyCases: metricValues.emergencyCases || 0,
         totalCustomers: metricValues.totalCustomers || metricValues.customerCount || 0,
+        totalReceivable: metricValues.totalReceivable || 0,
+        totalPayable: metricValues.totalPayable || 0,
+        overdueReceivables: metricValues.overdueReceivables || 0,
+        overduePayables: metricValues.overduePayables || 0,
       },
       recentActivity: (analytics?.salesTrend || []).slice(0, 6).map((item, index) => {
         const amount =
@@ -106,21 +118,21 @@ const Dashboard = () => {
     ? [
         { label: "Students", value: metrics.totalStudents, tone: "emerald" },
         { label: "Active Classes", value: metrics.activeClasses, tone: "slate" },
-        { label: "Pending Invoices", value: formatCurrency(metrics.pendingInvoices), tone: "amber" },
-        { label: "Attendance", value: `${metrics.attendanceRate}%`, tone: "blue" },
+        { label: "Accounts Receivable", value: formatCurrency(metrics.totalReceivable), tone: "blue" },
+        { label: "Overdue AR", value: formatCurrency(metrics.overdueReceivables), tone: "amber" },
       ]
     : isHospital
       ? [
           { label: "Active Patients", value: metrics.activePatients, tone: "emerald" },
           { label: "Appointments", value: metrics.appointmentsToday, tone: "slate" },
-          { label: "Pending Invoices", value: formatCurrency(metrics.pendingInvoices), tone: "amber" },
-          { label: "Emergency Cases", value: metrics.emergencyCases, tone: "red" },
+          { label: "Accounts Receivable", value: formatCurrency(metrics.totalReceivable), tone: "blue" },
+          { label: "Overdue AR", value: formatCurrency(metrics.overdueReceivables), tone: "amber" },
         ]
       : [
           { label: "Revenue", value: formatCurrency(metrics.totalRevenue), tone: "emerald" },
-          { label: "Active Sales", value: metrics.totalSales, tone: "blue" },
-          { label: "Pending Invoices", value: formatCurrency(metrics.pendingInvoices), tone: "amber" },
-          { label: "Customers", value: metrics.totalCustomers, tone: "slate" },
+          { label: "Gross Profit", value: formatCurrency(metrics.grossProfit), tone: "blue" },
+          { label: "Operating Expenses", value: formatCurrency(metrics.totalOperatingExpenses), tone: "amber" },
+          { label: "Net Profit", value: formatCurrency(metrics.totalProfit), tone: "slate" },
         ];
 
   const quickActions = [

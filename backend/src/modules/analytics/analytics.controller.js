@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import Business from "../businesses/business.model.js";
 import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
+import Invoice from "../invoices/invoice.model.js";
+import Transaction from "../transactions/transaction.model.js";
 import School from "../schools/School.js";
 import Student from "../schools/Student.js";
 
@@ -52,10 +54,27 @@ const getAnalytics = async (req, res) => {
       0
     );
 
-    const totalProfit = sales.reduce(
+    // 🔥 CALCULATE GROSS PROFIT (from sales)
+    const grossProfit = sales.reduce(
       (sum, sale) => sum + (sale.totalProfit || 0),
       0
     );
+
+    // 🔥 GET OPERATING EXPENSES FROM POSTED LEDGER ENTRIES
+    const postedExpenseTransactions = await Transaction.find({
+      businessId: businessObjectId,
+      transactionType: "expense",
+      status: "posted",
+      isDeleted: { $ne: true }
+    }).lean();
+
+    const totalOperatingExpenses = postedExpenseTransactions.reduce(
+      (sum, tx) => sum + (Number(tx.amount) || 0),
+      0
+    );
+
+    // 🔥 NET PROFIT = GROSS PROFIT - OPERATING EXPENSES
+    const totalProfit = grossProfit - totalOperatingExpenses;
 
     const averageOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
 
@@ -65,6 +84,26 @@ const getAnalytics = async (req, res) => {
     );
 
     const lowStockCount = products.filter((product) => Number(product.stock) <= 5).length;
+
+    // 🔥 ADD AR/AP METRICS
+    const invoices = await Invoice.find({ business: businessObjectId }).lean();
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+    const sixtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+    const ninetyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+
+    const receivables = invoices.filter(inv => inv.transactionType === "outgoing");
+    const payables = invoices.filter(inv => inv.transactionType === "incoming");
+
+    const totalReceivable = receivables.reduce((sum, inv) => sum + (inv.balanceDue || 0), 0);
+    const totalPayable = payables.reduce((sum, inv) => sum + (inv.balanceDue || 0), 0);
+    const overdueReceivables = receivables
+      .filter(inv => inv.status === "overdue" || (inv.dueDate && new Date(inv.dueDate) < new Date()))
+      .reduce((sum, inv) => sum + (inv.balanceDue || 0), 0);
+    const overduePayables = payables
+      .filter(inv => inv.status === "overdue" || (inv.dueDate && new Date(inv.dueDate) < new Date()))
+      .reduce((sum, inv) => sum + (inv.balanceDue || 0), 0);
+    const pendingInvoices = invoices.filter(inv => inv.status === "pending" || inv.status === "draft").length;
 
     const map = {};
     sales.forEach((sale) => {
@@ -101,7 +140,12 @@ const getAnalytics = async (req, res) => {
       totalProfit,
       averageOrderValue,
       inventoryValue,
-      lowStockCount
+      lowStockCount,
+      totalReceivable,
+      totalPayable,
+      overdueReceivables,
+      overduePayables,
+      pendingInvoices
     };
 
     return res.status(200).json({
@@ -119,10 +163,17 @@ const getAnalytics = async (req, res) => {
         totalSales: 0,
         productsCount: 0,
         totalRevenue: 0,
+        grossProfit: 0,
+        totalOperatingExpenses: 0,
         totalProfit: 0,
         averageOrderValue: 0,
         inventoryValue: 0,
-        lowStockCount: 0
+        lowStockCount: 0,
+        totalReceivable: 0,
+        totalPayable: 0,
+        overdueReceivables: 0,
+        overduePayables: 0,
+        pendingInvoices: 0
       },
       salesTrend: [],
       topProducts: [],

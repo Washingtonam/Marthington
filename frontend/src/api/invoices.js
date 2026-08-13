@@ -18,10 +18,10 @@ export const createInvoice = (data) =>
 export const getInvoice = (id) =>
   request(`/invoices/${id}`);
 
-export const updateInvoicePayment = (invoiceId, paymentAmount) =>
+export const updateInvoicePayment = (invoiceId, paymentAmount, paymentMethod = "cash", referenceNumber = "", notes = "") =>
   request(`/invoices/${invoiceId}/payment`, {
     method: "PUT",
-    body: JSON.stringify({ paymentAmount })
+    body: JSON.stringify({ paymentAmount, paymentMethod, referenceNumber, notes })
   });
 
 export const updateInvoice = (invoiceId, data) =>
@@ -34,3 +34,12 @@ export const deleteInvoice = (invoiceId) =>
   request(`/invoices/${invoiceId}`, {
     method: "DELETE"
   });
+
+export const shareInvoice = (invoiceId, recipientEmail, message = "") =>
+  request(`/invoices/${invoiceId}/share`, {
+    method: "POST",
+    body: JSON.stringify({ recipientEmail, message })
+  });
+
+export const getInvoiceEmailHistory = (invoiceId) =>
+  request(`/invoices/${invoiceId}/email-history`);

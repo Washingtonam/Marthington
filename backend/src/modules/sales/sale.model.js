@@ -108,6 +108,13 @@ const saleSchema = new mongoose.Schema(
       default: null
     },
 
+    // 🔥 LINKED INVOICE
+    invoice: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Invoice",
+      default: null
+    },
+
     notes: {
       type: String,
       default: ""

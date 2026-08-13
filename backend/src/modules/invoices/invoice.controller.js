@@ -1,19 +1,38 @@
 import mongoose from "mongoose";
 import Invoice from "./invoice.model.js";
+import InvoiceCounter from "./invoiceCounter.model.js";
 import Product from "../products/product.model.js";
 import Customer from "../customers/customer.model.js";
 import Supplier from "../suppliers/supplier.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
 import BranchInventory from "../branches/branchInventory.model.js";
+import Payment from "../payments/payment.model.js";
+import EmailHistory from "../../models/emailHistory.model.js";
+import { sendInvoiceCreatedEmail, sendPaymentReceivedEmail, sendInvoiceSharedEmail } from "../../utils/emailService.js";
 
-const generateInvoiceNumber = () => {
-  return (
-    "INV-" +
-    Math.random()
-      .toString(36)
-      .substring(2, 8)
-      .toUpperCase()
-  );
+const generateInvoiceNumber = async (businessId) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+
+  let counter = await InvoiceCounter.findOne({ business: businessId });
+
+  if (!counter) {
+    counter = await InvoiceCounter.create({
+      business: businessId,
+      lastNumber: 0,
+      prefix: "INV"
+    });
+  }
+
+  // Increment counter
+  counter.lastNumber += 1;
+  await counter.save();
+
+  // Format: INV-2024-01-000001
+  const invoiceNumber = `${counter.prefix}-${year}-${month}-${String(counter.lastNumber).padStart(6, "0")}`;
+
+  return invoiceNumber;
 };
 
 const calculatePaymentStatus = ({ totalAmount, amountPaid, returnedAmount = 0 }) => {
@@ -52,10 +71,12 @@ const createInvoice = async (req, res) => {
       amountPaid = 0,
       dueDate,
       notes,
-      invoiceType
+      invoiceType,
+      branch
     } = req.body;
 
     const businessId = req.user.businessId;
+    const branchId = branch || req.user.branchId || null;
 
     const subtotal = items.reduce((sum, item) => sum + Number(item.total || 0), 0);
     const totalAmount = subtotal + Number(tax || 0) - Number(discount || 0);
@@ -69,6 +90,9 @@ const createInvoice = async (req, res) => {
 
     const processedItems = [];
 
+    // Generate invoice number at the start
+    const invoiceNumber = await generateInvoiceNumber(businessId);
+
     for (const item of items) {
       const invoiceItem = {
         product: item.product || null,
@@ -80,7 +104,7 @@ const createInvoice = async (req, res) => {
         returnQuantity: 0,
         returnAmount: 0,
         receivedQuantity: transactionType === "incoming" ? Number(item.quantity || 0) : 0,
-        soldQuantity: 0,
+        soldQuantity: transactionType === "outgoing" ? Number(item.quantity || 0) : 0,
         supplierCreditStatus: transactionType === "incoming" ? "Unpaid" : null,
         supplierBatchLabel: transactionType === "incoming" ? "Supplier Credit - Unpaid" : ""
       };
@@ -91,20 +115,20 @@ const createInvoice = async (req, res) => {
           throw new Error(`Product not found for supplier item: ${item.name}`);
         }
 
-        if (req.user.branchId) {
+        if (branchId) {
           const branchInventory = await BranchInventory.findOne({
             business: businessId,
-            branch: req.user.branchId,
+            branch: branchId,
             product: product._id
           }).session(session);
 
           const previousStock = branchInventory ? branchInventory.quantity : 0;
           await BranchInventory.findOneAndUpdate(
-            { business: businessId, branch: req.user.branchId, product: product._id },
+            { business: businessId, branch: branchId, product: product._id },
             {
               $setOnInsert: {
                 business: businessId,
-                branch: req.user.branchId,
+                branch: branchId,
                 product: product._id,
                 createdBy: req.user.id
               },
@@ -117,7 +141,7 @@ const createInvoice = async (req, res) => {
             [
               {
                 business: businessId,
-                branch: req.user.branchId,
+                branch: branchId,
                 product: product._id,
                 type: "purchase",
                 quantity: invoiceItem.quantity,
@@ -150,6 +174,73 @@ const createInvoice = async (req, res) => {
             { session }
           );
         }
+      } else if (transactionType === "outgoing" && item.product) {
+        // 🔥 HANDLE OUTGOING INVOICE STOCK DEDUCTION
+        const product = await Product.findById(item.product).session(session);
+        if (!product) {
+          throw new Error(`Product not found for sale item: ${item.name}`);
+        }
+
+        if (branchId) {
+          const branchInventory = await BranchInventory.findOne({
+            business: businessId,
+            branch: branchId,
+            product: product._id
+          }).session(session);
+
+          const availableStock = branchInventory ? branchInventory.quantity : 0;
+          if (availableStock < invoiceItem.quantity) {
+            throw new Error(`Insufficient stock for ${product.name} at this branch. Available: ${availableStock}, Requested: ${invoiceItem.quantity}`);
+          }
+
+          const previousStock = availableStock;
+          await BranchInventory.findOneAndUpdate(
+            { business: businessId, branch: branchId, product: product._id },
+            { $inc: { quantity: -invoiceItem.quantity } },
+            { session }
+          );
+
+          await InventoryMovement.create(
+            [
+              {
+                business: businessId,
+                branch: branchId,
+                product: product._id,
+                type: "sale",
+                quantity: invoiceItem.quantity,
+                previousStock,
+                newStock: previousStock - invoiceItem.quantity,
+                note: `Sold via invoice ${invoiceNumber}`,
+                createdBy: req.user.id
+              }
+            ],
+            { session }
+          );
+        } else {
+          if (product.stock < invoiceItem.quantity) {
+            throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${invoiceItem.quantity}`);
+          }
+
+          const previousStock = product.stock;
+          product.stock -= invoiceItem.quantity;
+          await product.save({ session });
+
+          await InventoryMovement.create(
+            [
+              {
+                business: businessId,
+                product: product._id,
+                type: "sale",
+                quantity: invoiceItem.quantity,
+                previousStock,
+                newStock: product.stock,
+                note: `Sold via invoice ${invoiceNumber}`,
+                createdBy: req.user.id
+              }
+            ],
+            { session }
+          );
+        }
       }
 
       processedItems.push(invoiceItem);
@@ -159,6 +250,7 @@ const createInvoice = async (req, res) => {
       [
         {
           business: businessId,
+          branch: branchId,
           createdBy: req.user.id,
           transactionType,
           customer,
@@ -179,7 +271,7 @@ const createInvoice = async (req, res) => {
           dueDate,
           notes,
           invoiceType,
-          invoiceNumber: generateInvoiceNumber()
+          invoiceNumber
         }
       ],
       { session }
@@ -207,7 +299,27 @@ const createInvoice = async (req, res) => {
 
     const populatedInvoice = await Invoice.findById(createdInvoice._id)
       .populate("customer", "name phone email outstandingBalance")
-      .populate("supplier", "name phone email isActive");
+      .populate("supplier", "name phone email isActive")
+      .populate("business", "name email");
+
+    // 📧 Send invoice created email (non-blocking)
+    if (transactionType === "outgoing" && customerEmail) {
+      setImmediate(() => {
+        sendInvoiceCreatedEmail({
+          recipientEmail: customerEmail,
+          recipientName: customerName || "Valued Customer",
+          businessName: populatedInvoice.business?.name || "Our Business",
+          businessId: req.user.businessId,
+          invoiceId: createdInvoice._id,
+          invoiceNumber: invoiceNumber,
+          customerName: customerName,
+          amount: `$${totalAmount.toFixed(2)}`,
+          dueDate: dueDate ? new Date(dueDate).toLocaleDateString() : "No due date",
+          invoiceUrl: `${process.env.FRONTEND_URL}/invoices/${createdInvoice._id}`,
+          createdBy: req.user.id
+        }).catch(err => console.error("Email sending error:", err));
+      });
+    }
 
     res.json(populatedInvoice);
   } catch (err) {
@@ -350,11 +462,15 @@ const returnInvoiceItem = async (req, res) => {
 const updateInvoicePayment = async (req, res) => {
   try {
     const { invoiceId } = req.params;
-    const { paymentAmount = 0 } = req.body;
+    const { paymentAmount = 0, paymentMethod = "cash", referenceNumber = "", notes = "" } = req.body;
 
     const invoice = await Invoice.findOne({ _id: invoiceId, business: req.user.businessId });
     if (!invoice) {
       return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    if (paymentAmount <= 0) {
+      return res.status(400).json({ message: "Payment amount must be greater than zero" });
     }
 
     invoice.amountPaid = Number(invoice.amountPaid || 0) + Number(paymentAmount || 0);
@@ -366,7 +482,26 @@ const updateInvoicePayment = async (req, res) => {
       returnedAmount: invoice.returnedAmount
     });
 
+    // Auto-update status to paid if fully paid
+    if (invoice.balanceDue === 0 && invoice.status !== "paid") {
+      invoice.status = "paid";
+    } else if (invoice.balanceDue > 0 && invoice.amountPaid > 0 && invoice.status !== "overdue") {
+      invoice.status = "partial";
+    }
+
     await invoice.save();
+
+    // 🔥 CREATE PAYMENT RECORD
+    await Payment.create({
+      business: req.user.businessId,
+      invoice: invoiceId,
+      paymentMethod,
+      amount: Number(paymentAmount || 0),
+      referenceNumber,
+      notes,
+      createdBy: req.user.id,
+      status: "confirmed"
+    });
 
     if (invoice.transactionType === "outgoing" && invoice.customer) {
       await Customer.findOneAndUpdate(
@@ -378,7 +513,27 @@ const updateInvoicePayment = async (req, res) => {
 
     const populatedInvoice = await Invoice.findById(invoice._id)
       .populate("customer", "name phone email outstandingBalance")
-      .populate("supplier", "name phone email isActive");
+      .populate("supplier", "name phone email isActive")
+      .populate("business", "name email");
+
+    // 📧 Send payment received email (non-blocking)
+    if (invoice.transactionType === "outgoing" && invoice.customerEmail) {
+      setImmediate(() => {
+        sendPaymentReceivedEmail({
+          recipientEmail: invoice.customerEmail,
+          recipientName: invoice.customerName || "Valued Customer",
+          businessName: populatedInvoice.business?.name || "Our Business",
+          businessId: req.user.businessId,
+          invoiceId: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          paymentAmount: `$${paymentAmount.toFixed(2)}`,
+          paymentDate: new Date().toLocaleDateString(),
+          remainingBalance: `$${invoice.balanceDue.toFixed(2)}`,
+          invoiceUrl: `${process.env.FRONTEND_URL}/invoices/${invoice._id}`,
+          createdBy: req.user.id
+        }).catch(err => console.error("Email sending error:", err));
+      });
+    }
 
     res.json(populatedInvoice);
   } catch (err) {
@@ -617,6 +772,123 @@ const getInvoiceById =
     }
   };
 
+// 🔥 GET INVOICE FOR PDF GENERATION
+const getInvoicePDF = async (req, res) => {
+  try {
+    const invoice = await Invoice.findById(req.params.invoiceId)
+      .populate("business", "name address phone email logo subscription")
+      .populate("customer", "name phone email address")
+      .populate("supplier", "name phone email address")
+      .populate("items.product", "name price");
+
+    if (!invoice) {
+      return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    // Verify business ownership
+    if (invoice.business._id.toString() !== req.user.businessId) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    // Return invoice data with HTML template structure for PDF conversion
+    const pdfData = {
+      success: true,
+      invoice: {
+        ...invoice.toObject(),
+        formattedDate: new Date(invoice.createdAt).toLocaleDateString(),
+        formattedDueDate: invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "No due date",
+        createdByName: invoice.createdBy?.name || "System",
+      },
+      template: "invoice", // Frontend can use this to select the right PDF template
+    };
+
+    res.json(pdfData);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 🔥 SHARE INVOICE VIA EMAIL
+const shareInvoice = async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const { recipientEmail, message = "" } = req.body;
+
+    if (!recipientEmail || !recipientEmail.includes("@")) {
+      return res.status(400).json({ message: "Valid recipient email is required" });
+    }
+
+    const invoice = await Invoice.findOne({
+      _id: invoiceId,
+      business: req.user.businessId
+    })
+      .populate("business", "name email")
+      .populate("customer", "name email");
+
+    if (!invoice) {
+      return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    // Send invoice share email
+    const sent = await sendInvoiceSharedEmail({
+      recipientEmail,
+      recipientName: recipientEmail.split("@")[0], // Use email prefix as name if no name provided
+      senderName: req.user.name || "Team Member",
+      businessName: invoice.business?.name || "Our Business",
+      businessId: req.user.businessId,
+      invoiceId: invoice._id,
+      invoiceNumber: invoice.invoiceNumber,
+      message,
+      invoiceUrl: `${process.env.FRONTEND_URL}/invoices/${invoice._id}`,
+      createdBy: req.user.id
+    });
+
+    if (!sent) {
+      return res.status(500).json({ message: "Failed to send invoice email" });
+    }
+
+    res.json({
+      success: true,
+      message: `Invoice shared successfully with ${recipientEmail}`
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 📧 GET INVOICE EMAIL HISTORY
+const getInvoiceEmailHistory = async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+
+    // Verify invoice belongs to user's business
+    const invoice = await Invoice.findOne({
+      _id: invoiceId,
+      business: req.user.businessId
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    // Get email history for this invoice
+    const emailHistory = await EmailHistory.find({
+      invoice: invoiceId,
+      business: req.user.businessId
+    })
+      .select("recipientEmail recipientName emailType status sentAt subject sharedMessage")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      invoiceNumber: invoice.invoiceNumber,
+      emailHistory
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 export default {
   createInvoice,
   updateInvoicePayment,
@@ -624,5 +896,8 @@ export default {
   deleteInvoice,
   returnInvoiceItem,
   getInvoices,
-  getInvoiceById
+  getInvoiceById,
+  getInvoicePDF,
+  shareInvoice,
+  getInvoiceEmailHistory
 };

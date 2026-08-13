@@ -128,10 +128,60 @@ const getDeletedRecords = async (req, res) => {
   }
 };
 
+const getLedgerEntries = async (req, res) => {
+  try {
+    const { startDate, endDate, type } = req.query;
+    const query = {
+      businessId: req.user.businessId,
+      isDeleted: { $ne: true }
+    };
+
+    if (startDate || endDate) {
+      query.occurredAt = {};
+      if (startDate) {
+        query.occurredAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.occurredAt.$lte = end;
+      }
+    }
+
+    if (type && type !== "all") {
+      query.transactionType = type;
+    }
+
+    const entries = await Transaction.find(query)
+      .sort({ occurredAt: -1, createdAt: -1 })
+      .lean();
+
+    const totalDebits = entries
+      .filter((entry) => entry.postingType === "debit")
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+    const totalCredits = entries
+      .filter((entry) => entry.postingType === "credit")
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+    const summary = {
+      count: entries.length,
+      totalDebits,
+      totalCredits,
+      net: totalCredits - totalDebits
+    };
+
+    res.json({ entries, summary });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export default {
   getTransactions,
   getRevenueStats,
   getProfitReports,
   deleteTransaction,
-  getDeletedRecords
+  getDeletedRecords,
+  getLedgerEntries
 };

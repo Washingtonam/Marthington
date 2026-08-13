@@ -1,10 +1,99 @@
 import Expense from "./expense.model.js";
 import Business from "../businesses/business.model.js";
+import User from "../users/user.model.js";
+import { sendBudgetExceededEmail } from "../../utils/emailService.js";
+import { EXPENSE_CATEGORIES } from "../../config/constants.js";
+import { postExpenseToGL } from "../transactions/transaction.utils.js";
+
+// 🔥 CHECK BUDGET AND SEND ALERTS
+const checkAndAlertBudgetExceeded = async (businessId, month, year, createdBy) => {
+  try {
+    // Get the first and last day of the month
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+
+    // Fetch all expenses for this month
+    const monthlyExpenses = await Expense.find({
+      business: businessId,
+      date: { $gte: monthStart, $lte: monthEnd }
+    });
+
+    // Calculate spending by category
+    const categorySpending = {};
+    const categoryBudgets = {};
+    let hasOverBudget = false;
+    let totalVariance = 0;
+
+    monthlyExpenses.forEach(expense => {
+      const cat = expense.category || "miscellaneous";
+      categorySpending[cat] = (categorySpending[cat] || 0) + expense.amount;
+      if (expense.budgetAllocation) {
+        categoryBudgets[cat] = expense.budgetAllocation;
+      }
+    });
+
+    // Check for budget overages and format for email
+    const overBudgetCategories = [];
+    Object.entries(categoryBudgets).forEach(([category, budget]) => {
+      const actual = categorySpending[category] || 0;
+      const variance = budget - actual;
+      const variancePercent = (variance / budget) * 100;
+
+      if (actual > budget) {
+        hasOverBudget = true;
+        totalVariance += (actual - budget);
+        const categoryLabel = EXPENSE_CATEGORIES?.find(c => c.value === category)?.label || category;
+        overBudgetCategories.push({
+          label: categoryLabel,
+          budget: Math.round(budget),
+          actual: Math.round(actual),
+          variance: Math.round(actual - budget),
+          variancePercent: Math.abs(variancePercent)
+        });
+      }
+    });
+
+    // If there are budget overages, send alert to finance admins
+    if (hasOverBudget) {
+      const business = await Business.findById(businessId).select("name");
+      const adminUsers = await User.find({
+        business: businessId,
+        role: { $in: ["owner", "super_admin", "manager"] },
+        email: { $exists: true, $ne: "" }
+      });
+
+      const baseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const expensesUrl = `${baseUrl}/expenses`;
+
+      for (const admin of adminUsers) {
+        if (admin.email) {
+          await sendBudgetExceededEmail({
+            recipientEmail: admin.email,
+            recipientName: admin.name,
+            businessName: business?.name,
+            businessId,
+            month: `${String(month).padStart(2, '0')}`,
+            year,
+            categories: overBudgetCategories,
+            totalVariance: Math.round(totalVariance),
+            expensesUrl,
+            createdBy
+          });
+        }
+      }
+
+      console.log(`💰 Budget alert sent for ${business?.name} - ${month}/${year}`);
+    }
+  } catch (error) {
+    console.error("Budget alert check failed:", error.message);
+    // Don't throw - allow expense creation to continue even if alert fails
+  }
+};
 
 // 🔥 CREATE EXPENSE
 const createExpense = async (req, res) => {
   try {
-    const { amount, description, category, paymentMethod, date, notes } = req.body;
+    const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice } = req.body;
     const businessId = req.user.businessId;
 
     // Validate required fields
@@ -25,6 +114,7 @@ const createExpense = async (req, res) => {
     // Create expense
     const expense = await Expense.create({
       business: businessId,
+      branch: branch || null,
       amount: parseFloat(amount),
       description: description.trim(),
       category: category || "miscellaneous",
@@ -32,10 +122,23 @@ const createExpense = async (req, res) => {
       date: date ? new Date(date) : new Date(),
       notes: notes || "",
       createdBy: req.user.id,
-      status: "pending"
+      status: "pending",
+      linkedInvoice: linkedInvoice || null,
+      budgetAllocation: budgetAllocation || null
     });
 
     await expense.populate("createdBy", "name email");
+    await expense.populate("branch", "name");
+
+    // Check if budget exceeded and send alert
+    const expenseDate = new Date(expense.date);
+    const month = expenseDate.getMonth() + 1;
+    const year = expenseDate.getFullYear();
+    
+    // Non-blocking budget alert check
+    checkAndAlertBudgetExceeded(businessId, month, year, req.user.id).catch(err => 
+      console.error("Budget alert check error:", err.message)
+    );
 
     return res.status(201).json({
       message: "Expense created successfully",
@@ -51,7 +154,7 @@ const createExpense = async (req, res) => {
 const getExpenses = async (req, res) => {
   try {
     const businessId = req.user.businessId;
-    const { category, startDate, endDate, paymentMethod, status } = req.query;
+    const { category, startDate, endDate, paymentMethod, status, branch } = req.query;
 
     // Build filter
     const filter = { business: businessId };
@@ -66,6 +169,10 @@ const getExpenses = async (req, res) => {
 
     if (status && status !== "all") {
       filter.status = status;
+    }
+
+    if (branch && branch !== "all") {
+      filter.branch = branch;
     }
 
     // Date range filter
@@ -84,6 +191,7 @@ const getExpenses = async (req, res) => {
     const expenses = await Expense.find(filter)
       .populate("createdBy", "name email")
       .populate("approvedBy", "name email")
+      .populate("branch", "name")
       .sort({ date: -1 })
       .exec();
 
@@ -91,10 +199,15 @@ const getExpenses = async (req, res) => {
     const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
     const categoryTotals = {};
     const methodTotals = {};
+    const branchTotals = {};
 
     expenses.forEach(e => {
       categoryTotals[e.category] = (categoryTotals[e.category] || 0) + e.amount;
       methodTotals[e.paymentMethod] = (methodTotals[e.paymentMethod] || 0) + e.amount;
+      if (e.branch) {
+        const branchKey = e.branch?.name || "Unassigned";
+        branchTotals[branchKey] = (branchTotals[branchKey] || 0) + e.amount;
+      }
     });
 
     return res.status(200).json({
@@ -102,6 +215,7 @@ const getExpenses = async (req, res) => {
       totalAmount,
       categoryTotals,
       methodTotals,
+      branchTotals,
       expenses
     });
   } catch (err) {
@@ -298,6 +412,259 @@ const getExpenseSummary = async (req, res) => {
   }
 };
 
+// 🔥 APPROVE EXPENSE
+const approveExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const businessId = req.user.businessId;
+    const { notes } = req.body;
+
+    // Only owner/admin can approve
+    if (req.user.role !== "owner" && req.user.role !== "super_admin") {
+      return res.status(403).json({ message: "Unauthorized to approve expenses" });
+    }
+
+    const expense = await Expense.findOne({ _id: id, business: businessId });
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+
+    expense.status = "approved";
+    expense.approvedBy = req.user.id;
+    if (notes) expense.notes = notes;
+
+    await expense.save();
+
+    const postedLedgerEntry = await postExpenseToGL(expense);
+
+    await expense.populate("createdBy", "name email");
+    await expense.populate("approvedBy", "name email");
+
+    return res.status(200).json({
+      message: "Expense approved successfully",
+      expense,
+      ledgerEntry: postedLedgerEntry
+    });
+  } catch (err) {
+    console.error("Approve Expense Error:", err);
+    return res.status(500).json({ message: err.message || "Failed to approve expense" });
+  }
+};
+
+// 🔥 REJECT EXPENSE
+const rejectExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const businessId = req.user.businessId;
+    const { notes } = req.body;
+
+    // Only owner/admin can reject
+    if (req.user.role !== "owner" && req.user.role !== "super_admin") {
+      return res.status(403).json({ message: "Unauthorized to reject expenses" });
+    }
+
+    const expense = await Expense.findOne({ _id: id, business: businessId });
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+
+    expense.status = "rejected";
+    if (notes) expense.notes = notes;
+
+    await expense.save();
+    await expense.populate("createdBy", "name email");
+
+    return res.status(200).json({
+      message: "Expense rejected successfully",
+      expense
+    });
+  } catch (err) {
+    console.error("Reject Expense Error:", err);
+    return res.status(500).json({ message: err.message || "Failed to reject expense" });
+  }
+};
+
+// 🔥 GET EXPENSE TRENDS (FOR CHARTS)
+const getExpenseTrends = async (req, res) => {
+  try {
+    const businessId = req.user.businessId;
+    const { months = 6, category } = req.query;
+
+    const filter = { business: businessId };
+    if (category && category !== "all") {
+      filter.category = category;
+    }
+
+    const expenses = await Expense.find(filter)
+      .select("amount date category")
+      .lean();
+
+    // Build month-by-month breakdown
+    const now = new Date();
+    const trendMap = {};
+    const categoryMap = {};
+
+    for (let i = parseInt(months) - 1; i >= 0; i--) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthKey = monthDate.toLocaleString("default", { month: "short", year: "numeric" });
+      trendMap[monthKey] = 0;
+    }
+
+    expenses.forEach(e => {
+      const expenseDate = new Date(e.date);
+      const monthKey = expenseDate.toLocaleString("default", { month: "short", year: "numeric" });
+      
+      if (trendMap.hasOwnProperty(monthKey)) {
+        trendMap[monthKey] += e.amount;
+      }
+
+      // Category breakdown
+      const catKey = e.category;
+      if (!categoryMap[catKey]) {
+        categoryMap[catKey] = 0;
+      }
+      categoryMap[catKey] += e.amount;
+    });
+
+    const trend = Object.entries(trendMap).map(([month, total]) => ({ month, total }));
+    const categoryBreakdown = Object.entries(categoryMap).map(([category, total]) => ({ category, total }));
+
+    return res.status(200).json({
+      trend,
+      categoryBreakdown,
+      totalExpenses: expenses.reduce((sum, e) => sum + e.amount, 0)
+    });
+  } catch (err) {
+    console.error("Get Expense Trends Error:", err);
+    return res.status(500).json({ message: err.message || "Failed to fetch expense trends" });
+  }
+};
+
+// 🔥 LINK SUPPLIER INVOICE TO EXPENSE (RECONCILIATION)
+const linkInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const businessId = req.user.businessId;
+    const { invoiceId } = req.body;
+
+    const expense = await Expense.findOne({ _id: id, business: businessId });
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+
+    expense.linkedInvoice = invoiceId;
+    await expense.save();
+
+    return res.status(200).json({
+      message: "Invoice linked successfully",
+      expense
+    });
+  } catch (err) {
+    console.error("Link Invoice Error:", err);
+    return res.status(500).json({ message: err.message || "Failed to link invoice" });
+  }
+};
+
+// 🔥 GET RECONCILIATION REPORT (MATCHED & UNMATCHED INVOICES)
+const getReconciliationReport = async (req, res) => {
+  try {
+    const businessId = req.user.businessId;
+    const { category, branch } = req.query;
+
+    const filter = { business: businessId };
+    if (category && category !== "all") {
+      filter.category = category;
+    }
+    if (branch && branch !== "all") {
+      filter.branch = branch;
+    }
+
+    const expenses = await Expense.find(filter)
+      .populate("linkedInvoice", "invoiceNumber amount balanceDue status")
+      .populate("branch", "name")
+      .lean();
+
+    const matched = expenses.filter(e => e.linkedInvoice !== null);
+    const unmatched = expenses.filter(e => e.linkedInvoice === null);
+
+    const matchedTotal = matched.reduce((sum, e) => sum + e.amount, 0);
+    const unmatchedTotal = unmatched.reduce((sum, e) => sum + e.amount, 0);
+
+    return res.status(200).json({
+      matched,
+      unmatched,
+      matchedTotal,
+      unmatchedTotal,
+      matchRate: expenses.length > 0 ? (matched.length / expenses.length) * 100 : 0
+    });
+  } catch (err) {
+    console.error("Get Reconciliation Report Error:", err);
+    return res.status(500).json({ message: err.message || "Failed to fetch reconciliation report" });
+  }
+};
+
+// 🔥 GET BUDGET VS ACTUAL
+const getBudgetVsActual = async (req, res) => {
+  try {
+    const businessId = req.user.businessId;
+    const { category, month, year } = req.query;
+
+    const filter = { business: businessId };
+    if (category && category !== "all") {
+      filter.category = category;
+    }
+
+    // Set month/year filter
+    const currentDate = new Date();
+    const filterMonth = month ? parseInt(month) : currentDate.getMonth();
+    const filterYear = year ? parseInt(year) : currentDate.getFullYear();
+
+    const monthStart = new Date(filterYear, filterMonth, 1);
+    const monthEnd = new Date(filterYear, filterMonth + 1, 0);
+    monthEnd.setHours(23, 59, 59, 999);
+
+    filter.date = { $gte: monthStart, $lte: monthEnd };
+
+    const expenses = await Expense.find(filter)
+      .select("amount category budgetAllocation")
+      .lean();
+
+    const budgetData = {};
+    const CATEGORIES = ["inventory", "logistics", "utilities", "salaries", "rent", "marketing", "miscellaneous"];
+
+    CATEGORIES.forEach(cat => {
+      const categoryExpenses = expenses.filter(e => e.category === cat);
+      const actual = categoryExpenses.reduce((sum, e) => sum + e.amount, 0);
+      const budgeted = categoryExpenses.reduce((sum, e) => sum + (e.budgetAllocation || 0), 0) || actual * 1.1; // Default to +10% if no budget
+
+      budgetData[cat] = {
+        budget: budgeted,
+        actual,
+        variance: budgeted - actual,
+        variancePercent: budgeted > 0 ? ((budgeted - actual) / budgeted) * 100 : 0
+      };
+    });
+
+    const totalBudget = Object.values(budgetData).reduce((sum, cat) => sum + cat.budget, 0);
+    const totalActual = Object.values(budgetData).reduce((sum, cat) => sum + cat.actual, 0);
+
+    return res.status(200).json({
+      month: filterMonth + 1,
+      year: filterYear,
+      byCategory: budgetData,
+      totals: {
+        budget: totalBudget,
+        actual: totalActual,
+        variance: totalBudget - totalActual,
+        variancePercent: totalBudget > 0 ? ((totalBudget - totalActual) / totalBudget) * 100 : 0
+      }
+    });
+  } catch (err) {
+    console.error("Get Budget vs Actual Error:", err);
+    return res.status(500).json({ message: err.message || "Failed to fetch budget report" });
+  }
+};
+
 export default {
   createExpense,
   getExpenses,
@@ -305,5 +672,11 @@ export default {
   updateExpense,
   deleteExpense,
   bulkDeleteExpenses,
-  getExpenseSummary
+  getExpenseSummary,
+  approveExpense,
+  rejectExpense,
+  getExpenseTrends,
+  linkInvoice,
+  getReconciliationReport,
+  getBudgetVsActual
 };

@@ -4,6 +4,8 @@ import Business from "../businesses/business.model.js";
 import Customer from "../customers/customer.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
 import BranchInventory from "../branches/branchInventory.model.js";
+import Invoice from "../invoices/invoice.model.js";
+import InvoiceCounter from "../invoices/invoiceCounter.model.js";
 import mongoose from "mongoose";
 import { canDeleteSale, buildSalesQuery } from "./sales.utils.js";
 
@@ -184,6 +186,78 @@ const createSale = async (req, res) => {
       customer.lastPurchaseAt = new Date();
       customer.loyaltyPoints += Math.floor(totalAmount / 1000);
       await customer.save({ session });
+    }
+
+    // 🔥 6. AUTO-CREATE INVOICE FROM SALE
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+
+      let counter = await InvoiceCounter.findOne({ business: businessId }).session(session);
+      if (!counter) {
+        counter = await InvoiceCounter.create([{
+          business: businessId,
+          lastNumber: 0,
+          prefix: "INV"
+        }], { session }).then(res => res[0]);
+      }
+
+      counter.lastNumber += 1;
+      await counter.save({ session });
+      const invoiceNumber = `${counter.prefix}-${year}-${month}-${String(counter.lastNumber).padStart(6, "0")}`;
+
+      // Map sale items to invoice items
+      const invoiceItems = items.map(item => ({
+        product: item.product || null,
+        name: item.name,
+        quantity: Number(item.quantity || 0),
+        price: Number(item.sellingPrice || 0),
+        total: Number(item.total || 0),
+        returned: false,
+        returnQuantity: 0,
+        returnAmount: 0,
+        receivedQuantity: 0,
+        soldQuantity: Number(item.quantity || 0),
+        supplierCreditStatus: null,
+        supplierBatchLabel: ""
+      }));
+
+      const invoice = await Invoice.create([{
+        business: businessId,
+        branch: branchId,
+        createdBy: req.user.id,
+        transactionType: "outgoing",
+        customer: customer?._id || null,
+        customerName: customerName || customer?.name || "Walk-in",
+        customerPhone: customerPhone || "",
+        items: invoiceItems,
+        subtotal: totalAmount,
+        tax: 0,
+        discount: 0,
+        totalAmount: totalAmount,
+        amountPaid: paymentMethod === "Cash" || paymentMethod === "cash" ? totalAmount : 0,
+        balance: paymentMethod === "Cash" || paymentMethod === "cash" ? 0 : totalAmount,
+        balanceDue: paymentMethod === "Cash" || paymentMethod === "cash" ? 0 : totalAmount,
+        returnedAmount: 0,
+        paymentStatus: paymentMethod === "Cash" || paymentMethod === "cash" ? "Fully Paid" : "Unpaid",
+        status: paymentMethod === "Cash" || paymentMethod === "cash" ? "paid" : "pending",
+        invoiceType: "invoice",
+        invoiceNumber
+      }], { session }).then(res => res[0]);
+
+      // Link sale to invoice
+      sale[0].invoice = invoice._id;
+      await sale[0].save({ session });
+
+      // Update customer outstanding balance if not cash payment
+      if (customer && paymentMethod !== "Cash" && paymentMethod !== "cash") {
+        customer.outstandingBalance = (customer.outstandingBalance || 0) + totalAmount;
+        await customer.save({ session });
+      }
+    } catch (invoiceErr) {
+      console.error("Failed to create linked invoice:", invoiceErr);
+      // Don't fail the sale if invoice creation fails
     }
 
     await session.commitTransaction();

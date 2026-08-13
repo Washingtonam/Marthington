@@ -1,9 +1,12 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
-import { getInvoices, createInvoice, updateInvoicePayment, updateInvoice, deleteInvoice } from "../api/invoices.js";
+import { getInvoices, createInvoice, updateInvoicePayment, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory } from "../api/invoices.js";
 import { formatCurrency } from "../utils/formatters.js";
+import { getBranches } from "../api/branches.js";
+import InvoicePDFTemplate from "../components/InvoicePDFTemplate.jsx";
+import { downloadInvoicePDF } from "../utils/pdfGenerator.js";
 
 const tabOptions = [
   {
@@ -27,6 +30,9 @@ const Invoices = () => {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
   const [paymentHistory, setPaymentHistory] = useState({});
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editInvoice, setEditInvoice] = useState(null);
@@ -41,8 +47,21 @@ const Invoices = () => {
   });
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteInvoiceId, setDeleteInvoiceId] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [branchFilter, setBranchFilter] = useState("all");
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [pdfInvoice, setPdfInvoice] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const pdfRef = useRef(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareInvoiceData, setShareInvoiceData] = useState(null);
+  const [shareEmail, setShareEmail] = useState("");
+  const [shareMessage, setShareMessage] = useState("");
+  const [sharing, setSharing] = useState(false);
+  const [emailHistoryOpen, setEmailHistoryOpen] = useState(false);
+  const [emailHistory, setEmailHistory] = useState([]);
 
-  const { isPro, loadingBusiness } = useAuth();
+  const { isPro, loadingBusiness, branchId: userBranchId } = useAuth();
 
   // ====================================
   // DATA LOADING
@@ -52,7 +71,21 @@ const Invoices = () => {
       try {
         setLoading(true);
         const data = await getInvoices();
-        setInvoices(Array.isArray(data) ? data : data?.invoices || []);
+        const invoiceList = Array.isArray(data) ? data : data?.invoices || [];
+        
+        // Auto-calculate overdue status based on due date
+        const processedInvoices = invoiceList.map(inv => {
+          if (inv.dueDate && inv.status !== "paid" && inv.status !== "cancelled") {
+            const dueDate = new Date(inv.dueDate);
+            const now = new Date();
+            if (now > dueDate && inv.status !== "overdue") {
+              return { ...inv, status: "overdue" };
+            }
+          }
+          return inv;
+        });
+        
+        setInvoices(processedInvoices);
       } catch (err) {
         console.error("Failed to load invoices:", err);
         setInvoices([]);
@@ -61,7 +94,18 @@ const Invoices = () => {
       }
     };
 
+    const loadBranches = async () => {
+      try {
+        const data = await getBranches();
+        setBranches(Array.isArray(data) ? data : data?.branches || []);
+      } catch (err) {
+        console.error("Failed to load branches:", err);
+        setBranches([]);
+      }
+    };
+
     loadInvoices();
+    loadBranches();
   }, []);
 
   // ====================================
@@ -98,6 +142,11 @@ const Invoices = () => {
 
     return activeInvoices
       .filter(inv => {
+        // Branch filter
+        if (branchFilter !== "all" && inv.branch?._id !== branchFilter && inv.branch !== branchFilter) {
+          return false;
+        }
+
         const counterparty = invoiceTab === "incoming"
           ? (inv.supplier?.name || inv.customerName || "")
           : (inv.customerName || inv.supplier?.name || "");
@@ -111,11 +160,27 @@ const Invoices = () => {
         return matchesSearch && matchesStatus;
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [invoices, invoiceTab, statusFilter, searchTerm]);
+  }, [invoices, invoiceTab, statusFilter, searchTerm, branchFilter]);
 
   // ====================================
   // ACTIONS
   // ====================================
+  const handleNavigateToCustomer = (invoice) => {
+    if (invoice.customer?._id) {
+      navigate(`/app/customers/${invoice.customer._id}`);
+    } else if (invoice.customer) {
+      navigate(`/app/customers/${invoice.customer}`);
+    }
+  };
+
+  const handleNavigateToSupplier = (invoice) => {
+    if (invoice.supplier?._id) {
+      navigate(`/app/suppliers/${invoice.supplier._id}`);
+    } else if (invoice.supplier) {
+      navigate(`/app/suppliers/${invoice.supplier}`);
+    }
+  };
+
   const handleMarkAsPaid = async (invoiceId) => {
     if (!confirm("Mark this invoice as paid?")) return;
     try {
@@ -160,14 +225,14 @@ const Invoices = () => {
     }
   };
 
-  const handleViewPDF = (invoiceId) => {
-    window.open(`/api/invoices/${invoiceId}/pdf`, "_blank");
+  const handleViewPDF = (invoice) => {
+    // Open PDF preview modal
+    handleOpenPdfModal(invoice);
   };
 
-  const handleShareLink = (invoiceId) => {
-    const link = `${window.location.origin}/invoices/${invoiceId}`;
-    navigator.clipboard.writeText(link);
-    alert("Invoice link copied to clipboard!");
+  const handleShareLink = (invoice) => {
+    // Open share modal instead of just copying link
+    handleOpenShareModal(invoice);
   };
 
   const handleOpenPaymentModal = (invoice) => {
@@ -180,6 +245,9 @@ const Invoices = () => {
     setPaymentModalOpen(false);
     setPaymentInvoice(null);
     setPaymentAmount("");
+    setPaymentMethod("cash");
+    setPaymentReference("");
+    setPaymentNotes("");
   };
 
   const handleSubmitPayment = async () => {
@@ -197,7 +265,13 @@ const Invoices = () => {
     }
 
     try {
-      const updatedInvoice = await updateInvoicePayment(paymentInvoice._id, amount);
+      const updatedInvoice = await updateInvoicePayment(
+        paymentInvoice._id,
+        amount,
+        paymentMethod,
+        paymentReference,
+        paymentNotes
+      );
       setInvoices(invoices.map(inv =>
         inv._id === updatedInvoice._id ? updatedInvoice : inv
       ));
@@ -207,14 +281,114 @@ const Invoices = () => {
           ...(prev[updatedInvoice._id] || []),
           {
             date: new Date().toISOString(),
-            amount
+            amount,
+            method: paymentMethod,
+            reference: paymentReference
           }
         ]
       }));
+      alert("Payment recorded successfully!");
       handleClosePaymentModal();
     } catch (err) {
       console.error("Failed to log payment:", err);
       alert("Unable to record payment. Please try again.");
+    }
+  };
+
+  // ====================================
+  // PDF HANDLING
+  // ====================================
+  const handleOpenPdfModal = async (invoice) => {
+    setPdfInvoice(null);
+    setPdfModalOpen(true);
+    setPdfLoading(true);
+
+    try {
+      // Fetch full invoice data with all populated fields
+      const response = await request.get(`/invoices/${invoice._id}/pdf`);
+      const invoiceData = response.data.invoice;
+      setPdfInvoice(invoiceData);
+    } catch (err) {
+      console.error("Failed to load invoice for PDF:", err);
+      alert("Unable to load invoice for PDF generation.");
+      setPdfModalOpen(false);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!pdfRef.current || !pdfInvoice) return;
+
+    try {
+      setPdfLoading(true);
+      await downloadInvoicePDF(
+        pdfInvoice,
+        "invoice-pdf-template",
+        `invoice-${pdfInvoice.invoiceNumber}.pdf`
+      );
+      alert("PDF downloaded successfully!");
+    } catch (err) {
+      console.error("PDF download failed:", err);
+      alert("Failed to download PDF. Please try again.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const handleClosePdfModal = () => {
+    setPdfModalOpen(false);
+    setPdfInvoice(null);
+  };
+
+  // ====================================
+  // SHARE HANDLING
+  // ====================================
+  const handleOpenShareModal = (invoice) => {
+    setShareInvoiceData(invoice);
+    setShareEmail("");
+    setShareMessage("");
+    setShareModalOpen(true);
+    loadEmailHistory(invoice._id);
+  };
+
+  const handleCloseShareModal = () => {
+    setShareModalOpen(false);
+    setShareInvoiceData(null);
+    setShareEmail("");
+    setShareMessage("");
+    setEmailHistory([]);
+  };
+
+  const loadEmailHistory = async (invoiceId) => {
+    try {
+      const data = await getInvoiceEmailHistory(invoiceId);
+      setEmailHistory(data.emailHistory || []);
+    } catch (err) {
+      console.error("Failed to load email history:", err);
+    }
+  };
+
+  const handleSubmitShare = async () => {
+    if (!shareEmail || !shareEmail.includes("@")) {
+      alert("Please enter a valid email address");
+      return;
+    }
+
+    setSharing(true);
+    try {
+      const result = await shareInvoice(shareInvoiceData._id, shareEmail, shareMessage);
+      alert(result.message || "Invoice shared successfully!");
+      
+      // Reload email history
+      await loadEmailHistory(shareInvoiceData._id);
+      setShareEmail("");
+      setShareMessage("");
+    } catch (err) {
+      console.error("Failed to share invoice:", err);
+      alert("Failed to share invoice. Please try again.");
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -427,6 +601,19 @@ const Invoices = () => {
               <option value="overdue">Overdue</option>
               <option value="cancelled">Cancelled</option>
             </select>
+
+            <select
+              value={branchFilter}
+              onChange={e => setBranchFilter(e.target.value)}
+              className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 text-sm font-bold"
+            >
+              <option value="all">All Branches</option>
+              {branches.map(branch => (
+                <option key={branch._id} value={branch._id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -464,8 +651,13 @@ const Invoices = () => {
                         </td>
 
                         <td className="px-6 py-4">
-                          <div>
-                            <p className="font-semibold text-gray-900">{counterparty}</p>
+                          <div
+                            className="cursor-pointer hover:text-blue-600 transition-colors"
+                            onClick={() => invoiceTab === "incoming" ? handleNavigateToSupplier(invoice) : handleNavigateToCustomer(invoice)}
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <p className="font-semibold text-gray-900 hover:underline">{counterparty}</p>
                             <p className="text-xs text-slate-500 mt-1">{invoice.transactionType === "incoming" ? "Supplier invoice" : "Customer invoice"}</p>
                           </div>
                         </td>
@@ -494,16 +686,16 @@ const Invoices = () => {
                         <td className="px-6 py-4 text-center">
                           <div className="flex flex-wrap justify-center gap-2">
                             <button
-                              onClick={() => handleViewPDF(invoice._id)}
+                              onClick={() => handleViewPDF(invoice)}
                               className="px-3 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                               title="View PDF"
                             >
                               📄
                             </button>
                             <button
-                              onClick={() => handleShareLink(invoice._id)}
+                              onClick={() => handleShareLink(invoice)}
                               className="px-3 py-1 text-xs font-bold text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Share Link"
+                              title="Share Invoice"
                             >
                               🔗
                             </button>
@@ -599,11 +791,50 @@ const Invoices = () => {
                   <p className="text-xs text-slate-500">Enter the installment amount to log against this invoice.</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 p-4 bg-slate-50">
-                  <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Next payment date</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Payment Date</p>
                   <p className="text-base font-bold text-slate-900">{new Date().toLocaleDateString()}</p>
                   <p className="text-sm text-slate-500 mt-2">This record updates the current balance and payment summary.</p>
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  Payment Method
+                  <select
+                    value={paymentMethod}
+                    onChange={e => setPaymentMethod(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="card">Card</option>
+                    <option value="check">Check</option>
+                    <option value="mobile_money">Mobile Money</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm font-bold text-slate-700">
+                  Reference Number (optional)
+                  <input
+                    type="text"
+                    value={paymentReference}
+                    onChange={e => setPaymentReference(e.target.value)}
+                    placeholder="e.g., TRX123456"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+              </div>
+
+              <label className="space-y-2 text-sm font-bold text-slate-700">
+                Notes (optional)
+                <textarea
+                  value={paymentNotes}
+                  onChange={e => setPaymentNotes(e.target.value)}
+                  placeholder="Add any notes about this payment..."
+                  rows={2}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -797,6 +1028,173 @@ const Invoices = () => {
                 className="rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Preview Modal */}
+      {pdfModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto">
+          <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 p-6 border-b border-slate-200 sticky top-0 bg-white">
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-widest">invoice preview</p>
+                <h2 className="text-2xl font-black text-slate-900">
+                  {pdfInvoice?.invoiceNumber || "Invoice"}
+                </h2>
+              </div>
+              <button
+                onClick={handleClosePdfModal}
+                className="text-slate-500 hover:text-slate-900 text-2xl"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="overflow-y-auto max-h-[70vh] bg-slate-50 p-6">
+              {pdfLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <p className="text-slate-500">Loading invoice...</p>
+                </div>
+              ) : pdfInvoice ? (
+                <div className="bg-white rounded-lg shadow-sm">
+                  <InvoicePDFTemplate ref={pdfRef} invoice={pdfInvoice} />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-64">
+                  <p className="text-slate-500">Unable to load invoice</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-6 sm:flex-row sm:justify-end sticky bottom-0">
+              <button
+                onClick={handleClosePdfModal}
+                className="rounded-2xl border border-slate-300 px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="rounded-2xl border border-blue-300 px-6 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50"
+                title="Print invoice"
+              >
+                🖨️ Print
+              </button>
+              <button
+                onClick={handleDownloadPdf}
+                disabled={pdfLoading}
+                className="rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {pdfLoading ? "Downloading..." : "📥 Download PDF"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE INVOICE MODAL */}
+      {shareModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-8 shadow-2xl">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">
+                Share Invoice {shareInvoiceData?.invoiceNumber}
+              </h2>
+              <p className="mt-2 text-gray-600">
+                Send this invoice to a customer via email
+              </p>
+            </div>
+
+            {/* RECIPIENT EMAIL */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Recipient Email *
+              </label>
+              <input
+                type="email"
+                value={shareEmail}
+                onChange={(e) => setShareEmail(e.target.value)}
+                placeholder="Enter recipient email address"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+
+            {/* MESSAGE */}
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Message (Optional)
+              </label>
+              <textarea
+                value={shareMessage}
+                onChange={(e) => setShareMessage(e.target.value)}
+                placeholder="Add a custom message to include in the email"
+                rows="4"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+
+            {/* EMAIL HISTORY */}
+            {emailHistory.length > 0 && (
+              <div className="mb-6 rounded-lg bg-gray-50 p-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                  Previous Emails Sent
+                </h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {emailHistory.map((email, index) => (
+                    <div
+                      key={index}
+                      className="text-xs bg-white p-2 rounded border border-gray-200"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-800">
+                          {email.recipientEmail}
+                        </span>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-semibold ${
+                            email.status === "sent"
+                              ? "bg-green-100 text-green-800"
+                              : email.status === "failed"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {email.status}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-gray-600">
+                        <span className="inline-block bg-blue-100 text-blue-800 px-2 py-0.5 rounded mr-2">
+                          {email.emailType.replace(/_/g, " ")}
+                        </span>
+                        {new Date(email.sentAt || email.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ACTIONS */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleSubmitShare}
+                disabled={sharing || !shareEmail}
+                className="flex-1 rounded-lg bg-green-600 px-6 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {sharing ? "Sending..." : "✉️ Send Invoice"}
+              </button>
+              <button
+                onClick={handleCloseShareModal}
+                disabled={sharing}
+                className="flex-1 rounded-lg bg-gray-300 px-6 py-3 text-sm font-bold text-gray-800 hover:bg-gray-400 disabled:opacity-50 transition-colors"
+              >
+                Cancel
               </button>
             </div>
           </div>

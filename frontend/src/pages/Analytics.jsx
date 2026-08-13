@@ -48,6 +48,7 @@ const Analytics = () => {
     return {
       revenue: source.totalRevenue || 0,
       profit: source.totalProfit || 0,
+      expenses: source.totalOperatingExpenses || 0,
       averageOrder: source.averageOrderValue || 0,
       growth: source.growthVelocity || source.salesGrowth || 0,
       sales: source.totalSales || 0,
@@ -130,9 +131,10 @@ const Analytics = () => {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Gross Revenue", value: formatCurrency(metrics.revenue), tone: "emerald" },
+          { label: "Operating Expenses", value: formatCurrency(metrics.expenses), tone: "amber" },
           { label: "Net Profit", value: formatCurrency(metrics.profit), tone: "slate" },
-          { label: "Average Order Value", value: formatCurrency(metrics.averageOrder), tone: "amber" },
-          { label: "Sales Growth Velocity", value: `${metrics.growth}%`, tone: "sky" },
+          { label: "Average Order Value", value: formatCurrency(metrics.averageOrder), tone: "sky" },
+          { label: "Sales Growth Velocity", value: `${metrics.growth}%`, tone: "emerald" },
         ].map((card) => (
           <div
             key={card.label}

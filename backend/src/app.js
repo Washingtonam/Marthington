@@ -26,6 +26,8 @@ import branchInventoryRoutes from "./modules/branches/branchInventory.routes.js"
 // 🔥 ADD THIS
 import paymentRoutes from "./modules/payments/payment.routes.js";
 import expenseRoutes from "./modules/expenses/expense.routes.js";
+import supplierRoutes from "./modules/suppliers/supplier.routes.js";
+import purchaseOrderRoutes from "./modules/purchaseOrders/purchaseOrder.routes.js";
 import affiliateRoutes from "./modules/affiliates/affiliate.routes.js";
 import payoutRoutes from "./modules/affiliates/payout.routes.js";
 import notificationRoutes from "./modules/notifications/notification.routes.js";
@@ -71,6 +73,8 @@ app.use("/api/invoices", invoiceRoutes);
 app.use("/api/transactions", transactionRoutes);
 // 🔥 CUSTOMER ROUTE
 app.use("/api/customers", customerRoutes);
+app.use("/api/suppliers", supplierRoutes);
+app.use("/api/purchase-orders", purchaseOrderRoutes);
 app.use("/api/branches", branchRoutes);
 app.use("/api/branches/inventory", branchInventoryRoutes);
 // 🔥 EXPENSES ROUTE

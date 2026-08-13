@@ -21,6 +21,37 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+    accountName: {
+      type: String,
+      default: "General Expenses"
+    },
+    postingType: {
+      type: String,
+      enum: ["debit", "credit"],
+      default: "debit"
+    },
+    sourceModel: {
+      type: String,
+      default: null
+    },
+    sourceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null
+    },
+    branchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Branch",
+      default: null
+    },
+    status: {
+      type: String,
+      enum: ["pending", "posted", "reversed"],
+      default: "pending"
+    },
+    occurredAt: {
+      type: Date,
+      default: Date.now
+    },
     amount: {
       type: Number,
       required: true,

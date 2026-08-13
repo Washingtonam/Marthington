@@ -1,5 +1,6 @@
 import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
+import Transaction from "../transactions/transaction.model.js";
 
 const retailSalesFilter = (businessId) => ({
   $and: [
@@ -49,7 +50,26 @@ const getReports = async (req, res) => {
     // 4. Revenue & Profit Calculations
     const todayRevenue = todaySales.reduce((sum, s) => sum + s.totalAmount, 0);
     const monthlyRevenue = monthlySales.reduce((sum, s) => sum + s.totalAmount, 0);
-    const monthlyProfit = monthlySales.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
+    
+    // 🔥 GROSS PROFIT CALCULATION
+    const monthlyGrossProfit = monthlySales.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
+    
+    // 🔥 GET OPERATING EXPENSES FOR THE MONTH FROM POSTED LEDGER ENTRIES
+    const postedExpenseTransactions = await Transaction.find({
+      businessId,
+      transactionType: "expense",
+      status: "posted",
+      isDeleted: { $ne: true },
+      occurredAt: { $gte: monthStart }
+    }).lean();
+
+    const monthlyOperatingExpenses = postedExpenseTransactions.reduce(
+      (sum, tx) => sum + (Number(tx.amount) || 0),
+      0
+    );
+
+    // 🔥 NET PROFIT = GROSS PROFIT - OPERATING EXPENSES
+    const monthlyProfit = monthlyGrossProfit - monthlyOperatingExpenses;
 
     // 5. Inventory Value
     const inventoryValue = products.reduce((sum, p) => sum + (p.price || 0) * (p.stock || 0), 0);
@@ -96,6 +116,8 @@ const getReports = async (req, res) => {
       overview: { 
         todayRevenue, 
         monthlyRevenue, 
+        monthlyGrossProfit,
+        monthlyOperatingExpenses,
         monthlyProfit, 
         inventoryValue 
       },
