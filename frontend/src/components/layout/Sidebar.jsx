@@ -22,6 +22,7 @@ const defaultNavGroups = [
       { to: "/app/services", label: "Services", icon: "🛠️" },
       { to: "/app/inventory", label: "Inventory", icon: "◧" },
       { to: "/app/suppliers", label: "Suppliers", icon: "🏭" },
+      { to: "/app/supplier-performance", label: "Supplier Performance", icon: "📈" },
       { to: "/app/purchase-orders", label: "Purchase Orders", icon: "🧾" },
     ],
   },
@@ -29,6 +30,9 @@ const defaultNavGroups = [
     label: "Finance & Control",
     items: [
       { to: "/app/expenses", label: "Expenses", icon: "💸" },
+      { to: "/app/budget-management", label: "Budget Management", icon: "💰" },
+      { to: "/app/budget-alerts", label: "Budget Alerts", icon: "🔔" },
+      { to: "/app/cost-trends", label: "Cost Trends", icon: "📉" },
       { to: "/app/billing", label: "Billing", icon: "⬡" },
       { to: "/app/reports", label: "Reports", icon: "📊" },
       { to: "/app/analytics", label: "Analytics", icon: "⬢" },

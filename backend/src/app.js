@@ -31,6 +31,8 @@ import purchaseOrderRoutes from "./modules/purchaseOrders/purchaseOrder.routes.j
 import affiliateRoutes from "./modules/affiliates/affiliate.routes.js";
 import payoutRoutes from "./modules/affiliates/payout.routes.js";
 import notificationRoutes from "./modules/notifications/notification.routes.js";
+import categoryBudgetRoutes from "./modules/budgets/categoryBudget.routes.js";
+import budgetAlertRoutes from "./modules/budgets/budgetAlert.routes.js";
 
 const app = express();
 
@@ -79,6 +81,8 @@ app.use("/api/branches", branchRoutes);
 app.use("/api/branches/inventory", branchInventoryRoutes);
 // 🔥 EXPENSES ROUTE
 app.use("/api/expenses", expenseRoutes);
+app.use("/api/category-budgets", categoryBudgetRoutes);
+app.use("/api/budget-alerts", budgetAlertRoutes);
 app.use("/api/affiliates", affiliateRoutes);
 app.use("/api/affiliates/payouts", payoutRoutes);
 app.use("/api/notifications", notificationRoutes);

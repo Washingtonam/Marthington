@@ -143,6 +143,25 @@ const businessSchema = new mongoose.Schema(
       }
     },
 
+    approvalRules: {
+      autoApproveEnabled: {
+        type: Boolean,
+        default: false
+      },
+      maxAutoApproveAmount: {
+        type: Number,
+        default: 0
+      },
+      exemptCategories: {
+        type: [String],
+        default: []
+      },
+      trustedSuppliers: {
+        type: [String],
+        default: []
+      }
+    },
+
     // 🔥 TRIAL SYSTEM
     trialEndsAt: {
       type: Date,

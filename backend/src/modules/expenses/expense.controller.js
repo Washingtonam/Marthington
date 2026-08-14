@@ -4,6 +4,7 @@ import User from "../users/user.model.js";
 import { sendBudgetExceededEmail } from "../../utils/emailService.js";
 import { EXPENSE_CATEGORIES } from "../../config/constants.js";
 import { postExpenseToGL } from "../transactions/transaction.utils.js";
+import { shouldAutoApproveExpense } from "./expenseApproval.utils.js";
 
 // 🔥 CHECK BUDGET AND SEND ALERTS
 const checkAndAlertBudgetExceeded = async (businessId, month, year, createdBy) => {
@@ -93,7 +94,7 @@ const checkAndAlertBudgetExceeded = async (businessId, month, year, createdBy) =
 // 🔥 CREATE EXPENSE
 const createExpense = async (req, res) => {
   try {
-    const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice } = req.body;
+    const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice, supplier } = req.body;
     const businessId = req.user.businessId;
 
     // Validate required fields
@@ -111,21 +112,36 @@ const createExpense = async (req, res) => {
       return res.status(404).json({ message: "Business not found" });
     }
 
+    const parsedAmount = parseFloat(amount);
+    const businessSettings = business?.approvalRules || {};
+    const autoApprovalDecision = shouldAutoApproveExpense({
+      amount: parsedAmount,
+      category: category || "miscellaneous",
+      supplierId: supplier || null,
+      businessSettings
+    });
+
     // Create expense
     const expense = await Expense.create({
       business: businessId,
       branch: branch || null,
-      amount: parseFloat(amount),
+      amount: parsedAmount,
       description: description.trim(),
       category: category || "miscellaneous",
       paymentMethod: paymentMethod || "cash",
       date: date ? new Date(date) : new Date(),
       notes: notes || "",
       createdBy: req.user.id,
-      status: "pending",
+      approvedBy: autoApprovalDecision.shouldAutoApprove ? req.user.id : null,
+      status: autoApprovalDecision.status,
       linkedInvoice: linkedInvoice || null,
-      budgetAllocation: budgetAllocation || null
+      budgetAllocation: budgetAllocation || null,
+      supplier: supplier || null
     });
+
+    if (autoApprovalDecision.shouldAutoApprove) {
+      await postExpenseToGL(expense);
+    }
 
     await expense.populate("createdBy", "name email");
     await expense.populate("branch", "name");

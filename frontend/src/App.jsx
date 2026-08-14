@@ -53,6 +53,10 @@ const PartnersReferrals = lazy(() => import("./pages/PartnersReferrals.jsx"));
 const AdminPayouts = lazy(() => import("./pages/AdminPayouts.jsx"));
 const AdminPartnersLedger = lazy(() => import("./pages/AdminPartnersLedger.jsx"));
 const UserGuide = lazy(() => import("./pages/UserGuide.jsx"));
+const BudgetManagement = lazy(() => import("./pages/BudgetManagement.jsx"));
+const BudgetAlerts = lazy(() => import("./pages/BudgetAlerts.jsx"));
+const SupplierPerformance = lazy(() => import("./pages/SupplierPerformance.jsx"));
+const CostTrendAnalysis = lazy(() => import("./pages/CostTrendAnalysis.jsx"));
 
 const Students = () => (
   <div className="page-shell">
@@ -281,8 +285,12 @@ const App = () => {
               <Route path="services" element={<Services />} />
               <Route path="suppliers" element={<Suppliers />} />
               <Route path="suppliers/:id" element={<SupplierDetail />} />
+              <Route path="supplier-performance" element={<SupplierPerformance />} />
               <Route path="purchase-orders" element={<PurchaseOrders />} />
               <Route path="expenses" element={<Expenses />} />
+              <Route path="budget-management" element={<BudgetManagement />} />
+              <Route path="budget-alerts" element={<BudgetAlerts />} />
+              <Route path="cost-trends" element={<CostTrendAnalysis />} />
               <Route
                 path="school-dashboard"
                 element={

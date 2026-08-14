@@ -172,7 +172,8 @@ export const updateBusiness = async (req, res) => {
       receiptTheme,
       businessType,
       industryType,
-      logo
+      logo,
+      approvalRules
     } = req.body;
 
     // 🔥 LOGO UPLOAD
@@ -200,6 +201,19 @@ export const updateBusiness = async (req, res) => {
     business.receiptTheme = receiptTheme ?? business.receiptTheme;
     business.businessType = businessType ?? business.businessType;
     business.industryType = industryType || business.industryType || "retail";
+
+    if (approvalRules) {
+      business.approvalRules = {
+        ...business.approvalRules,
+        ...approvalRules,
+        exemptCategories: Array.isArray(approvalRules.exemptCategories)
+          ? approvalRules.exemptCategories
+          : business.approvalRules?.exemptCategories || [],
+        trustedSuppliers: Array.isArray(approvalRules.trustedSuppliers)
+          ? approvalRules.trustedSuppliers
+          : business.approvalRules?.trustedSuppliers || []
+      };
+    }
 
     await business.save();
 
