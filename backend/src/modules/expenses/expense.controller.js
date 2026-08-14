@@ -665,6 +665,181 @@ const getBudgetVsActual = async (req, res) => {
   }
 };
 
+// 🔥 GET PENDING PROCUREMENT EXPENSES
+const getPendingProcurementExpenses = async (req, res) => {
+  try {
+    const businessId = req.user.businessId;
+    const { branch, supplier } = req.query;
+
+    const filter = {
+      business: businessId,
+      status: "pending",
+      linkedPurchaseOrder: { $exists: true, $ne: null },
+      category: "inventory"
+    };
+
+    if (branch) filter.branch = branch;
+    if (supplier) filter.supplier = supplier;
+
+    const expenses = await Expense.find(filter)
+      .populate("createdBy", "name email")
+      .populate("linkedPurchaseOrder", "totalAmount items supplier receiptStatus")
+      .populate("linkedPurchaseOrder.supplier", "name paymentTerms")
+      .populate("supplier", "name outstandingBalance")
+      .populate("branch", "name")
+      .sort({ createdAt: -1 });
+
+    const summary = {
+      totalPending: expenses.length,
+      totalAmount: expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
+      byBranch: {},
+      bySupplier: {}
+    };
+
+    expenses.forEach(expense => {
+      const branchName = expense.branch?.name || "Head Office";
+      const supplierName = expense.supplier?.name || "Unknown";
+      
+      summary.byBranch[branchName] = (summary.byBranch[branchName] || 0) + Number(expense.amount);
+      summary.bySupplier[supplierName] = (summary.bySupplier[supplierName] || 0) + Number(expense.amount);
+    });
+
+    return res.json({
+      expenses,
+      summary
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "Failed to fetch pending procurement expenses" });
+  }
+};
+
+// 🔥 APPROVE PROCUREMENT EXPENSE (WITH SUPPLIER LEDGER UPDATE)
+const approveProcurementExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const businessId = req.user.businessId;
+    const { notes } = req.body;
+
+    // Only owner/admin can approve
+    if (req.user.role !== "owner" && req.user.role !== "super_admin") {
+      return res.status(403).json({ message: "Unauthorized to approve expenses" });
+    }
+
+    const expense = await Expense.findOne({ _id: id, business: businessId })
+      .populate("linkedPurchaseOrder")
+      .populate("supplier");
+
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+
+    if (!expense.linkedPurchaseOrder) {
+      return res.status(400).json({ message: "This is not a procurement expense" });
+    }
+
+    if (expense.status === "approved") {
+      return res.status(400).json({ message: "This expense is already approved" });
+    }
+
+    // Update expense status
+    expense.status = "approved";
+    expense.approvedBy = req.user.id;
+    if (notes) expense.notes = notes;
+
+    await expense.save();
+
+    // Post to GL
+    const postedLedgerEntry = await postExpenseToGL(expense);
+
+    // Populate for response
+    await expense.populate("createdBy", "name email");
+    await expense.populate("approvedBy", "name email");
+    await expense.populate("linkedPurchaseOrder", "totalAmount items supplier");
+    await expense.populate("supplier", "name outstandingBalance");
+
+    return res.status(200).json({
+      message: "Procurement expense approved successfully",
+      expense,
+      ledgerEntry: postedLedgerEntry
+    });
+  } catch (err) {
+    console.error("Approve Procurement Expense Error:", err);
+    return res.status(500).json({ message: err.message || "Failed to approve expense" });
+  }
+};
+
+// 🔥 BATCH APPROVE PROCUREMENT EXPENSES
+const batchApproveProcurementExpenses = async (req, res) => {
+  try {
+    const { expenseIds } = req.body;
+    const businessId = req.user.businessId;
+
+    if (!Array.isArray(expenseIds) || expenseIds.length === 0) {
+      return res.status(400).json({ message: "expenseIds array is required" });
+    }
+
+    if (req.user.role !== "owner" && req.user.role !== "super_admin") {
+      return res.status(403).json({ message: "Unauthorized to approve expenses" });
+    }
+
+    const expenses = await Expense.find({
+      _id: { $in: expenseIds },
+      business: businessId,
+      linkedPurchaseOrder: { $exists: true, $ne: null }
+    });
+
+    if (expenses.length === 0) {
+      return res.status(404).json({ message: "No procurement expenses found" });
+    }
+
+    const approved = [];
+    const failed = [];
+
+    for (const expense of expenses) {
+      try {
+        if (expense.status === "approved") {
+          failed.push({
+            id: expense._id,
+            reason: "Already approved"
+          });
+          continue;
+        }
+
+        expense.status = "approved";
+        expense.approvedBy = req.user.id;
+        await expense.save();
+
+        await postExpenseToGL(expense);
+
+        await expense.populate("createdBy", "name email");
+        await expense.populate("approvedBy", "name email");
+
+        approved.push(expense);
+      } catch (err) {
+        failed.push({
+          id: expense._id,
+          reason: err.message
+        });
+      }
+    }
+
+    return res.status(200).json({
+      message: `Approved ${approved.length} expenses`,
+      approved,
+      failed,
+      summary: {
+        totalProcessed: expenseIds.length,
+        approvedCount: approved.length,
+        failedCount: failed.length,
+        totalApprovedAmount: approved.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+      }
+    });
+  } catch (err) {
+    console.error("Batch Approve Error:", err);
+    return res.status(500).json({ message: err.message || "Failed to batch approve expenses" });
+  }
+};
+
 export default {
   createExpense,
   getExpenses,
@@ -678,5 +853,8 @@ export default {
   getExpenseTrends,
   linkInvoice,
   getReconciliationReport,
-  getBudgetVsActual
+  getBudgetVsActual,
+  getPendingProcurementExpenses,
+  approveProcurementExpense,
+  batchApproveProcurementExpenses
 };

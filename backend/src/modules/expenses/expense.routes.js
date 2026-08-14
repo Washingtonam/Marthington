@@ -111,4 +111,30 @@ router.post(
   expenseController.linkInvoice
 );
 
+// ===== PHASE 1 ENHANCEMENT: PROCUREMENT EXPENSE APPROVAL =====
+
+// 🔥 GET PENDING PROCUREMENT EXPENSES
+router.get(
+  "/procurement/pending",
+  protect,
+  checkPermission("canViewExpenses"),
+  expenseController.getPendingProcurementExpenses
+);
+
+// 🔥 APPROVE PROCUREMENT EXPENSE (ENHANCED)
+router.post(
+  "/:id/approve-procurement",
+  protect,
+  checkPermission("canManageExpenses"),
+  expenseController.approveProcurementExpense
+);
+
+// 🔥 BATCH APPROVE PROCUREMENT EXPENSES
+router.post(
+  "/procurement/batch-approve",
+  protect,
+  checkPermission("canManageExpenses"),
+  expenseController.batchApproveProcurementExpenses
+);
+
 export default router;

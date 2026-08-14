@@ -58,6 +58,8 @@ const Expenses = () => {
   const [trends, setTrends] = useState(null);
   const [reconciliation, setReconciliation] = useState(null);
   const [budgetAnalysis, setBudgetAnalysis] = useState(null);
+  const [pendingProcurements, setPendingProcurements] = useState([]);
+  const [procurementSummary, setProcurementSummary] = useState(null);
 
   useEffect(() => {
     const loadExpensesAndBranches = async () => {
@@ -377,6 +379,50 @@ const Expenses = () => {
     }
   };
 
+  // PHASE 1: PROCUREMENT APPROVALS
+  const loadProcurementApprovals = async () => {
+    try {
+      const data = await request("/expenses/procurement/pending");
+      setPendingProcurements(Array.isArray(data?.expenses) ? data.expenses : []);
+      setProcurementSummary(data?.summary || {});
+      setViewMode("procurement");
+    } catch (err) {
+      setStatusMsg({ type: "error", text: "Failed to load pending procurement approvals." });
+    }
+  };
+
+  const approveProcurementExpense = async (expenseId) => {
+    try {
+      setProcessing(true);
+      await request(`/expenses/${expenseId}/approve-procurement`, {
+        method: "POST",
+        body: JSON.stringify({ notes: "Approved from Expenses page" })
+      });
+      setStatusMsg({ type: "success", text: "Procurement expense approved successfully!" });
+      await loadProcurementApprovals();
+    } catch (err) {
+      setStatusMsg({ type: "error", text: err.message || "Failed to approve expense." });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const rejectProcurementExpense = async (expenseId) => {
+    try {
+      setProcessing(true);
+      await request(`/expenses/${expenseId}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ notes: "Rejected from Expenses page" })
+      });
+      setStatusMsg({ type: "success", text: "Procurement expense rejected." });
+      await loadProcurementApprovals();
+    } catch (err) {
+      setStatusMsg({ type: "error", text: err.message || "Failed to reject expense." });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -549,6 +595,14 @@ const Expenses = () => {
             >
               📋 List View
             </button>
+            {isAdmin && (
+              <button
+                onClick={loadProcurementApprovals}
+                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${viewMode === "procurement" ? "bg-emerald-600 text-white" : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700"}`}
+              >
+                ✓ Procurement Approvals {pendingProcurements.length > 0 && `(${pendingProcurements.length})`}
+              </button>
+            )}
             <button
               onClick={loadTrends}
               className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${viewMode === "trends" ? "bg-blue-600 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
@@ -1071,6 +1125,106 @@ const Expenses = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* PROCUREMENT APPROVALS VIEW - PHASE 1 ENHANCEMENT */}
+        {viewMode === "procurement" && isAdmin && (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            {procurementSummary && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl">
+                  <p className="text-xs text-gray-600 font-bold">PENDING APPROVALS</p>
+                  <p className="text-3xl font-black text-emerald-600">{procurementSummary.totalPending || 0}</p>
+                  <p className="text-xs text-emerald-700 mt-1 font-bold">Awaiting approval</p>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl">
+                  <p className="text-xs text-gray-600 font-bold">TOTAL AMOUNT</p>
+                  <p className="text-2xl font-black text-amber-600">{formatCurrency(procurementSummary.totalAmount || 0)}</p>
+                  <p className="text-xs text-amber-700 mt-1 font-bold">To be approved</p>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl">
+                  <p className="text-xs text-gray-600 font-bold">SUPPLIERS</p>
+                  <p className="text-3xl font-black text-blue-600">{Object.keys(procurementSummary.bySupplier || {}).length}</p>
+                  <p className="text-xs text-blue-700 mt-1 font-bold">Involved in pending</p>
+                </div>
+              </div>
+            )}
+
+            {/* Pending Procurement Expenses List */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 border-b border-gray-100">
+                <h2 className="text-xl font-bold text-gray-900">📦 Pending Procurement Expenses</h2>
+                <p className="text-sm text-gray-600 mt-1">Goods received but awaiting manager approval</p>
+              </div>
+
+              {pendingProcurements.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  <p className="text-lg font-bold">✓ All procurement expenses approved!</p>
+                  <p className="text-sm mt-1">No pending approvals at this time</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-700">Supplier</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-700">Amount</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-700">Created By</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-700">Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-700">Payment Terms</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-700">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {pendingProcurements.map(expense => (
+                        <tr key={expense._id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div>
+                              <p className="font-bold text-gray-900">{expense.supplier?.name || "Unknown"}</p>
+                              <p className="text-xs text-gray-600 mt-1">PO #{expense.linkedPurchaseOrder?._id?.slice(-8)}</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="font-black text-emerald-600">{formatCurrency(expense.amount)}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm text-gray-700">{expense.createdBy?.name || "System"}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm text-gray-600">{new Date(expense.createdAt).toLocaleDateString()}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-block px-3 py-1 text-xs font-bold rounded-full bg-blue-100 text-blue-700">
+                              {expense.linkedPurchaseOrder?.paymentTerms || "Immediate"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => approveProcurementExpense(expense._id)}
+                                disabled={processing}
+                                className="px-3 py-2 text-xs font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all disabled:opacity-50"
+                              >
+                                ✓ Approve
+                              </button>
+                              <button
+                                onClick={() => rejectProcurementExpense(expense._id)}
+                                disabled={processing}
+                                className="px-3 py-2 text-xs font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all disabled:opacity-50"
+                              >
+                                ✕ Reject
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
