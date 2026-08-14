@@ -77,6 +77,18 @@ const expenseSchema = new mongoose.Schema(
       default: null
     },
 
+    linkedPurchaseOrder: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PurchaseOrder",
+      default: null
+    },
+
+    supplier: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+      default: null
+    },
+
     budgetAllocation: {
       type: Number,
       default: null

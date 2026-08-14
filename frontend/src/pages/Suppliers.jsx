@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiMail, FiPackage, FiPhone, FiPlus, FiSearch, FiTruck } from "react-icons/fi";
+import { FiMail, FiPackage, FiPhone, FiPlus, FiSearch, FiTruck, FiBox } from "react-icons/fi";
 import { createSupplier, getSuppliers, updateSupplier } from "../api/suppliers.js";
 import { formatCurrency } from "../utils/formatters.js";
+import RecordReceiptModal from "../components/RecordReceiptModal.jsx";
 
 const emptyForm = () => ({
   name: "",
@@ -19,6 +20,7 @@ const Suppliers = () => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [form, setForm] = useState(emptyForm());
 
@@ -138,14 +140,24 @@ const Suppliers = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={openCreateDrawer}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-emerald-700 active:scale-[0.99]"
-          >
-            <FiPlus />
-            Add Supplier
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setReceiptModalOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-600 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-600 shadow-sm transition-all duration-150 hover:bg-emerald-50 active:scale-[0.99] dark:border-emerald-500 dark:bg-emerald-950/20 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+            >
+              <FiBox className="h-4 w-4" />
+              Record Receipt
+            </button>
+            <button
+              type="button"
+              onClick={openCreateDrawer}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-emerald-700 active:scale-[0.99]"
+            >
+              <FiPlus />
+              Add Supplier
+            </button>
+          </div>
         </div>
       </div>
 
@@ -325,6 +337,12 @@ const Suppliers = () => {
           </div>
         </div>
       ) : null}
+
+      <RecordReceiptModal
+        isOpen={receiptModalOpen}
+        onClose={() => setReceiptModalOpen(false)}
+        onSuccess={() => loadSuppliers()}
+      />
     </section>
   );
 };

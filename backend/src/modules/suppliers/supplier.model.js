@@ -37,6 +37,27 @@ const supplierSchema =
     isActive: {
       type: Boolean,
       default: true
+    },
+
+    paymentTerms: {
+      type: String,
+      enum: ["immediate", "net30", "net60"],
+      default: "immediate"
+    },
+
+    totalPurchases: {
+      type: Number,
+      default: 0
+    },
+
+    totalPaid: {
+      type: Number,
+      default: 0
+    },
+
+    outstandingBalance: {
+      type: Number,
+      default: 0
     }
 
   }, {
