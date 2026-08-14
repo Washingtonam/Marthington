@@ -5,6 +5,9 @@ import { formatCurrency } from "../utils/formatters.js";
 import { getSuppliers } from "../api/suppliers.js";
 import RecordReceiptModal from "../components/RecordReceiptModal.jsx";
 import { getBranches } from "../api/branches.js";
+import { useAuth } from "../context/AuthContext.jsx";
+
+const LARGE_PURCHASE_THRESHOLD = 100000;
 
 const PAYMENT_TERMS = [
   { value: "immediate", label: "Immediate Payment" },
@@ -13,6 +16,8 @@ const PAYMENT_TERMS = [
 ];
 
 const PurchaseOrders = () => {
+  const { user } = useAuth();
+  const canApproveLargePurchase = ["owner", "super_admin", "manager"].includes(user?.role);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -97,6 +102,16 @@ const PurchaseOrders = () => {
 
     return { pending, partial, received, cancelled, totalValue, outstandingValue };
   }, [purchaseOrders]);
+
+  const draftTotal = useMemo(() => {
+    return formData.items.reduce((sum, item) => {
+      const qty = Number(item.quantity || 0);
+      const price = Number(item.costPrice || 0);
+      return sum + (qty * price);
+    }, 0);
+  }, [formData.items]);
+
+  const largePurchaseWarning = draftTotal >= LARGE_PURCHASE_THRESHOLD && !canApproveLargePurchase;
 
   const handleAddItem = () => {
     setFormData(prev => ({
@@ -237,6 +252,12 @@ const PurchaseOrders = () => {
       {statusMsg.text && (
         <div className={`rounded-lg p-4 ${statusMsg.type === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
           {statusMsg.text}
+        </div>
+      )}
+
+      {largePurchaseWarning && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          Large purchase warning: {formatCurrency(draftTotal)} exceeds the approval threshold of {formatCurrency(LARGE_PURCHASE_THRESHOLD)}. Manager approval is required before this order can be submitted.
         </div>
       )}
 
@@ -619,10 +640,10 @@ const PurchaseOrders = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={processing}
+                  disabled={processing || largePurchaseWarning}
                   className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {processing ? "Saving..." : editingPO ? "Update Order" : "Create Order"}
+                  {processing ? "Saving..." : editingPO ? "Update Order" : largePurchaseWarning ? "Manager Approval Required" : "Create Order"}
                 </button>
               </div>
             </form>

@@ -3,6 +3,7 @@ import Supplier from "../suppliers/supplier.model.js";
 import Product from "../products/product.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
 import Expense from "../expenses/expense.model.js";
+import { getPurchaseApprovalStatus } from "./purchaseOrderBudget.js";
 
 const getPurchaseOrders = async (req, res) => {
   try {
@@ -48,6 +49,15 @@ const createPurchaseOrder = async (req, res) => {
     }));
 
     const totalAmount = normalizedItems.reduce((sum, item) => sum + Number(item.total || 0), 0);
+    const approvalStatus = getPurchaseApprovalStatus(totalAmount);
+
+    if (approvalStatus.requiresApproval && !["owner", "super_admin", "manager"].includes(req.user.role)) {
+      return res.status(403).json({
+        message: approvalStatus.reason,
+        threshold: approvalStatus.threshold,
+        amount: approvalStatus.amount
+      });
+    }
 
     const order = await PurchaseOrder.create({
       business: req.user.businessId,
@@ -93,6 +103,15 @@ const updatePurchaseOrder = async (req, res) => {
         total: Number(item.total || Number(item.costPrice || 0) * Number(item.quantity || 0))
       }));
       order.totalAmount = order.items.reduce((sum, item) => sum + Number(item.total || 0), 0);
+    }
+
+    const approvalStatus = getPurchaseApprovalStatus(order.totalAmount);
+    if (approvalStatus.requiresApproval && !["owner", "super_admin", "manager"].includes(req.user.role)) {
+      return res.status(403).json({
+        message: approvalStatus.reason,
+        threshold: approvalStatus.threshold,
+        amount: approvalStatus.amount
+      });
     }
 
     await order.save();
