@@ -440,18 +440,18 @@ useEffect(() => {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="truncate text-sm font-semibold text-slate-800">{formatDisplayText(p.name)}</h3>
+                      <h3 className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{formatDisplayText(p.name)}</h3>
                       <span className={`stock-badge ${(Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock) <= 5) ? "stock-warning" : ""}`}>
                         {Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock) <= 5
                           ? `${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock} left`
                           : `${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock} left`}
                       </span>
                     </div>
-                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
                       {formatDisplayText(p.category || "General")}
                     </p>
                     {selectedBranch ? (
-                      <p className={`mt-2 text-[11px] ${Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 0 ? "text-rose-600" : Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 5 ? "text-amber-600" : "text-slate-500"}`}>
+                      <p className={`mt-2 text-[11px] ${Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 0 ? "text-rose-600 dark:text-rose-400" : Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 5 ? "text-amber-600 dark:text-amber-400" : "text-slate-500 dark:text-slate-400"}`}>
                         {Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 0
                           ? "Out of stock in selected branch"
                           : Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 5
@@ -459,7 +459,7 @@ useEffect(() => {
                             : `Branch stock: ${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0}`}
                       </p>
                     ) : (
-                      <p className="mt-2 text-[11px] text-slate-500">
+                      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
                         Head office stock: {p.stock ?? 0}
                       </p>
                     )}
@@ -480,8 +480,8 @@ useEffect(() => {
                   className={`pos-card pos-card-service ${pulseActive ? "card-pulse" : ""}`}
                 >
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-slate-800">{formatDisplayText(s.name)}</h3>
-                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{formatDisplayText(s.name)}</h3>
+                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
                       {formatDisplayText(s.category || "General")}
                     </p>
                   </div>

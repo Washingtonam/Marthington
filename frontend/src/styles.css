@@ -63,14 +63,29 @@ button {
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
+.dark .pos-card {
+  background: #1e293b;
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.2);
+}
+
 .pos-card:hover {
   transform: translateY(-2px);
   border-color: rgba(15, 23, 42, 0.12);
   box-shadow: 0 22px 40px rgba(15, 23, 42, 0.08);
 }
 
+.dark .pos-card:hover {
+  border-color: rgba(148, 163, 184, 0.3);
+  box-shadow: 0 22px 40px rgba(0, 0, 0, 0.3);
+}
+
 .pos-card-service {
   border-color: rgba(16, 185, 129, 0.16);
+}
+
+.dark .pos-card-service {
+  border-color: rgba(16, 185, 129, 0.3);
 }
 
 .card-pulse {
@@ -91,9 +106,19 @@ button {
   text-transform: uppercase;
 }
 
+.dark .stock-badge {
+  color: #cbd5e1;
+  background: #334155;
+}
+
 .stock-badge.stock-warning {
   color: #b45309;
   background: #fff7ed;
+}
+
+.dark .stock-badge.stock-warning {
+  color: #fbbf24;
+  background: #78350f;
 }
 
 .cart-item {
