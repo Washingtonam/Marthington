@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import request from "../api/client.js";
+import { getReport, REPORT_TYPES } from "../api/reportApi.js";
 import { formatCurrency } from "../utils/formatters.js";
 
 const StaffReports = () => {
@@ -16,7 +16,8 @@ const StaffReports = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await request("/reports");
+        const period = timeframe === "all" ? "all" : timeframe === "today" ? "7" : "30";
+        const data = await getReport(REPORT_TYPES.staff, { period });
         setReports(data);
       } catch (err) {
         setError(err.message || "Failed to load staff reports");
@@ -25,7 +26,7 @@ const StaffReports = () => {
       }
     };
     load();
-  }, []);
+  }, [timeframe]);
 
   // =====================================
   // FILTER & SORT STAFF (Upgraded)

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import request from "../api/client.js";
+import { getReport, REPORT_TYPES } from "../api/reportApi.js";
 import { formatCurrency } from "../utils/formatters.js";
 
 const InventoryReports = () => {
@@ -16,7 +16,7 @@ const InventoryReports = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await request("/reports");
+        const data = await getReport(REPORT_TYPES.inventory, { period: "30" });
         setReports(data);
       } catch (err) {
         setError(err.message || "Failed to load inventory reports");

@@ -13,4 +13,39 @@ router.get(
   reportsController.getReports
 );
 
+router.get(
+  "/overview",
+  protect,
+  checkPermission("canViewReports"),
+  reportsController.getOverviewReport
+);
+
+router.get(
+  "/sales",
+  protect,
+  checkPermission("canViewReports"),
+  reportsController.getSalesReport
+);
+
+router.get(
+  "/staff",
+  protect,
+  checkPermission("canViewReports"),
+  reportsController.getStaffReport
+);
+
+router.get(
+  "/inventory",
+  protect,
+  checkPermission("canViewReports"),
+  reportsController.getInventoryReport
+);
+
+router.get(
+  "/financial",
+  protect,
+  checkPermission("canViewReports"),
+  reportsController.getFinancialReport
+);
+
 export default router;

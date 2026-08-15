@@ -38,6 +38,7 @@ const Branches = lazy(() => import("./pages/Branches.jsx"));
 const BranchInventory = lazy(() => import("./pages/BranchInventory.jsx"));
 const StaffReports = lazy(() => import("./pages/StaffReports.jsx"));
 const InventoryReports = lazy(() => import("./pages/InventoryReports.jsx"));
+const FinancialReports = lazy(() => import("./pages/FinancialReports.jsx"));
 const CustomerView = lazy(() => import("./pages/CustomerView.jsx"));
 const PublicReceipt = lazy(() => import("./pages/PublicReceipt.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
@@ -276,6 +277,7 @@ const App = () => {
               <Route path="deleted-sales" element={<DeletedSales />} />
               <Route path="staff-reports" element={<StaffReports />} />
               <Route path="inventory-reports" element={<InventoryReports />} />
+              <Route path="financial-reports" element={<FinancialReports />} />
               <Route path="billing" element={<Billing />} />
               <Route path="user-guide" element={<UserGuide />} />
               <Route path="verify-payment" element={<VerifyPayment />} />
