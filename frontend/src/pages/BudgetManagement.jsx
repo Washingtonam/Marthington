@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../hooks/useAuth";
-import request from "../api/request";
-import { formatCurrency } from "../utils/formatCurrency";
+import { useAuth } from "../context/AuthContext.jsx";
+import request from "../api/client.js";
+import { formatCurrency } from "../utils/formatters.js";
 
 const BudgetManagement = () => {
   const { user } = useAuth();
@@ -36,8 +36,8 @@ const BudgetManagement = () => {
       setError(null);
 
       const [budgetsRes, overviewRes] = await Promise.all([
-        request.get("/api/category-budgets"),
-        request.get("/api/category-budgets/overview/monthly")
+        request("/category-budgets"),
+        request("/category-budgets/overview/monthly")
       ]);
 
       setBudgets(budgetsRes || []);
@@ -70,9 +70,12 @@ const BudgetManagement = () => {
   const handleSaveBudget = async () => {
     try {
       setError(null);
-      await request.put(`/api/category-budgets/category/${editingCategory}`, {
-        monthlyBudget: parseFloat(formData.monthlyBudget),
-        alertThresholdPercent: parseFloat(formData.alertThresholdPercent)
+      await request(`/category-budgets/category/${editingCategory}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          monthlyBudget: parseFloat(formData.monthlyBudget),
+          alertThresholdPercent: parseFloat(formData.alertThresholdPercent)
+        })
       });
       
       setEditingCategory(null);
@@ -89,7 +92,7 @@ const BudgetManagement = () => {
 
     try {
       setError(null);
-      await request.delete(`/api/category-budgets/category/${category}`);
+      await request(`/category-budgets/category/${category}`, { method: "DELETE" });
       await loadBudgetData();
     } catch (err) {
       console.error("Error deleting budget:", err);
@@ -100,7 +103,7 @@ const BudgetManagement = () => {
   const handleInitializeDefaults = async () => {
     try {
       setError(null);
-      await request.post("/api/category-budgets/initialize/defaults", {});
+      await request("/category-budgets/initialize/defaults", { method: "POST", body: JSON.stringify({}) });
       setShowInitialize(false);
       await loadBudgetData();
     } catch (err) {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../hooks/useAuth";
-import request from "../api/request";
-import { formatCurrency } from "../utils/formatCurrency";
+import { useAuth } from "../context/AuthContext.jsx";
+import request from "../api/client.js";
+import { formatCurrency } from "../utils/formatters.js";
 
 const BudgetAlerts = () => {
   const { user } = useAuth();
@@ -23,10 +23,8 @@ const BudgetAlerts = () => {
       setError(null);
 
       const [pendingRes, monthRes] = await Promise.all([
-        request.get("/api/budget-alerts/pending"),
-        request.get(
-          `/api/budget-alerts/month?year=${selectedYear}&month=${selectedMonth}`
-        )
+        request("/budget-alerts/pending"),
+        request(`/budget-alerts/month?year=${selectedYear}&month=${selectedMonth}`)
       ]);
 
       setPendingAlerts(pendingRes || []);
@@ -42,7 +40,10 @@ const BudgetAlerts = () => {
   const handleAcknowledge = async (alertId) => {
     try {
       setError(null);
-      await request.put(`/api/budget-alerts/${alertId}/acknowledge`, {});
+      await request(`/budget-alerts/${alertId}/acknowledge`, {
+        method: "PUT",
+        body: JSON.stringify({})
+      });
       await loadAlerts();
     } catch (err) {
       console.error("Error acknowledging alert:", err);
