@@ -53,20 +53,20 @@ const Reports = () => {
   };
 
   return (
-    <section className="page-stack">
-      <div className="page-heading">
+    <section className="page-stack dark:text-slate-100">
+      <div className="page-heading dark:border-slate-700 dark:bg-slate-900/80">
         <div>
-          <span className="section-eyebrow">
+          <span className="section-eyebrow dark:text-emerald-300">
             <span className="status-dot" />
             Business Intelligence
           </span>
-          <h1>Reports Hub</h1>
+          <h1 className="dark:text-slate-100">Reports Hub</h1>
         </div>
       </div>
 
-      {error && <div className="form-error">{error}</div>}
+      {error && <div className="form-error dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50">{error}</div>}
 
-      <div className="metrics-grid">
+      <div className="metrics-grid dark:text-slate-100">
         <div className="tool-panel metric-card revenue">
           <div className="metric-icon">↗</div>
           <div>
@@ -133,81 +133,81 @@ const Reports = () => {
         <div className="ghost-line short" />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid gap-6 lg:grid-cols-3 dark:text-slate-100">
         {/* STAFF PERFORMANCE */}
-        <div className="tool-panel">
+        <div className="tool-panel dark:border-slate-700 dark:bg-slate-900">
           <div className="panel-heading">
             <div>
-              <h2>Staff Performance</h2>
-              <p>View staff revenue and analytics.</p>
+              <h2 className="dark:text-slate-100">Staff Performance</h2>
+              <p className="dark:text-slate-400">View staff revenue and analytics.</p>
             </div>
           </div>
           <div className="compact-list">
             {(reports?.staffPerformance || []).slice(0, 3).map((staff, index) => (
-              <div key={index} className="compact-row">
+              <div key={index} className="compact-row dark:border-slate-700 dark:bg-slate-800">
                 <div>
-                  <strong>{staff.name}</strong>
-                  <span>{staff.sales} sales</span>
+                  <strong className="dark:text-slate-100">{staff.name}</strong>
+                  <span className="dark:text-slate-400">{staff.sales} sales</span>
                 </div>
-                <strong>{formatCurrency(staff.revenue)}</strong>
+                <strong className="dark:text-slate-100">{formatCurrency(staff.revenue)}</strong>
               </div>
             ))}
           </div>
           {/* 🔥 FIXED PATH */}
-          <button onClick={() => navigate("/app/staff-reports")} className="ghost-button mt-4 w-full">
+          <button onClick={() => navigate("/app/staff-reports")} className="ghost-button mt-4 w-full dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">
             View Staff Analytics
           </button>
         </div>
 
         {/* LOW STOCK */}
-        <div className="tool-panel">
+        <div className="tool-panel dark:border-slate-700 dark:bg-slate-900">
           <div className="panel-heading">
             <div>
-              <h2>Low Stock Alerts</h2>
-              <p>Monitor items running low.</p>
+              <h2 className="dark:text-slate-100">Low Stock Alerts</h2>
+              <p className="dark:text-slate-400">Monitor items running low.</p>
             </div>
           </div>
           <div className="compact-list">
             {(reports?.lowStockProducts || []).slice(0, 3).map((product) => (
-              <div key={product._id} className="compact-row">
+              <div key={product._id} className="compact-row dark:border-slate-700 dark:bg-slate-800">
                 <div>
-                  <strong>{product.name}</strong>
-                  <span>SKU: {product.sku || "N/A"}</span>
+                  <strong className="dark:text-slate-100">{product.name}</strong>
+                  <span className="dark:text-slate-400">SKU: {product.sku || "N/A"}</span>
                 </div>
-                <strong className="text-red-500">{product.stock}</strong>
+                <strong className="text-red-500 dark:text-red-400">{product.stock}</strong>
               </div>
             ))}
           </div>
           {/* 🔥 FIXED PATH */}
-          <button onClick={() => navigate("/app/inventory-reports")} className="ghost-button mt-4 w-full">
+          <button onClick={() => navigate("/app/inventory-reports")} className="ghost-button mt-4 w-full dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">
             Open Inventory Alerts
           </button>
         </div>
 
         {/* SALES CENTER */}
-        <div className="tool-panel">
+        <div className="tool-panel dark:border-slate-700 dark:bg-slate-900">
           <div className="panel-heading">
             <div>
-              <h2>Sales Center</h2>
-              <p>Access receipts and transactions.</p>
+              <h2 className="dark:text-slate-100">Sales Center</h2>
+              <p className="dark:text-slate-400">Access receipts and transactions.</p>
             </div>
           </div>
           <div className="compact-list">
             {(reports?.recentSales || []).slice(0, 3).map((sale) => (
-              <div key={sale._id} className="compact-row">
+              <div key={sale._id} className="compact-row dark:border-slate-700 dark:bg-slate-800">
                 <div>
-                  <strong>#{sale.receiptId}</strong>
-                  <span>{sale.createdBy?.name || "Unknown"}</span>
+                  <strong className="dark:text-slate-100">#{sale.receiptId}</strong>
+                  <span className="dark:text-slate-400">{sale.createdBy?.name || "Unknown"}</span>
                 </div>
-                <strong>{formatCurrency(sale.totalAmount)}</strong>
+                <strong className="dark:text-slate-100">{formatCurrency(sale.totalAmount)}</strong>
               </div>
             ))}
           </div>
-          <button onClick={() => navigate("/app/sales")} className="ghost-button mt-4 w-full">
+          <button onClick={() => navigate("/app/sales")} className="ghost-button mt-4 w-full dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">
             Open Sales Center
           </button>
           {(JSON.parse(localStorage.getItem("bms_user") || "null")?.role === "owner" || JSON.parse(localStorage.getItem("bms_user") || "null")?.role === "super_admin") && (
-            <button onClick={() => navigate("/app/deleted-sales")} className="ghost-button mt-2 w-full">
+            <button onClick={() => navigate("/app/deleted-sales")} className="ghost-button mt-2 w-full dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">
               View Archived Sales
             </button>
           )}

@@ -250,22 +250,22 @@ const Products = () => {
   };
 
   return (
-    <section className="space-y-6">
-      <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
+    <section className="space-y-6 dark:text-slate-100">
+      <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Inventory</span>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">Products</h1>
-            <p className="mt-2 text-sm text-slate-500">
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-emerald-300">Inventory</span>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">Products</h1>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               {pagination.totalProducts || 0} total products
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 cursor-pointer">
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
               {uploading ? "Uploading..." : "Upload Excel"}
               <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={handleFileUpload} />
             </label>
-            <a href="/templates/products-template.xlsx" download className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
+            <a href="/templates/products-template.xlsx" download className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
               Download Template
             </a>
             <button
@@ -280,20 +280,20 @@ const Products = () => {
 
         <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex w-full flex-col gap-3 sm:flex-row lg:max-w-[520px]">
-            <label className="flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-inner shadow-slate-100">
-              <span className="text-slate-400">🔎</span>
+            <label className="flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-inner shadow-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:shadow-none">
+              <span className="text-slate-400 dark:text-slate-400">🔎</span>
               <input
                 type="text"
                 placeholder="Search by name or SKU..."
                 value={search}
                 onChange={(e) => { setPage(1); setSearch(e.target.value); }}
-                className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-400"
               />
             </label>
             <select
               value={categoryFilter}
               onChange={(e) => { setPage(1); setCategoryFilter(e.target.value); }}
-              className="min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+              className="min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             >
               <option value="">All Categories</option>
               {categories.map((cat) => (

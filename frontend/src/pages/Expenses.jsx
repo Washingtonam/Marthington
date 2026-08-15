@@ -521,17 +521,17 @@ const Expenses = () => {
   );
 
   return (
-    <section className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <section className="min-h-screen bg-gray-50 py-8 px-4 dark:bg-slate-950 dark:text-slate-100">
+      <div className="mx-auto max-w-7xl space-y-6">
         {/* HEADER */}
-        <div className="flex justify-between items-center">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-black text-gray-900">Expenses</h1>
-            <p className="text-sm text-gray-500 mt-1">Track and manage all business expenses</p>
+            <h1 className="text-4xl font-black text-gray-900 dark:text-slate-100">Expenses</h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Track and manage all business expenses</p>
           </div>
           <button
             onClick={() => setIsFormOpen(!isFormOpen)}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg"
+            className="rounded-2xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg transition-all hover:bg-blue-700"
           >
             + Add Expense
           </button>
@@ -539,29 +539,29 @@ const Expenses = () => {
 
         {/* STATUS MESSAGE */}
         {statusMsg.text && (
-          <div className={`px-4 py-3 rounded-xl text-sm font-bold ${
-            statusMsg.type === "error" ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
+          <div className={`rounded-xl px-4 py-3 text-sm font-bold ${
+            statusMsg.type === "error" ? "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300" : "bg-green-50 text-green-600 dark:bg-emerald-950/40 dark:text-emerald-300"
           }`}>
             {statusMsg.text}
           </div>
         )}
 
         {/* INSIGHTS CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-2">Total Expenses</p>
-            <p className="text-3xl font-black text-gray-900">{formatCurrency(metrics.totalCurrentMonth)}</p>
-            <p className="text-xs text-gray-400 mt-2">This month</p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Total Expenses</p>
+            <p className="text-3xl font-black text-gray-900 dark:text-slate-100">{formatCurrency(metrics.totalCurrentMonth)}</p>
+            <p className="mt-2 text-xs text-gray-400 dark:text-slate-400">This month</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-2">Top Category</p>
-            <p className="text-2xl font-black text-gray-900 truncate">{metrics.topCategory}</p>
-            <p className="text-xs text-gray-400 mt-2">Highest spending</p>
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Top Category</p>
+            <p className="truncate text-2xl font-black text-gray-900 dark:text-slate-100">{metrics.topCategory}</p>
+            <p className="mt-2 text-xs text-gray-400 dark:text-slate-400">Highest spending</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-2">MoM Change</p>
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">MoM Change</p>
             <div className="flex items-baseline gap-2">
               <p className={`text-3xl font-black ${metrics.momChange >= 0 ? "text-red-500" : "text-green-600"}`}>
                 {Math.abs(metrics.momChange).toFixed(1)}%
@@ -570,13 +570,13 @@ const Expenses = () => {
                 {metrics.momChange >= 0 ? "↑ Up" : "↓ Down"}
               </p>
             </div>
-            <p className="text-xs text-gray-400 mt-2">vs. last month</p>
+            <p className="mt-2 text-xs text-gray-400 dark:text-slate-400">vs. last month</p>
           </div>
         </div>
 
         {/* ADD EXPENSE FORM */}
         {isFormOpen && (
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+          <div className="space-y-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <h2 className="text-xl font-bold text-gray-900">Add New Expense</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

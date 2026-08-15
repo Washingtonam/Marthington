@@ -380,25 +380,25 @@ useEffect(() => {
   if (loading) return <div className="p-10 text-center font-bold text-blue-600 animate-pulse">Initializing POS System...</div>;
 
   return (
-    <div className="flex flex-col xl:flex-row gap-6 p-2 lg:p-4 bg-gray-50 min-h-screen">
+    <div className="flex min-h-screen flex-col gap-6 bg-gray-50 p-2 lg:p-4 dark:bg-slate-950">
       {/* LEFT COLUMN: INVENTORY */}
       <div className="flex-1 space-y-4">
-        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <label className="relative flex-1 min-w-[220px]">
             <input
               type="text"
               placeholder="Search products or services..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-2xl border-none bg-slate-50 py-3 pl-4 pr-16 text-sm text-slate-700 focus:ring-2 focus:ring-slate-900"
+              className="w-full rounded-2xl border-none bg-slate-50 py-3 pl-4 pr-16 text-sm text-slate-700 focus:ring-2 focus:ring-slate-900 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-400"
             />
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300">
               /
             </span>
           </label>
           <button 
             onClick={openCustomerDisplay}
-            className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm"
+            className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             aria-label="Open external display"
             title="External Display"
           >
@@ -410,9 +410,9 @@ useEffect(() => {
           </button>
         </div>
 
-        <div className="relative flex w-fit rounded-2xl bg-slate-100 p-1">
+        <div className="relative flex w-fit rounded-2xl bg-slate-100 p-1 dark:bg-slate-800">
           <span
-            className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-xl bg-white shadow-sm transition-transform duration-200"
+            className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-xl bg-white shadow-sm transition-transform duration-200 dark:bg-slate-700"
             style={{ transform: activeTab === "products" ? "translateX(0%)" : "translateX(100%)" }}
           />
           {['products', 'services'].map(tab => (
@@ -420,7 +420,7 @@ useEffect(() => {
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`relative z-10 rounded-xl px-8 py-2 text-sm font-semibold capitalize transition-colors ${
-                activeTab === tab ? "text-slate-900" : "text-slate-500"
+                activeTab === tab ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-300"
               }`}
             >
               {tab}
@@ -502,29 +502,29 @@ useEffect(() => {
             No inventory has been imported for the selected branch yet. Import stock before selling products from this location.
           </div>
         )}
-        <div className="sticky top-4 rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)]">
+        <div className="sticky top-4 rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-900">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-black text-slate-900">Cart</h2>
-            <button onClick={() => setCart([])} className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">Clear</button>
+            <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">Cart</h2>
+            <button onClick={() => setCart([])} className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 dark:bg-rose-950/40 dark:text-rose-300">Clear</button>
           </div>
 
           <div className="mb-6 max-h-[35vh] space-y-3 overflow-y-auto pr-2 custom-scrollbar">
             {cart.length === 0 ? (
-              <div className="rounded-2xl border-2 border-dashed border-slate-100 py-10 text-center">
-                <p className="text-xs font-black uppercase tracking-[0.35em] text-slate-300">Cart is empty</p>
+              <div className="rounded-2xl border-2 border-dashed border-slate-100 py-10 text-center dark:border-slate-700">
+                <p className="text-xs font-black uppercase tracking-[0.35em] text-slate-300 dark:text-slate-500">Cart is empty</p>
               </div>
             ) : (
               cart.map(item => (
-                <div key={item._id} className="cart-item rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <div key={item._id} className="cart-item rounded-2xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
                   <div className="mb-2 flex items-start justify-between gap-2">
-                    <span className="flex-1 text-xs font-semibold text-slate-700">{formatDisplayText(item.name)}</span>
-                    <span className="ml-2 text-sm font-black text-slate-900">{formatCurrency(item.quantity * item.sellingPrice)}</span>
+                    <span className="flex-1 text-xs font-semibold text-slate-700 dark:text-slate-200">{formatDisplayText(item.name)}</span>
+                    <span className="ml-2 text-sm font-black text-slate-900 dark:text-slate-100">{formatCurrency(item.quantity * item.sellingPrice)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="cart-stepper flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
-                      <button onClick={() => updateQty(item._id, item.quantity - 1)} className="flex h-7 w-7 items-center justify-center rounded-xl font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900">-</button>
-                      <span className="w-4 text-center text-xs font-black text-slate-700">{item.quantity}</span>
-                      <button onClick={() => updateQty(item._id, item.quantity + 1)} className="flex h-7 w-7 items-center justify-center rounded-xl font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900">+</button>
+                    <div className="cart-stepper flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm dark:border-slate-600 dark:bg-slate-700">
+                      <button onClick={() => updateQty(item._id, item.quantity - 1)} className="flex h-7 w-7 items-center justify-center rounded-xl font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-600 dark:hover:text-white">-</button>
+                      <span className="w-4 text-center text-xs font-black text-slate-700 dark:text-slate-200">{item.quantity}</span>
+                      <button onClick={() => updateQty(item._id, item.quantity + 1)} className="flex h-7 w-7 items-center justify-center rounded-xl font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-600 dark:hover:text-white">+</button>
                     </div>
                     
                     {canOverride && (
@@ -535,7 +535,7 @@ useEffect(() => {
                           const newPrice = Number(e.target.value);
                           setCart(c => c.map(i => i._id === item._id ? {...i, sellingPrice: newPrice} : i));
                         }}
-                        className="w-20 rounded-xl border border-slate-200 bg-white p-1 text-right text-xs font-black text-slate-700"
+                        className="w-20 rounded-xl border border-slate-200 bg-white p-1 text-right text-xs font-black text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                       />
                     )}
                   </div>
@@ -544,14 +544,14 @@ useEffect(() => {
             )}
           </div>
 
-          <div className="space-y-3 border-t border-dashed border-slate-200 pt-4">
+          <div className="space-y-3 border-t border-dashed border-slate-200 pt-4 dark:border-slate-700">
             <div className="grid grid-cols-2 gap-2">
               <input 
                 list="customer-list"
                 placeholder="Client Name"
                 value={customer.name}
                 onChange={e => handleCustomerNameChange(e.target.value)}
-                className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0"
+                className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
               />
               <datalist id="customer-list">
                 {customers.map((customerOption) => (
@@ -562,7 +562,7 @@ useEffect(() => {
                 placeholder="WhatsApp"
                 value={customer.phone}
                 onChange={e => setCustomer({...customer, phone: e.target.value})}
-                className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0"
+                className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
               />
             </div>
             {branches && branches.length > 0 ? (
@@ -571,7 +571,7 @@ useEffect(() => {
                 <select
                   value={selectedBranch}
                   onChange={e => setSelectedBranch(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0"
+                  className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 >
                   <option value="">Head office</option>
                   {branches.map(branch => (
@@ -589,7 +589,7 @@ useEffect(() => {
               placeholder="Add notes (optional - will appear on receipt)"
               value={customer.notes}
               onChange={e => setCustomer({...customer, notes: e.target.value})}
-              className="h-20 w-full resize-none rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0"
+              className="h-20 w-full resize-none rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
             />
             
             <div className="flex flex-col items-center justify-center gap-2 py-3 text-center">

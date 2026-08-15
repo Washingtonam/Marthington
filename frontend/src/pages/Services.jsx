@@ -369,19 +369,19 @@ const Services = () => {
 
   return (
 
-    <section className="page-stack">
+    <section className="page-stack dark:text-slate-100">
 
       {/* HEADER */}
 
-      <div className="page-heading">
+      <div className="page-heading dark:border-slate-700 dark:bg-slate-900/80">
 
         <div>
 
-          <span>
+          <span className="dark:text-emerald-300">
             Service Management
           </span>
 
-          <h1>
+          <h1 className="dark:text-slate-100">
             Services
           </h1>
 
@@ -402,7 +402,7 @@ const Services = () => {
 
       {error && (
 
-        <div className="form-error">
+        <div className="form-error dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50">
 
           {error}
 
@@ -410,17 +410,17 @@ const Services = () => {
 
       )}
 
-      <div className="tool-panel">
+      <div className="tool-panel dark:border-slate-700 dark:bg-slate-900">
 
         <div className="panel-heading">
 
           <div>
 
-            <h2>
+            <h2 className="dark:text-slate-100">
               Service Catalog
             </h2>
 
-            <p>
+            <p className="dark:text-slate-400">
               Manage reusable business services
             </p>
 

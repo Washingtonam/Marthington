@@ -266,9 +266,9 @@ const Billing = () => {
 
       {/* PRICING */}
 
-      <div className="grid lg:grid-cols-2 gap-8">
+      <div className="grid gap-8 lg:grid-cols-2">
 
-        <div className="bg-white rounded-[32px] border border-gray-200 shadow-sm p-8">
+        <div className="rounded-[32px] border border-gray-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="mb-8">
             <h2 className="text-3xl font-extrabold">Pro Monthly</h2>
             <div className="mt-6 flex items-end gap-2">
@@ -347,9 +347,9 @@ const Billing = () => {
 
       {/* TRUST */}
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid gap-6 md:grid-cols-3">
 
-        <div className="bg-white border rounded-3xl p-6 shadow-sm">
+        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
 
           <h3 className="font-bold text-2xl">
             Smart Receipts

@@ -211,11 +211,11 @@ const Settings = () => {
   }
 
   return (
-    <section className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6">
+    <section className="grid grid-cols-1 gap-6 md:grid-cols-[240px_1fr] dark:text-slate-100">
 
       {/* SIDEBAR (Preserved) */}
-      <aside className="bg-white border rounded-2xl p-5 h-fit shadow-sm">
-        <h2 className="font-bold mb-4 text-lg">Settings</h2>
+      <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-100">Settings</h2>
 
         {[
           { key: "business", label: "Business" },
@@ -226,10 +226,10 @@ const Settings = () => {
             key={tab.key}
             type="button"
             onClick={() => setActiveTab(tab.key)}
-            className={`block w-full text-left px-3 py-2 rounded-md text-sm mb-1 transition ${
+            className={`block w-full rounded-md px-3 py-2 text-left text-sm transition ${
               activeTab === tab.key
-                ? "bg-black text-white shadow-md"
-                : "hover:bg-gray-100 text-gray-600"
+                ? "bg-black text-white shadow-md dark:bg-slate-100 dark:text-slate-900"
+                : "text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
             }`}
           >
             {tab.label}
@@ -254,8 +254,8 @@ const Settings = () => {
 
         {/* BUSINESS TAB (Preserved) */}
         {activeTab === "business" && (
-          <div className="tool-panel space-y-4 bg-white p-6 rounded-2xl border">
-            <h2 className="font-bold text-lg mb-2">Business Profile</h2>
+          <div className="tool-panel space-y-4 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">Business Profile</h2>
             <div className="grid gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-500 uppercase">Business Name</label>
@@ -288,8 +288,8 @@ const Settings = () => {
 
         {/* RECEIPTS TAB (Preserved) */}
         {activeTab === "receipt" && (
-          <div className="tool-panel space-y-4 bg-white p-6 rounded-2xl border">
-            <h2 className="font-bold text-lg mb-2">Receipt Customization</h2>
+          <div className="tool-panel space-y-4 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">Receipt Customization</h2>
             <div className="flex flex-col gap-4">
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Receipt Theme</label>

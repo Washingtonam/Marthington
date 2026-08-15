@@ -461,25 +461,25 @@ const Staff = () => {
   };
 
   return (
-    <section className="products-layout single-column">
+    <section className="products-layout single-column dark:text-slate-100">
       {/* STAFF LIST */}
       <div className="w-full">
-        <div className="page-heading flex items-center justify-between">
+        <div className="page-heading flex items-center justify-between dark:border-slate-700 dark:bg-slate-900/80">
           <div>
-            <span>Team Management</span>
-            <h1>Staff Workspace</h1>
+            <span className="dark:text-emerald-300">Team Management</span>
+            <h1 className="dark:text-slate-100">Staff Workspace</h1>
           </div>
           <div className="page-actions">
-            <button onClick={() => { setShowDrawer(true); setEditingId(null); setForm(initialForm); }} className="add-team-btn">+ Add Team Member</button>
+            <button onClick={() => { setShowDrawer(true); setEditingId(null); setForm(initialForm); }} className="add-team-btn dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-700">+ Add Team Member</button>
           </div>
         </div>
 
-          <div className="product-table mt-4 w-full">
-          <div className="product-row product-row-head table-header">
-            <span>STAFF MEMBER</span>
-            <span>ROLE</span>
-            <span>BRANCH</span>
-            <span>ACCOUNT STATUS</span>
+          <div className="product-table mt-4 w-full dark:border-slate-700 dark:bg-slate-900">
+          <div className="product-row product-row-head table-header dark:border-slate-700 dark:bg-slate-800">
+            <span className="dark:text-slate-100">STAFF MEMBER</span>
+            <span className="dark:text-slate-100">ROLE</span>
+            <span className="dark:text-slate-100">BRANCH</span>
+            <span className="dark:text-slate-100">ACCOUNT STATUS</span>
             <span />
           </div>
 
@@ -487,26 +487,26 @@ const Staff = () => {
           {!loading && !staff.length && <div className="empty-state">No staff found. Add your first team member!</div>}
 
           {staff.map((user) => (
-            <div key={user._id} className="product-row staff-row">
+            <div key={user._id} className="product-row staff-row dark:border-slate-700 dark:hover:bg-slate-800">
               <span>
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center font-semibold text-slate-700">{(user.name || "").split(" ").map(s=>s[0]).slice(0,2).join("")}</div>
+                  <div className="h-10 w-10 rounded-full flex items-center justify-center bg-gray-100 font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">{(user.name || "").split(" ").map(s=>s[0]).slice(0,2).join("")}</div>
                   <div>
-                    <div className="font-semibold">{user.name}</div>
-                    <div className="email-muted">{user.email}</div>
+                    <div className="font-semibold dark:text-slate-100">{user.name}</div>
+                    <div className="email-muted dark:text-slate-400">{user.email}</div>
                   </div>
                 </div>
               </span>
               <span>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'owner' ? 'bg-slate-800 text-white' : user.role === 'manager' ? 'bg-indigo-100 text-indigo-800' : user.role === 'cashier' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-800'}`}>{user.role}</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'owner' ? 'bg-slate-800 text-white dark:bg-emerald-600 dark:text-white' : user.role === 'manager' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300' : user.role === 'cashier' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200'}`}>{user.role}</span>
               </span>
               <span>
-                <span className="text-sm text-slate-700">{user.branch?.name || user.branch || 'Head office'}</span>
+                <span className="text-sm text-slate-700 dark:text-slate-300">{user.branch?.name || user.branch || 'Head office'}</span>
               </span>
               <span>
                 <div className="flex items-center gap-2">
                   <span className={`h-2 w-2 rounded-full ${user.isActive !== false ? 'bg-green-500' : 'bg-amber-400'}`} />
-                  <span className="text-sm text-slate-700">{user.isActive !== false ? 'Active' : 'Pending'}</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{user.isActive !== false ? 'Active' : 'Pending'}</span>
                 </div>
               </span>
               <span className="flex gap-4 items-center justify-end">
@@ -529,13 +529,13 @@ const Staff = () => {
       {isDrawerMounted && (
         <div className="fixed inset-0 z-50 flex">
           <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm drawer-backdrop ${showDrawer ? 'open' : ''}`} onClick={closeDrawer} />
-          <div ref={drawerRef} className={`ml-auto w-full max-w-md bg-white h-full shadow-2xl p-6 transform transition-transform drawer-panel ${showDrawer ? 'open' : ''}`}>
+          <div ref={drawerRef} className={`ml-auto w-full max-w-md bg-white shadow-2xl p-6 transform transition-transform h-full drawer-panel dark:border-l dark:border-slate-700 dark:bg-slate-900 ${showDrawer ? 'open' : ''}`}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold">{editingId ? 'Modify Staff' : 'New Team Member'}</h2>
-              <button onClick={() => setShowDrawer(false)} className="text-gray-500">✕</button>
+              <h2 className="text-2xl font-bold dark:text-slate-100">{editingId ? 'Modify Staff' : 'New Team Member'}</h2>
+              <button onClick={() => setShowDrawer(false)} className="text-gray-500 dark:text-slate-400">✕</button>
             </div>
 
-            {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-4 border border-red-100">{error}</div>}
+            {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-4 border border-red-100 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50">{error}</div>}
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-1">

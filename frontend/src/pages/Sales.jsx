@@ -156,25 +156,25 @@ const Sales = () => {
 
   return (
 
-    <section className="page-stack">
+    <section className="page-stack dark:text-slate-100">
 
       {/* HEADER */}
 
-      <div className="page-heading">
+      <div className="page-heading dark:border-slate-700 dark:bg-slate-900/80">
 
         <div>
 
-          <span>
+          <span className="dark:text-emerald-300">
             Sales Center
           </span>
 
-          <h1>
+          <h1 className="dark:text-slate-100">
             Sales History
           </h1>
 
         </div>
 
-        <p>
+        <p className="dark:text-slate-300">
           Track receipts, staff activity and completed transactions.
         </p>
 
@@ -182,17 +182,17 @@ const Sales = () => {
 
       {/* SEARCH */}
 
-      <div className="tool-panel">
+      <div className="tool-panel dark:border-slate-700 dark:bg-slate-900">
 
         <div className="panel-heading justify-between">
 
           <div>
 
-            <h2>
+            <h2 className="dark:text-slate-100">
               Search Transactions
             </h2>
 
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
               Search by receipt, staff, customer or product
             </p>
 
@@ -203,14 +203,14 @@ const Sales = () => {
               <button
                 type="button"
                 onClick={() => setViewMode("active")}
-                className={`rounded-full px-4 py-2 text-sm font-semibold ${viewMode === "active" ? "bg-slate-900 text-white" : "bg-white text-slate-700 border border-slate-200"}`}
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${viewMode === "active" ? "bg-slate-900 text-white dark:bg-emerald-600 dark:text-white" : "border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}
               >
                 Active Transactions
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("archived")}
-                className={`rounded-full px-4 py-2 text-sm font-semibold ${viewMode === "archived" ? "bg-slate-900 text-white" : "bg-white text-slate-700 border border-slate-200"}`}
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${viewMode === "archived" ? "bg-slate-900 text-white dark:bg-emerald-600 dark:text-white" : "border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}
               >
                 Deleted Records Archive
               </button>
@@ -219,9 +219,10 @@ const Sales = () => {
 
         </div>
 
-        <div className="table-search">
+        <div className="table-search dark:border-slate-700 dark:bg-slate-950">
 
           <input
+            className="dark:text-slate-100 dark:placeholder:text-slate-400"
             placeholder="Search receipt, staff, customer or item..."
             value={search}
             onChange={(e) =>

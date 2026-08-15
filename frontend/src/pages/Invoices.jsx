@@ -676,26 +676,26 @@ const Invoices = () => {
   }
 
   return (
-    <section className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <section className="min-h-screen bg-gray-50 py-8 px-4 dark:bg-slate-950 dark:text-slate-100">
+      <div className="mx-auto max-w-7xl space-y-6">
         {/* HEADER */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-1">Billing</p>
-            <h1 className="text-4xl font-black text-gray-900">Invoices</h1>
+            <p className="mb-1 text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Billing</p>
+            <h1 className="text-4xl font-black text-gray-900 dark:text-slate-100">Invoices</h1>
           </div>
           <button
             onClick={openNewInvoiceModal}
             disabled={creatingInvoice || loadingBusiness}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg disabled:opacity-50"
+            className="rounded-2xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg transition-all hover:bg-blue-700 disabled:opacity-50"
           >
             {creatingInvoice ? "Creating..." : "+ Create Invoice"}
           </button>
         </div>
 
         {/* TABS */}
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-          <div className="flex flex-col sm:flex-row gap-3">
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 sm:flex-row">
             {tabOptions.map(tab => (
               <button
                 key={tab.id}
@@ -704,7 +704,7 @@ const Invoices = () => {
                 className={`flex-1 rounded-2xl px-4 py-3 text-left text-sm font-bold transition-all ${
                   invoiceTab === tab.id
                     ? "bg-blue-600 text-white shadow-lg"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 {tab.label}
@@ -714,53 +714,53 @@ const Invoices = () => {
         </div>
 
         {/* SUMMARY CARDS */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:border-slate-200 transition-colors">
-            <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-colors hover:border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
+            <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Total Accounts Receivable</p>
-                <p className="text-3xl font-black text-gray-900 mt-2">{formatCurrency(metrics.totalReceivable)}</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Total Accounts Receivable</p>
+                <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">{formatCurrency(metrics.totalReceivable)}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-500">Money owed to your business from customer invoices.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Money owed to your business from customer invoices.</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:border-slate-200 transition-colors">
-            <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-colors hover:border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
+            <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Total Accounts Payable</p>
-                <p className="text-3xl font-black text-gray-900 mt-2">{formatCurrency(metrics.totalPayable)}</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Total Accounts Payable</p>
+                <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">{formatCurrency(metrics.totalPayable)}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-500">Money your business owes suppliers for incoming stock and supplier credit.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Money your business owes suppliers for incoming stock and supplier credit.</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:border-slate-200 transition-colors">
-            <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-colors hover:border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
+            <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Overdue Debt Tracker</p>
-                <p className="text-3xl font-black text-red-600 mt-2">{formatCurrency(metrics.overdueDebt)}</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Overdue Debt Tracker</p>
+                <p className="mt-2 text-3xl font-black text-red-600 dark:text-red-400">{formatCurrency(metrics.overdueDebt)}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-500">Total overdue balance from both customer and supplier invoices.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Total overdue balance from both customer and supplier invoices.</p>
           </div>
         </div>
 
         {/* FILTER & SEARCH */}
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+        <div className="space-y-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <input
               type="text"
               placeholder="Search invoices..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="flex-1 min-w-[200px] px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 text-sm font-bold"
+              className="flex-1 min-w-[200px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
 
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 text-sm font-bold"
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="all">All Statuses</option>
               <option value="draft">Draft</option>
@@ -774,7 +774,7 @@ const Invoices = () => {
             <select
               value={branchFilter}
               onChange={e => setBranchFilter(e.target.value)}
-              className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 text-sm font-bold"
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="all">All Branches</option>
               {branches.map(branch => (

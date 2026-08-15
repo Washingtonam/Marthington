@@ -680,6 +680,101 @@ a {
   padding: 20px;
 }
 
+.dark .page-heading h1,
+.dark .page-heading p,
+.dark .panel-heading h2,
+.dark .panel-heading p,
+.dark .metric-card .metric-label,
+.dark .metric-card .metric-caption,
+.dark .metric-card .metric-value,
+.dark .metric-card .metric-number,
+.dark .metric-card .metric-currency,
+.dark .compact-row strong,
+.dark .compact-row span,
+.dark .service-name-cell strong,
+.dark .service-meta,
+.dark .text-slate-700,
+.dark .text-slate-800,
+.dark .text-slate-900,
+.dark .text-gray-500,
+.dark .text-gray-700,
+.dark .text-gray-900,
+.dark .text-slate-500,
+.dark .text-slate-600,
+.dark .text-slate-400,
+.dark .text-gray-400,
+.dark .text-gray-600 {
+  color: #e2e8f0;
+}
+
+.dark .tool-panel,
+.dark .metric-card,
+.dark .analytics-ghost-card,
+.dark .compact-row,
+.dark .product-table,
+.dark .product-row,
+.dark .service-menu,
+.dark .service-drawer,
+.dark .dropdown-menu,
+.dark .dropdown-item,
+.dark .input-field,
+.dark .table-search,
+.dark .service-search-field,
+.dark .global-search,
+.dark .bg-white,
+.dark .bg-slate-50,
+.dark .bg-gray-50,
+.dark .bg-slate-100,
+.dark .bg-gray-100 {
+  background-color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  color: #e2e8f0;
+}
+
+.dark .product-row-head,
+.dark .bg-slate-50,
+.dark .bg-gray-50,
+.dark .bg-white {
+  background-color: #111827 !important;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-100,
+.dark .border-gray-200,
+.dark .border-gray-100,
+.dark .border-slate-300,
+.dark .border-slate-700,
+.dark .border-gray-300,
+.dark .border-gray-700 {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+.dark .service-filter-pill,
+.dark .ghost-button,
+.dark .service-menu-button,
+.dark .icon-button,
+.dark .more-options-button,
+.dark .dropdown-item,
+.dark .input-field,
+.dark .table-search,
+.dark .service-search-field,
+.dark .global-search {
+  background-color: #111827;
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+.dark .service-filter-pill.active {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+.dark .form-error {
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
 .panel-heading {
   display: flex;
   align-items: start;
