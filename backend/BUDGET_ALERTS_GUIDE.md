@@ -194,7 +194,7 @@ Recommended Actions:
 
 3. **Frontend URL** - Set in `.env`
    ```
-   FRONTEND_URL=https://bms.marthington.com
+   FRONTEND_URL=https://bms.marthington.com.ng
    ```
    (Used for "View Expenses" link in email)
 
