@@ -47,8 +47,16 @@ const Expenses = () => {
     notes: "",
     branch: "",
     budgetAllocation: "",
+    supplierName: "",
+    supplierPhone: "",
+    inventoryItems: []
+  });
+
+  // Inventory form state for adding multiple items
+  const [inventoryForm, setInventoryForm] = useState({
     productName: "",
-    quantity: ""
+    quantity: "",
+    unitCost: ""
   });
 
   // Filters
@@ -171,9 +179,43 @@ const Expenses = () => {
   // ====================================
   // ACTIONS
   // ====================================
+  const addInventoryItem = () => {
+    if (!inventoryForm.productName || !inventoryForm.quantity || !inventoryForm.unitCost) {
+      setStatusMsg({ type: "error", text: "All inventory fields are required" });
+      return;
+    }
+
+    const newItem = {
+      productName: inventoryForm.productName,
+      quantity: Number(inventoryForm.quantity),
+      unitCost: Number(inventoryForm.unitCost)
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      inventoryItems: [...prev.inventoryItems, newItem]
+    }));
+
+    setInventoryForm({ productName: "", quantity: "", unitCost: "" });
+    setStatusMsg({ type: "success", text: "Inventory item added" });
+    setTimeout(() => setStatusMsg({ type: "", text: "" }), 2000);
+  };
+
+  const removeInventoryItem = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      inventoryItems: prev.inventoryItems.filter((_, i) => i !== index)
+    }));
+  };
+
   const handleAddExpense = async () => {
     if (!formData.amount || !formData.description) {
       setStatusMsg({ type: "error", text: "Amount and description required." });
+      return;
+    }
+
+    if (formData.category === "inventory" && formData.inventoryItems.length === 0) {
+      setStatusMsg({ type: "error", text: "Add at least one inventory item for inventory expenses." });
       return;
     }
 
@@ -188,8 +230,9 @@ const Expenses = () => {
         branch: formData.branch || undefined,
         budgetAllocation: formData.budgetAllocation ? Number(formData.budgetAllocation) : undefined,
         notes: formData.notes,
-        productName: formData.category === "inventory" ? (formData.productName || formData.description) : "",
-        quantity: formData.category === "inventory" ? Number(formData.quantity || 0) : 0
+        supplierName: formData.supplierName || undefined,
+        supplierPhone: formData.supplierPhone || undefined,
+        inventoryItems: formData.inventoryItems || []
       };
 
       const res = await request("/expenses", {
@@ -209,9 +252,11 @@ const Expenses = () => {
           notes: "",
           branch: "",
           budgetAllocation: "",
-          productName: "",
-          quantity: ""
+          supplierName: "",
+          supplierPhone: "",
+          inventoryItems: []
         });
+        setInventoryForm({ productName: "", quantity: "", unitCost: "" });
         setIsFormOpen(false);
         setStatusMsg({ type: "success", text: "Expense added successfully!" });
         setTimeout(() => setStatusMsg({ type: "", text: "" }), 3000);
@@ -564,24 +609,82 @@ const Expenses = () => {
               />
 
               {formData.category === "inventory" && (
-                <>
+                <div className="space-y-3 border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <h4 className="font-bold text-gray-700">Add Inventory Items</h4>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Product Name"
+                      value={inventoryForm.productName}
+                      onChange={e => setInventoryForm({...inventoryForm, productName: e.target.value})}
+                      className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Quantity"
+                      value={inventoryForm.quantity}
+                      onChange={e => setInventoryForm({...inventoryForm, quantity: e.target.value})}
+                      className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Unit Cost"
+                      value={inventoryForm.unitCost}
+                      onChange={e => setInventoryForm({...inventoryForm, unitCost: e.target.value})}
+                      className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                    />
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={addInventoryItem}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
+                  >
+                    + Add Item
+                  </button>
+
+                  {formData.inventoryItems.length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="font-semibold text-gray-700">Items in this expense:</h5>
+                      {formData.inventoryItems.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                          <span className="text-sm font-semibold">
+                            {item.productName} × {item.quantity} @ ₦{Number(item.unitCost).toLocaleString()}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeInventoryItem(idx)}
+                            className="text-red-600 hover:text-red-800 font-bold"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {formData.category === "inventory" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input
                     type="text"
-                    placeholder="Inventory/Product Name"
-                    value={formData.productName}
-                    onChange={e => setFormData({...formData, productName: e.target.value})}
+                    placeholder="Supplier Name (optional)"
+                    value={formData.supplierName}
+                    onChange={e => setFormData({...formData, supplierName: e.target.value})}
                     className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
                   />
-
                   <input
-                    type="number"
-                    min="1"
-                    placeholder="Quantity"
-                    value={formData.quantity}
-                    onChange={e => setFormData({...formData, quantity: e.target.value})}
+                    type="text"
+                    placeholder="Supplier Phone (optional)"
+                    value={formData.supplierPhone}
+                    onChange={e => setFormData({...formData, supplierPhone: e.target.value})}
                     className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
                   />
-                </>
+                </div>
               )}
 
               <input

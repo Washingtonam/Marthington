@@ -9,6 +9,89 @@ import { EXPENSE_CATEGORIES } from "../../config/constants.js";
 import { postExpenseToGL } from "../transactions/transaction.utils.js";
 import { shouldAutoApproveExpense } from "./expenseApproval.utils.js";
 import { findCatalogMatch } from "../catalog/catalogUtils.js";
+import Supplier from "../suppliers/supplier.model.js";
+
+// 🔥 PROCESS INVENTORY UPDATES FOR EXPENSE
+const processInventoryUpdates = async (expense, businessId, userId, branchId = null) => {
+  if (expense.category !== "inventory" || !expense.inventoryItems || expense.inventoryItems.length === 0) {
+    return;
+  }
+
+  for (const item of expense.inventoryItems) {
+    if (item.inventoryUpdated) continue;
+
+    let product = item.product ? await Product.findById(item.product) : null;
+    const targetName = item.productName || "";
+    const quantity = Number(item.quantity || 0);
+    const unitCost = Number(item.unitCost || 0);
+
+    if (!product && targetName) {
+      const items = await Product.find({ business: businessId }).select("_id name stock price costPrice").lean();
+      const match = findCatalogMatch(items, targetName);
+      product = match ? await Product.findById(match._id) : null;
+    }
+
+    if (!product && targetName && quantity > 0) {
+      product = await Product.create({
+        business: businessId,
+        name: targetName,
+        category: "Inventory",
+        stock: quantity,
+        price: unitCost || 0,
+        costPrice: unitCost || 0,
+        sku: `INV-${Date.now()}`
+      });
+    }
+
+    if (product && quantity > 0) {
+      const previousStock = Number(product.stock || 0);
+      product.stock = previousStock + quantity;
+      if (unitCost > 0) {
+        if (!product.price || Number(product.price) === 0) {
+          product.price = unitCost;
+        }
+        if (!product.costPrice || Number(product.costPrice) === 0) {
+          product.costPrice = unitCost;
+        }
+      }
+      await product.save();
+
+      if (branchId) {
+        const branchEntry = await BranchInventory.findOne({ business: businessId, branch: branchId, product: product._id });
+        if (branchEntry) {
+          branchEntry.quantity = Number(branchEntry.quantity || 0) + quantity;
+          await branchEntry.save();
+        } else {
+          await BranchInventory.create({
+            business: businessId,
+            branch: branchId,
+            product: product._id,
+            quantity,
+            branchPrice: unitCost || 0,
+            createdBy: userId
+          });
+        }
+      }
+
+      await InventoryMovement.create({
+        business: businessId,
+        branch: branchId || null,
+        product: product._id,
+        type: "purchase",
+        quantity,
+        previousStock,
+        newStock: product.stock,
+        note: `Inventory from expense: ${targetName}`,
+        createdBy: userId
+      });
+
+      item.product = product._id;
+      item.inventoryUpdated = true;
+    }
+  }
+
+  await expense.save();
+};
 
 // 🔥 CHECK BUDGET AND SEND ALERTS
 const checkAndAlertBudgetExceeded = async (businessId, month, year, createdBy) => {
@@ -98,7 +181,7 @@ const checkAndAlertBudgetExceeded = async (businessId, month, year, createdBy) =
 // 🔥 CREATE EXPENSE
 const createExpense = async (req, res) => {
   try {
-    const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice, supplier, quantity, productName, productId } = req.body;
+    const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice, supplierName, supplierPhone, inventoryItems } = req.body;
     const businessId = req.user.businessId;
 
     if (!amount || !description) {
@@ -116,80 +199,26 @@ const createExpense = async (req, res) => {
 
     const parsedAmount = parseFloat(amount);
     const businessSettings = business?.approvalRules || {};
+
+    let supplierId = null;
+    if (supplierName) {
+      let supplier = await Supplier.findOne({ business: businessId, name: supplierName });
+      if (!supplier) {
+        supplier = await Supplier.create({
+          business: businessId,
+          name: supplierName,
+          phone: supplierPhone || ""
+        });
+      }
+      supplierId = supplier._id;
+    }
+
     const autoApprovalDecision = shouldAutoApproveExpense({
       amount: parsedAmount,
       category: category || "miscellaneous",
-      supplierId: supplier || null,
+      supplierId: supplierId || null,
       businessSettings
     });
-
-    let inventoryProduct = null;
-    let inventoryQuantity = Number(quantity || 0);
-
-    if ((category || "").toLowerCase() === "inventory" && inventoryQuantity > 0) {
-      const targetName = String(productName || description || "").trim();
-      const candidate = productId ? await Product.findOne({ _id: productId, business: businessId }) : null;
-      inventoryProduct = candidate || null;
-
-      if (!inventoryProduct && targetName) {
-        const items = await Product.find({ business: businessId }).select("_id name stock price costPrice").lean();
-        const match = findCatalogMatch(items, targetName);
-        inventoryProduct = match ? await Product.findById(match._id) : null;
-      }
-
-      if (!inventoryProduct && targetName) {
-        inventoryProduct = await Product.create({
-          business: businessId,
-          name: targetName,
-          category: "Inventory",
-          stock: inventoryQuantity,
-          price: Number(parsedAmount / inventoryQuantity) || 0,
-          costPrice: Number(parsedAmount / inventoryQuantity) || 0,
-          sku: `INV-${Date.now()}`
-        });
-      }
-
-      if (inventoryProduct) {
-        const previousStock = Number(inventoryProduct.stock || 0);
-        inventoryProduct.stock = previousStock + inventoryQuantity;
-        if (!inventoryProduct.price || Number(inventoryProduct.price) === 0) {
-          inventoryProduct.price = Number(parsedAmount / inventoryQuantity) || 0;
-        }
-        if (!inventoryProduct.costPrice || Number(inventoryProduct.costPrice) === 0) {
-          inventoryProduct.costPrice = Number(parsedAmount / inventoryQuantity) || 0;
-        }
-        await inventoryProduct.save();
-
-        if (branch) {
-          const branchEntry = await BranchInventory.findOne({ business: businessId, branch, product: inventoryProduct._id });
-          if (branchEntry) {
-            branchEntry.quantity = Number(branchEntry.quantity || 0) + inventoryQuantity;
-            await branchEntry.save();
-          } else {
-            await BranchInventory.create({
-              business: businessId,
-              branch,
-              product: inventoryProduct._id,
-              quantity: inventoryQuantity,
-              branchPrice: Number(parsedAmount / inventoryQuantity) || 0,
-              createdBy: req.user.id
-            });
-          }
-        }
-
-        await InventoryMovement.create({
-          business: businessId,
-          branch: branch || null,
-          product: inventoryProduct._id,
-          type: "purchase",
-          quantity: inventoryQuantity,
-          previousStock,
-          newStock: inventoryProduct.stock,
-          note: `Inventory expense: ${targetName}`,
-          createdBy: req.user.id
-        });
-      }
-    }
 
     const expense = await Expense.create({
       business: businessId,
@@ -205,8 +234,15 @@ const createExpense = async (req, res) => {
       status: autoApprovalDecision.status,
       linkedInvoice: linkedInvoice || null,
       budgetAllocation: budgetAllocation || null,
-      supplier: supplier || null
+      supplier: supplierId || null,
+      inventoryItems: inventoryItems || []
     });
+
+    if (category === "inventory" && inventoryItems && inventoryItems.length > 0) {
+      if (autoApprovalDecision.shouldAutoApprove) {
+        await processInventoryUpdates(expense, businessId, req.user.id, branch);
+      }
+    }
 
     if (autoApprovalDecision.shouldAutoApprove) {
       await postExpenseToGL(expense);
@@ -214,6 +250,7 @@ const createExpense = async (req, res) => {
 
     await expense.populate("createdBy", "name email");
     await expense.populate("branch", "name");
+    await expense.populate("supplier", "name phone");
 
     const expenseDate = new Date(expense.date);
     const month = expenseDate.getMonth() + 1;
@@ -225,8 +262,7 @@ const createExpense = async (req, res) => {
 
     return res.status(201).json({
       message: "Expense created successfully",
-      expense,
-      inventoryUpdated: inventoryProduct ? { productId: inventoryProduct._id, quantity: inventoryQuantity, newStock: inventoryProduct.stock } : null
+      expense
     });
   } catch (err) {
     console.error("Create Expense Error:", err);
@@ -513,6 +549,11 @@ const approveExpense = async (req, res) => {
       return res.status(404).json({ message: "Expense not found" });
     }
 
+    // 🔥 PROCESS INVENTORY BEFORE CHANGING STATUS
+    if (expense.category === "inventory" && expense.inventoryItems && expense.inventoryItems.length > 0) {
+      await processInventoryUpdates(expense, businessId, req.user.id, expense.branch);
+    }
+
     expense.status = "approved";
     expense.approvedBy = req.user.id;
     if (notes) expense.notes = notes;
@@ -523,6 +564,7 @@ const approveExpense = async (req, res) => {
 
     await expense.populate("createdBy", "name email");
     await expense.populate("approvedBy", "name email");
+    await expense.populate("supplier", "name phone");
 
     return res.status(200).json({
       message: "Expense approved successfully",

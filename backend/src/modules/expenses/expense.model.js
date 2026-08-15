@@ -92,7 +92,23 @@ const expenseSchema = new mongoose.Schema(
     budgetAllocation: {
       type: Number,
       default: null
-    }
+    },
+
+    inventoryItems: [
+      {
+        product: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Product"
+        },
+        productName: String,
+        quantity: Number,
+        unitCost: Number,
+        inventoryUpdated: {
+          type: Boolean,
+          default: false
+        }
+      }
+    ]
   },
   { timestamps: true }
 );
