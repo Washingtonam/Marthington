@@ -40,6 +40,11 @@ const inventorySchema =
       required: true
     },
 
+    unitCost: {
+      type: Number,
+      default: 0
+    },
+
     previousStock: Number,
 
     newStock: Number,

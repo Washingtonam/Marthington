@@ -2,6 +2,7 @@ import PurchaseOrder from "./purchaseOrder.model.js";
 import Supplier from "../suppliers/supplier.model.js";
 import Product from "../products/product.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
+import BranchInventory from "../branches/branchInventory.model.js";
 import Expense from "../expenses/expense.model.js";
 import { getPurchaseApprovalStatus } from "./purchaseOrderBudget.js";
 
@@ -170,7 +171,7 @@ const recordReceipt = async (req, res) => {
     let totalReceivedCost = 0;
 
     for (const received of receivedItems) {
-      const { itemIndex, quantityReceived } = received;
+      const { itemIndex, quantityReceived, unitCost } = received;
       const poItem = po.items[itemIndex];
 
       if (!poItem) {
@@ -180,6 +181,7 @@ const recordReceipt = async (req, res) => {
       const qtyReceived = Number(quantityReceived || 0);
       const qtyOrdered = Number(poItem.quantity || 0);
       const qtyPreviouslyReceived = Number(poItem.quantityReceived || 0);
+      const actualUnitCost = Number(unitCost ?? poItem.costPrice ?? 0);
 
       if (qtyReceived < 0) {
         return res.status(400).json({ message: `Invalid quantity for item ${itemIndex}: cannot be negative` });
@@ -193,12 +195,14 @@ const recordReceipt = async (req, res) => {
       }
 
       if (qtyReceived > 0) {
+        const itemCost = qtyReceived * actualUnitCost;
         receivedMap.set(itemIndex, {
           item: poItem,
           quantityReceived: qtyReceived,
-          cost: qtyReceived * Number(poItem.costPrice || 0)
+          actualUnitCost,
+          cost: itemCost
         });
-        totalReceivedCost += qtyReceived * Number(poItem.costPrice || 0);
+        totalReceivedCost += itemCost;
       }
     }
 
@@ -210,8 +214,10 @@ const recordReceipt = async (req, res) => {
     
     // Step 1: Update inventory for each received item
     const inventoryMovements = [];
+    const targetBranchId = branch || po.destinationBranch || null;
+
     for (const [, received] of receivedMap) {
-      const { item, quantityReceived } = received;
+      const { item, quantityReceived, actualUnitCost } = received;
       const productId = item.product?._id || item.product;
 
       if (!productId) continue;
@@ -224,19 +230,65 @@ const recordReceipt = async (req, res) => {
       if (!product) continue;
 
       const previousStock = Number(product.stock || 0);
-      product.stock = previousStock + quantityReceived;
+      const previousCost = Number(product.costPrice || 0);
+      const updatedStock = previousStock + quantityReceived;
+      const newCost = updatedStock > 0
+        ? ((previousStock * previousCost) + (quantityReceived * actualUnitCost)) / updatedStock
+        : actualUnitCost;
+
+      product.stock = updatedStock;
+      product.costPrice = Number(newCost.toFixed(2));
       await product.save();
 
-      // Create inventory movement record
+      if (targetBranchId) {
+        const branchInventory = await BranchInventory.findOne({
+          business: req.user.businessId,
+          branch: targetBranchId,
+          product: product._id
+        });
+
+        const previousBranchStock = Number(branchInventory?.quantity || 0);
+        const updatedBranchStock = previousBranchStock + quantityReceived;
+
+        if (branchInventory) {
+          branchInventory.quantity = updatedBranchStock;
+          await branchInventory.save();
+        } else {
+          await BranchInventory.create({
+            business: req.user.businessId,
+            branch: targetBranchId,
+            product: product._id,
+            quantity: quantityReceived,
+            createdBy: req.user.id
+          });
+        }
+
+        const movement = await InventoryMovement.create({
+          business: req.user.businessId,
+          branch: targetBranchId,
+          product: product._id,
+          type: "purchase",
+          quantity: quantityReceived,
+          unitCost: actualUnitCost,
+          previousStock: previousBranchStock,
+          newStock: updatedBranchStock,
+          note: `Received ${quantityReceived} units from ${supplier.name} (PO: ${po._id})`,
+          createdBy: req.user.id
+        });
+
+        inventoryMovements.push(movement);
+      }
+
       const movement = await InventoryMovement.create({
         business: req.user.businessId,
-        branch: branch || po.destinationBranch || null,
+        branch: targetBranchId,
         product: product._id,
         type: "purchase",
         quantity: quantityReceived,
+        unitCost: actualUnitCost,
         previousStock,
         newStock: product.stock,
-        note: `Received ${quantityReceived} units from ${supplier.name} (PO: ${po._id})`,
+        note: `Central stock adjustment for PO receipt ${po._id}`,
         createdBy: req.user.id
       });
 

@@ -6,12 +6,76 @@ import InventoryMovement from "../inventory/inventory.model.js";
 import BranchInventory from "../branches/branchInventory.model.js";
 import Invoice from "../invoices/invoice.model.js";
 import InvoiceCounter from "../invoices/invoiceCounter.model.js";
+import Transaction from "../transactions/transaction.model.js";
 import mongoose from "mongoose";
-import { canDeleteSale, buildSalesQuery } from "./sales.utils.js";
+import {
+  canDeleteSale,
+  buildSalesQuery,
+  buildProductCompensationEntries,
+  buildSaleLedgerEntry,
+  getCustomerSaleImpact
+} from "./sales.utils.js";
 
 // 🔥 GENERATE RECEIPT ID
 const generateReceiptId = () => {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
+};
+
+const reserveStockAtomically = async ({ businessId, branchId, productId, quantity, userId, session }) => {
+  if (branchId) {
+    const branchInventory = await BranchInventory.findOneAndUpdate(
+      {
+        business: businessId,
+        branch: branchId,
+        product: productId,
+        quantity: { $gte: quantity }
+      },
+      {
+        $inc: { quantity: -quantity }
+      },
+      {
+        new: true,
+        session
+      }
+    );
+
+    if (!branchInventory) {
+      throw new Error(`Insufficient branch stock for product ${productId}.`);
+    }
+
+    return {
+      stockRecord: branchInventory,
+      previousStock: Number(branchInventory.quantity || 0) + quantity,
+      newStock: Number(branchInventory.quantity || 0),
+      stockKey: "branch"
+    };
+  }
+
+  const product = await Product.findOneAndUpdate(
+    {
+      _id: productId,
+      business: businessId,
+      stock: { $gte: quantity }
+    },
+    {
+      $inc: { stock: -quantity }
+    },
+    {
+      new: true,
+      session
+    }
+  );
+
+  if (!product) {
+    throw new Error(`Insufficient stock for product ${productId}.`);
+  }
+
+  return {
+    stockRecord: product,
+    previousStock: Number(product.stock || 0) + quantity,
+    newStock: Number(product.stock || 0),
+    stockKey: "product"
+  };
 };
 
 // 🔥 CREATE SALE
@@ -90,53 +154,25 @@ const createSale = async (req, res) => {
         const itemTotal = finalPrice * quantity;
         totalAmount += itemTotal;
 
-        let previousStock;
+        const stockState = await reserveStockAtomically({
+          businessId,
+          branchId,
+          productId: product._id,
+          quantity,
+          userId: req.user.id,
+          session
+        });
 
-        if (branchId) {
-          const branchInventory = await BranchInventory.findOne({
-            business: businessId,
-            branch: branchId,
-            product: product._id
-          }).session(session);
-
-          if (!branchInventory || branchInventory.quantity < quantity) {
-            throw new Error(`Insufficient branch stock for ${product.name}.`);
-          }
-
-          previousStock = branchInventory.quantity;
-          branchInventory.quantity -= quantity;
-          await branchInventory.save({ session });
-
-          await InventoryMovement.create([{
-            business: businessId,
-            branch: branchId,
-            product: product._id,
-            type: "sale",
-            quantity,
-            previousStock,
-            newStock: branchInventory.quantity,
-            createdBy: req.user.id
-          }], { session });
-
-        } else {
-          if (product.stock < quantity) {
-            throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}`);
-          }
-
-          previousStock = product.stock;
-          product.stock -= quantity;
-          await product.save({ session });
-
-          await InventoryMovement.create([{
-            business: businessId,
-            product: product._id,
-            type: "sale",
-            quantity,
-            previousStock,
-            newStock: product.stock,
-            createdBy: req.user.id
-          }], { session });
-        }
+        await InventoryMovement.create([{
+          business: businessId,
+          ...(branchId ? { branch: branchId } : {}),
+          product: product._id,
+          type: "sale",
+          quantity,
+          previousStock: stockState.previousStock,
+          newStock: stockState.newStock,
+          createdBy: req.user.id
+        }], { session });
 
         saleItems.push({
           itemType: "product",
@@ -340,53 +376,280 @@ const getSaleById = async (req, res) => {
 };
 
 const deleteSale = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     if (!canDeleteSale(req.user)) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(403).json({ message: "Only owners can delete sales" });
     }
 
-    const sale = await Sale.findById(req.params.id);
+    const sale = await Sale.findById(req.params.id).session(session);
     if (!sale) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Sale not found" });
     }
 
     if (req.user.role !== "super_admin" && sale.business?.toString() !== req.user.businessId) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    for (const item of sale.items) {
+      if (item.itemType !== "product" && item.itemType !== undefined) continue;
+      if (!item.product || Number(item.quantity || 0) <= 0) continue;
+
+      const quantity = Number(item.quantity || 0);
+      if (sale.branch) {
+        const branchInventory = await BranchInventory.findOne({
+          business: sale.business,
+          branch: sale.branch,
+          product: item.product
+        }).session(session);
+
+        if (branchInventory) {
+          const previousStock = Number(branchInventory.quantity || 0);
+          branchInventory.quantity = previousStock + quantity;
+          await branchInventory.save({ session });
+          await InventoryMovement.create([{
+            business: sale.business,
+            branch: sale.branch,
+            product: item.product,
+            type: "return",
+            quantity,
+            unitCost: Number(item.costPrice || 0),
+            previousStock,
+            newStock: branchInventory.quantity,
+            note: `Sale reversal ${sale._id}`,
+            createdBy: req.user.id
+          }], { session });
+        } else {
+          const createdInventory = await BranchInventory.create([{
+            business: sale.business,
+            branch: sale.branch,
+            product: item.product,
+            quantity,
+            createdBy: req.user.id
+          }], { session }).then(res => res[0]);
+
+          await InventoryMovement.create([{
+            business: sale.business,
+            branch: sale.branch,
+            product: item.product,
+            type: "return",
+            quantity,
+            unitCost: Number(item.costPrice || 0),
+            previousStock: 0,
+            newStock: createdInventory.quantity,
+            note: `Sale reversal ${sale._id}`,
+            createdBy: req.user.id
+          }], { session });
+        }
+      } else {
+        const product = await Product.findById(item.product).session(session);
+        if (product) {
+          const previousStock = Number(product.stock || 0);
+          product.stock = previousStock + quantity;
+          await product.save({ session });
+          await InventoryMovement.create([{
+            business: sale.business,
+            product: item.product,
+            type: "return",
+            quantity,
+            unitCost: Number(item.costPrice || 0),
+            previousStock,
+            newStock: product.stock,
+            note: `Sale reversal ${sale._id}`,
+            createdBy: req.user.id
+          }], { session });
+        }
+      }
+    }
+
+    const saleLedgerEntry = buildSaleLedgerEntry({
+      sale,
+      businessId: sale.business,
+      createdBy: req.user.id,
+      status: "reversed",
+      notePrefix: "Sale reversal"
+    });
+
+    const existingLedger = await Transaction.findOne({
+      businessId: sale.business,
+      sourceModel: "Sale",
+      sourceId: sale._id
+    }).session(session);
+
+    if (existingLedger) {
+      existingLedger.status = "reversed";
+      existingLedger.deletedAt = null;
+      existingLedger.deletedBy = null;
+      existingLedger.isDeleted = false;
+      await existingLedger.save({ session });
+    } else {
+      await Transaction.create([saleLedgerEntry], { session });
+    }
+
+    if (sale.customer) {
+      const customer = await Customer.findById(sale.customer).session(session);
+      if (customer) {
+        const impact = getCustomerSaleImpact({
+          paymentMethod: sale.paymentMethod,
+          totalAmount: sale.totalAmount,
+          action: "delete"
+        });
+
+        customer.totalSpent = Math.max(0, Number(customer.totalSpent || 0) + impact.totalSpentDelta);
+        customer.totalOrders = Math.max(0, Number(customer.totalOrders || 0) + impact.totalOrdersDelta);
+        customer.outstandingBalance = Math.max(0, Number(customer.outstandingBalance || 0) + impact.outstandingBalanceDelta);
+        await customer.save({ session });
+      }
     }
 
     sale.isDeleted = true;
     sale.deletedAt = new Date();
     sale.deletedBy = req.user.id;
-    await sale.save();
+    await sale.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.json({ message: "Sale archived", sale });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ message: error.message });
   }
 };
 
 const restoreSale = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     if (!canDeleteSale(req.user)) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(403).json({ message: "Only owners can restore sales" });
     }
 
-    const sale = await Sale.findById(req.params.id);
+    const sale = await Sale.findById(req.params.id).session(session);
     if (!sale) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Sale not found" });
     }
 
     if (req.user.role !== "super_admin" && sale.business?.toString() !== req.user.businessId) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    for (const item of sale.items) {
+      if (item.itemType !== "product" && item.itemType !== undefined) continue;
+      if (!item.product || Number(item.quantity || 0) <= 0) continue;
+
+      const quantity = Number(item.quantity || 0);
+      if (sale.branch) {
+        const branchInventory = await BranchInventory.findOne({
+          business: sale.business,
+          branch: sale.branch,
+          product: item.product
+        }).session(session);
+
+        if (branchInventory) {
+          const previousStock = Number(branchInventory.quantity || 0);
+          branchInventory.quantity = Math.max(0, previousStock - quantity);
+          await branchInventory.save({ session });
+          await InventoryMovement.create([{
+            business: sale.business,
+            branch: sale.branch,
+            product: item.product,
+            type: "sale",
+            quantity,
+            unitCost: Number(item.costPrice || 0),
+            previousStock,
+            newStock: branchInventory.quantity,
+            note: `Sale restored ${sale._id}`,
+            createdBy: req.user.id
+          }], { session });
+        }
+      } else {
+        const product = await Product.findById(item.product).session(session);
+        if (product) {
+          const previousStock = Number(product.stock || 0);
+          product.stock = Math.max(0, previousStock - quantity);
+          await product.save({ session });
+          await InventoryMovement.create([{
+            business: sale.business,
+            product: item.product,
+            type: "sale",
+            quantity,
+            unitCost: Number(item.costPrice || 0),
+            previousStock,
+            newStock: product.stock,
+            note: `Sale restored ${sale._id}`,
+            createdBy: req.user.id
+          }], { session });
+        }
+      }
+    }
+
+    const existingLedger = await Transaction.findOne({
+      businessId: sale.business,
+      sourceModel: "Sale",
+      sourceId: sale._id
+    }).session(session);
+
+    if (existingLedger) {
+      existingLedger.status = "posted";
+      existingLedger.deletedAt = null;
+      existingLedger.deletedBy = null;
+      existingLedger.isDeleted = false;
+      await existingLedger.save({ session });
+    } else {
+      await Transaction.create([buildSaleLedgerEntry({
+        sale,
+        businessId: sale.business,
+        createdBy: req.user.id,
+        status: "posted",
+        notePrefix: "Sale restored"
+      })], { session });
+    }
+
+    if (sale.customer) {
+      const customer = await Customer.findById(sale.customer).session(session);
+      if (customer) {
+        const impact = getCustomerSaleImpact({
+          paymentMethod: sale.paymentMethod,
+          totalAmount: sale.totalAmount,
+          action: "restore"
+        });
+
+        customer.totalSpent = Math.max(0, Number(customer.totalSpent || 0) + impact.totalSpentDelta);
+        customer.totalOrders = Math.max(0, Number(customer.totalOrders || 0) + impact.totalOrdersDelta);
+        customer.outstandingBalance = Math.max(0, Number(customer.outstandingBalance || 0) + impact.outstandingBalanceDelta);
+        await customer.save({ session });
+      }
     }
 
     sale.isDeleted = false;
     sale.deletedAt = null;
     sale.deletedBy = null;
-    await sale.save();
+    await sale.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.json({ message: "Sale restored", sale });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ message: error.message });
   }
 };

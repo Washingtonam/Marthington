@@ -123,4 +123,19 @@ test('Procurement Pipeline: Workflow Validation', async (t) => {
     assert.ok(approvalRoles.includes('super_admin'));
     assert.ok(approvalRoles.includes('manager'));
   });
+
+  await t.test('Workflow 11: Inventory movements store unit cost and weighted-average cost math', async () => {
+    const { default: InventoryMovement } = await import('../src/modules/inventory/inventory.model.js');
+
+    assert.ok(InventoryMovement.schema.paths.unitCost, 'InventoryMovement should store unitCost');
+
+    const existingStock = 10;
+    const existingCost = 50000;
+    const receivedQty = 6;
+    const actualUnitCost = 55000;
+    const newCost = ((existingStock * existingCost) + (receivedQty * actualUnitCost)) / (existingStock + receivedQty);
+
+    assert.equal(newCost, 51875);
+    assert.equal(Number(newCost.toFixed(2)), 51875);
+  });
 });
