@@ -203,6 +203,32 @@ useEffect(() => {
 
   loadBranchInventory();
 }, [selectedBranch]);
+
+  // 🔥 LISTEN FOR INVENTORY UPDATES FROM EXPENSE APPROVAL
+  useEffect(() => {
+    if (!window.BroadcastChannel) return;
+    
+    const channel = new BroadcastChannel("inventory-updates");
+    const handleInventoryUpdate = async (event) => {
+      if (event.data?.type === "inventory-changed") {
+        console.log("📦 POS: Inventory changed, refreshing branch inventory...");
+        if (selectedBranch) {
+          try {
+            const data = await getBranchInventory(selectedBranch);
+            setBranchInventory(Array.isArray(data) ? data : []);
+          } catch (err) {
+            console.error("Failed to refresh POS inventory", err);
+          }
+        }
+      }
+    };
+    
+    channel.addEventListener("message", handleInventoryUpdate);
+    return () => {
+      channel.removeEventListener("message", handleInventoryUpdate);
+      channel.close();
+    };
+  }, [selectedBranch]);
   const filteredProducts = useMemo(() => {
     if (!Array.isArray(products)) return [];
 

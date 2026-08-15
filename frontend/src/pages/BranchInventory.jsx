@@ -63,6 +63,27 @@ const BranchInventory = () => {
     loadBranches();
   }, []);
 
+  // 🔥 LISTEN FOR INVENTORY UPDATES FROM EXPENSE APPROVAL
+  useEffect(() => {
+    if (!window.BroadcastChannel) return;
+    
+    const channel = new BroadcastChannel("inventory-updates");
+    const handleInventoryUpdate = (event) => {
+      if (event.data?.type === "inventory-changed") {
+        console.log("📦 Inventory changed, refreshing branch inventory...");
+        if (branchId) {
+          loadInventory(branchId, page, search);
+        }
+      }
+    };
+    
+    channel.addEventListener("message", handleInventoryUpdate);
+    return () => {
+      channel.removeEventListener("message", handleInventoryUpdate);
+      channel.close();
+    };
+  }, [branchId, page, search]);
+
   useEffect(() => {
     if (branchId) {
       setPage(1);

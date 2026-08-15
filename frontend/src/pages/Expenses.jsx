@@ -208,6 +208,26 @@ const Expenses = () => {
     }));
   };
 
+  // 🔥 REFRESH RELATED DATA AFTER INVENTORY CHANGES
+  const refreshInventoryRelatedData = async () => {
+    try {
+      const [productsData, branchInventoryData] = await Promise.all([
+        request("/products"),
+        request("/branch-inventory")
+      ]);
+      
+      // Optionally emit event for POS to refresh
+      if (window.BroadcastChannel) {
+        const channel = new BroadcastChannel("inventory-updates");
+        channel.postMessage({ type: "inventory-changed", timestamp: Date.now() });
+        channel.close();
+      }
+    } catch (err) {
+      console.error("Failed to refresh inventory data:", err);
+    }
+  };
+
+
   const handleAddExpense = async () => {
     if (!formData.amount || !formData.description) {
       setStatusMsg({ type: "error", text: "Amount and description required." });
@@ -259,6 +279,12 @@ const Expenses = () => {
         setInventoryForm({ productName: "", quantity: "", unitCost: "" });
         setIsFormOpen(false);
         setStatusMsg({ type: "success", text: "Expense added successfully!" });
+        
+        // 🔥 REFRESH INVENTORY DATA IF THIS WAS AN INVENTORY EXPENSE
+        if (formData.category === "inventory") {
+          refreshInventoryRelatedData();
+        }
+        
         setTimeout(() => setStatusMsg({ type: "", text: "" }), 3000);
       }
     } catch (err) {
@@ -340,6 +366,8 @@ const Expenses = () => {
   const handleApproveExpense = async (id) => {
     if (!confirm("Approve this expense?")) return;
     try {
+      const expenseBeingApproved = expenses.find(e => e._id === id);
+      
       const res = await request(`/expenses/${id}/approve`, {
         method: "POST",
         body: JSON.stringify({})
@@ -347,6 +375,12 @@ const Expenses = () => {
       if (res?.expense) {
         setExpenses(expenses.map(e => e._id === id ? res.expense : e));
         setStatusMsg({ type: "success", text: "Expense approved successfully!" });
+        
+        // 🔥 REFRESH INVENTORY DATA IF THIS WAS AN INVENTORY EXPENSE
+        if (expenseBeingApproved?.category === "inventory") {
+          refreshInventoryRelatedData();
+        }
+        
         setTimeout(() => setStatusMsg({ type: "", text: "" }), 3000);
       }
     } catch (err) {
@@ -903,6 +937,7 @@ const Expenses = () => {
                     <th className="px-6 py-3 text-left font-bold text-gray-700">Date</th>
                     <th className="px-6 py-3 text-left font-bold text-gray-700">Description</th>
                     <th className="px-6 py-3 text-left font-bold text-gray-700">Category</th>
+                    <th className="px-6 py-3 text-left font-bold text-gray-700">Supplier</th>
                     <th className="px-6 py-3 text-left font-bold text-gray-700">Payment Method</th>
                     <th className="px-6 py-3 text-right font-bold text-gray-700">Amount</th>
                     <th className="px-6 py-3 text-center font-bold text-gray-700">Status</th>
@@ -932,6 +967,16 @@ const Expenses = () => {
                         <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold text-xs rounded-full">
                           {EXPENSE_CATEGORIES.find(c => c.value === expense.category)?.label || expense.category}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-gray-700">
+                        {expense.supplier?.name ? (
+                          <div>
+                            <p className="font-semibold text-sm">{expense.supplier.name}</p>
+                            {expense.supplier.phone && <p className="text-xs text-gray-500">{expense.supplier.phone}</p>}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">—</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-gray-700 font-semibold">
                         {PAYMENT_METHODS.find(m => m.value === expense.paymentMethod)?.label || expense.paymentMethod}

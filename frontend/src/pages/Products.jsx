@@ -54,6 +54,25 @@ const Products = () => {
     loadProducts();
   }, [page, search, categoryFilter]);
 
+  // 🔥 LISTEN FOR INVENTORY UPDATES FROM EXPENSE APPROVAL
+  useEffect(() => {
+    if (!window.BroadcastChannel) return;
+    
+    const channel = new BroadcastChannel("inventory-updates");
+    const handleInventoryUpdate = (event) => {
+      if (event.data?.type === "inventory-changed") {
+        console.log("📦 Inventory changed, refreshing products...");
+        loadProducts();
+      }
+    };
+    
+    channel.addEventListener("message", handleInventoryUpdate);
+    return () => {
+      channel.removeEventListener("message", handleInventoryUpdate);
+      channel.close();
+    };
+  }, []);
+
   useEffect(() => {
     if (!page && !search && !categoryFilter) return;
     setSelectedProductIds([]);
