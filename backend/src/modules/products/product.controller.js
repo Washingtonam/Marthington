@@ -2,6 +2,17 @@ import Product from "./product.model.js";
 import Business from "../businesses/business.model.js";
 import applyBusinessFilter from "../../utils/applyBusinessFilter.js";
 import XLSX from "xlsx";
+import { findCatalogMatch, mergeCatalogValues } from "../catalog/catalogUtils.js";
+
+const findExistingProductMatch = async (businessId, name, excludeId = null) => {
+  if (!name || !String(name).trim()) return null;
+
+  const query = { business: businessId };
+  if (excludeId) query._id = { $ne: excludeId };
+
+  const items = await Product.find(query).select("_id name stock price costPrice sku").lean();
+  return findCatalogMatch(items, name);
+};
 
 // 🔥 CREATE PRODUCT
 const createProduct = async (req, res) => {
@@ -21,10 +32,38 @@ const createProduct = async (req, res) => {
 
     const { name, sellingPrice, costPrice, stock, category, sku } = req.body;
 
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ message: "Product name is required" });
+    }
+
+    const existing = await findExistingProductMatch(business._id, name);
+    if (existing) {
+      const merged = mergeCatalogValues(existing, {
+        name,
+        stock: Number(stock) || 0,
+        price: Number(sellingPrice) || Number(existing.price) || 0,
+        costPrice: Number(costPrice) || Number(existing.costPrice) || 0,
+        sku: sku || existing.sku || ""
+      });
+
+      const product = await Product.findByIdAndUpdate(existing._id, {
+        $set: {
+          name: merged.name,
+          category: category || existing.category || "General",
+          price: Number(merged.price) || 0,
+          costPrice: Number(merged.costPrice) || 0,
+          stock: Number(merged.stock) || 0,
+          sku: merged.sku || `SKU-${Date.now()}`
+        }
+      }, { new: true });
+
+      return res.status(200).json({ ...product.toObject(), merged: true, duplicateOf: existing._id });
+    }
+
     const product = await Product.create({
-      name,
+      name: String(name).trim(),
       category: category || "General",
-      price: Number(sellingPrice) || 0, // Map sellingPrice to price
+      price: Number(sellingPrice) || 0,
       costPrice: Number(costPrice) || 0,
       stock: Number(stock) || 0,
       sku: sku || `SKU-${Date.now()}`,
@@ -48,12 +87,32 @@ const bulkImportProducts = async (req, res) => {
     if (!rows.length) return res.status(400).json({ message: "File is empty" });
 
     const productsToInsert = [];
+    const existingProducts = await Product.find({ business: business._id }).select("_id name stock price costPrice sku").lean();
+
     for (const row of rows) {
       if (!row.name) continue;
 
-      // Duplicate check within this business
-      const existing = await Product.findOne({ name: row.name, business: business._id });
-      if (existing) continue;
+      const existing = findCatalogMatch(existingProducts, row.name);
+      if (existing) {
+        const merged = mergeCatalogValues(existing, {
+          name: row.name,
+          stock: Number(row.stock || 0),
+          price: Number(row.sellingPrice || row.price || 0),
+          costPrice: Number(row.costPrice || 0),
+          sku: row.sku || existing.sku || ""
+        });
+
+        await Product.findByIdAndUpdate(existing._id, {
+          $set: {
+            name: merged.name,
+            price: Number(merged.price) || 0,
+            costPrice: Number(merged.costPrice) || 0,
+            stock: Number(merged.stock) || 0,
+            sku: merged.sku || existing.sku || `SKU-${Date.now()}`
+          }
+        });
+        continue;
+      }
 
       productsToInsert.push({
         name: String(row.name),
@@ -144,7 +203,34 @@ const updateProduct = async (req, res) => {
     const { name, sellingPrice, costPrice, stock, category, sku } = req.body;
     const updateData = {};
 
-    if (name !== undefined) updateData.name = name;
+    if (name !== undefined) {
+      const duplicate = await findExistingProductMatch(req.user.businessId, name, req.params.id);
+      if (duplicate) {
+        const merged = mergeCatalogValues(duplicate, {
+          name,
+          stock: Number(stock ?? duplicate.stock ?? 0),
+          price: Number(sellingPrice ?? duplicate.price ?? 0),
+          costPrice: Number(costPrice ?? duplicate.costPrice ?? 0),
+          sku: sku || duplicate.sku || ""
+        });
+
+        await Product.findByIdAndUpdate(duplicate._id, {
+          $set: {
+            name: merged.name,
+            category: category || duplicate.category || "General",
+            price: Number(merged.price) || 0,
+            costPrice: Number(merged.costPrice) || 0,
+            stock: Number(merged.stock) || 0,
+            sku: merged.sku || duplicate.sku || `SKU-${Date.now()}`
+          }
+        });
+
+        return res.status(200).json({ ...duplicate, name: merged.name, stock: Number(merged.stock) || 0, merged: true });
+      }
+
+      updateData.name = String(name).trim();
+    }
+
     if (category !== undefined) updateData.category = category;
     if (sellingPrice !== undefined) updateData.price = Number(sellingPrice);
     if (costPrice !== undefined) updateData.costPrice = Number(costPrice);

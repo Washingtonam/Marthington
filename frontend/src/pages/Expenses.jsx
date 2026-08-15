@@ -46,7 +46,9 @@ const Expenses = () => {
     receipt: null,
     notes: "",
     branch: "",
-    budgetAllocation: ""
+    budgetAllocation: "",
+    productName: "",
+    quantity: ""
   });
 
   // Filters
@@ -182,7 +184,12 @@ const Expenses = () => {
         description: formData.description,
         category: formData.category,
         paymentMethod: formData.paymentMethod,
-        date: formData.date
+        date: formData.date,
+        branch: formData.branch || undefined,
+        budgetAllocation: formData.budgetAllocation ? Number(formData.budgetAllocation) : undefined,
+        notes: formData.notes,
+        productName: formData.category === "inventory" ? (formData.productName || formData.description) : "",
+        quantity: formData.category === "inventory" ? Number(formData.quantity || 0) : 0
       };
 
       const res = await request("/expenses", {
@@ -198,7 +205,12 @@ const Expenses = () => {
           category: "miscellaneous",
           paymentMethod: "cash",
           date: new Date().toISOString().split("T")[0],
-          receipt: null
+          receipt: null,
+          notes: "",
+          branch: "",
+          budgetAllocation: "",
+          productName: "",
+          quantity: ""
         });
         setIsFormOpen(false);
         setStatusMsg({ type: "success", text: "Expense added successfully!" });
@@ -550,6 +562,27 @@ const Expenses = () => {
                 onChange={e => setFormData({...formData, budgetAllocation: e.target.value})}
                 className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
               />
+
+              {formData.category === "inventory" && (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Inventory/Product Name"
+                    value={formData.productName}
+                    onChange={e => setFormData({...formData, productName: e.target.value})}
+                    className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                  />
+
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Quantity"
+                    value={formData.quantity}
+                    onChange={e => setFormData({...formData, quantity: e.target.value})}
+                    className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                  />
+                </>
+              )}
 
               <input
                 ref={fileInputRef}

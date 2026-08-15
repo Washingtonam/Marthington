@@ -1,10 +1,14 @@
 import Expense from "./expense.model.js";
 import Business from "../businesses/business.model.js";
 import User from "../users/user.model.js";
+import Product from "../products/product.model.js";
+import BranchInventory from "../branches/branchInventory.model.js";
+import InventoryMovement from "../inventory/inventory.model.js";
 import { sendBudgetExceededEmail } from "../../utils/emailService.js";
 import { EXPENSE_CATEGORIES } from "../../config/constants.js";
 import { postExpenseToGL } from "../transactions/transaction.utils.js";
 import { shouldAutoApproveExpense } from "./expenseApproval.utils.js";
+import { findCatalogMatch } from "../catalog/catalogUtils.js";
 
 // 🔥 CHECK BUDGET AND SEND ALERTS
 const checkAndAlertBudgetExceeded = async (businessId, month, year, createdBy) => {
@@ -94,10 +98,9 @@ const checkAndAlertBudgetExceeded = async (businessId, month, year, createdBy) =
 // 🔥 CREATE EXPENSE
 const createExpense = async (req, res) => {
   try {
-    const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice, supplier } = req.body;
+    const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice, supplier, quantity, productName, productId } = req.body;
     const businessId = req.user.businessId;
 
-    // Validate required fields
     if (!amount || !description) {
       return res.status(400).json({ message: "Amount and description are required" });
     }
@@ -106,7 +109,6 @@ const createExpense = async (req, res) => {
       return res.status(400).json({ message: "Amount must be greater than 0" });
     }
 
-    // Check business exists
     const business = await Business.findById(businessId);
     if (!business) {
       return res.status(404).json({ message: "Business not found" });
@@ -121,7 +123,74 @@ const createExpense = async (req, res) => {
       businessSettings
     });
 
-    // Create expense
+    let inventoryProduct = null;
+    let inventoryQuantity = Number(quantity || 0);
+
+    if ((category || "").toLowerCase() === "inventory" && inventoryQuantity > 0) {
+      const targetName = String(productName || description || "").trim();
+      const candidate = productId ? await Product.findOne({ _id: productId, business: businessId }) : null;
+      inventoryProduct = candidate || null;
+
+      if (!inventoryProduct && targetName) {
+        const items = await Product.find({ business: businessId }).select("_id name stock price costPrice").lean();
+        const match = findCatalogMatch(items, targetName);
+        inventoryProduct = match ? await Product.findById(match._id) : null;
+      }
+
+      if (!inventoryProduct && targetName) {
+        inventoryProduct = await Product.create({
+          business: businessId,
+          name: targetName,
+          category: "Inventory",
+          stock: inventoryQuantity,
+          price: Number(parsedAmount / inventoryQuantity) || 0,
+          costPrice: Number(parsedAmount / inventoryQuantity) || 0,
+          sku: `INV-${Date.now()}`
+        });
+      }
+
+      if (inventoryProduct) {
+        const previousStock = Number(inventoryProduct.stock || 0);
+        inventoryProduct.stock = previousStock + inventoryQuantity;
+        if (!inventoryProduct.price || Number(inventoryProduct.price) === 0) {
+          inventoryProduct.price = Number(parsedAmount / inventoryQuantity) || 0;
+        }
+        if (!inventoryProduct.costPrice || Number(inventoryProduct.costPrice) === 0) {
+          inventoryProduct.costPrice = Number(parsedAmount / inventoryQuantity) || 0;
+        }
+        await inventoryProduct.save();
+
+        if (branch) {
+          const branchEntry = await BranchInventory.findOne({ business: businessId, branch, product: inventoryProduct._id });
+          if (branchEntry) {
+            branchEntry.quantity = Number(branchEntry.quantity || 0) + inventoryQuantity;
+            await branchEntry.save();
+          } else {
+            await BranchInventory.create({
+              business: businessId,
+              branch,
+              product: inventoryProduct._id,
+              quantity: inventoryQuantity,
+              branchPrice: Number(parsedAmount / inventoryQuantity) || 0,
+              createdBy: req.user.id
+            });
+          }
+        }
+
+        await InventoryMovement.create({
+          business: businessId,
+          branch: branch || null,
+          product: inventoryProduct._id,
+          type: "purchase",
+          quantity: inventoryQuantity,
+          previousStock,
+          newStock: inventoryProduct.stock,
+          note: `Inventory expense: ${targetName}`,
+          createdBy: req.user.id
+        });
+      }
+    }
+
     const expense = await Expense.create({
       business: businessId,
       branch: branch || null,
@@ -146,19 +215,18 @@ const createExpense = async (req, res) => {
     await expense.populate("createdBy", "name email");
     await expense.populate("branch", "name");
 
-    // Check if budget exceeded and send alert
     const expenseDate = new Date(expense.date);
     const month = expenseDate.getMonth() + 1;
     const year = expenseDate.getFullYear();
-    
-    // Non-blocking budget alert check
-    checkAndAlertBudgetExceeded(businessId, month, year, req.user.id).catch(err => 
+
+    checkAndAlertBudgetExceeded(businessId, month, year, req.user.id).catch(err =>
       console.error("Budget alert check error:", err.message)
     );
 
     return res.status(201).json({
       message: "Expense created successfully",
-      expense
+      expense,
+      inventoryUpdated: inventoryProduct ? { productId: inventoryProduct._id, quantity: inventoryQuantity, newStock: inventoryProduct.stock } : null
     });
   } catch (err) {
     console.error("Create Expense Error:", err);

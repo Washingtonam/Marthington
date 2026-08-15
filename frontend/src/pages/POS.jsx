@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import request from "../api/client.js";
 import { getServices } from "../api/services.js";
 import { getBranches, getBranchInventory } from "../api/branches.js";
+import { getCustomers } from "../api/customers.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -42,6 +43,7 @@ const POS = () => {
   // ====================================
   const [products, setProducts] = useState([]);
   const [services, setServices] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -60,6 +62,17 @@ const POS = () => {
 
   const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
   const [autoSend, setAutoSend] = useState(false);
+
+  const handleCustomerNameChange = (value) => {
+    const typed = value.trim();
+    setCustomer((prev) => ({ ...prev, name: value }));
+    if (!typed) return;
+
+    const exactMatch = customers.find((c) => c.name && c.name.toLowerCase() === typed.toLowerCase());
+    if (exactMatch) {
+      setCustomer((prev) => ({ ...prev, name: exactMatch.name, phone: exactMatch.phone || prev.phone || "" }));
+    }
+  };
 
   const isPro = business?.subscription?.status === "active";
   const canOverride = user?.role === "owner" || user?.role === "super_admin" || user?.permissions?.canOverridePrice;
@@ -134,10 +147,11 @@ const POS = () => {
       try {
         setLoading(true);
         const limit = 5000;
-        const [prodRes, servRes, branchRes] = await Promise.all([
+        const [prodRes, servRes, branchRes, customerRes] = await Promise.all([
           request(`/products?limit=${limit}`),
           getServices(),
-          getBranches()
+          getBranches(),
+          getCustomers()
         ]);
 
         const branchList = Array.isArray(branchRes) ? branchRes : [];
@@ -155,9 +169,11 @@ const POS = () => {
           ? prodRes
           : (prodRes?.products || prodRes?.data?.products || []);
         const cleanServices = Array.isArray(servRes) ? servRes : (servRes?.services || []);
+        const cleanCustomers = Array.isArray(customerRes) ? customerRes : (customerRes?.customers || []);
 
         setProducts(cleanProducts);
         setServices(cleanServices);
+        setCustomers(cleanCustomers);
       } catch (err) {
         console.error("POS Load Error:", err);
         setUpgradeMsg("Failed to load inventory.");
@@ -505,11 +521,17 @@ useEffect(() => {
           <div className="space-y-3 border-t border-dashed border-slate-200 pt-4">
             <div className="grid grid-cols-2 gap-2">
               <input 
+                list="customer-list"
                 placeholder="Client Name"
                 value={customer.name}
-                onChange={e => setCustomer({...customer, name: e.target.value})}
+                onChange={e => handleCustomerNameChange(e.target.value)}
                 className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0"
               />
+              <datalist id="customer-list">
+                {customers.map((customerOption) => (
+                  <option key={customerOption._id} value={customerOption.name} />
+                ))}
+              </datalist>
               <input 
                 placeholder="WhatsApp"
                 value={customer.phone}

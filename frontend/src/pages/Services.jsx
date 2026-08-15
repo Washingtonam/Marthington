@@ -56,6 +56,11 @@ const Services = () => {
   const [isDrawerOpen, setIsDrawerOpen] =
     useState(false);
 
+  const serviceSuggestions = useMemo(() =>
+    [...new Set(servicesList.map((service) => service.name).filter(Boolean))],
+    [servicesList]
+  );
+
   const [openMenuId, setOpenMenuId] =
     useState(null);
 
@@ -658,15 +663,16 @@ const Services = () => {
 
             <input
               name="name"
-
+              list="service-name-suggestions"
               value={form.name}
-
-              onChange={
-                handleChange
-              }
-
+              onChange={handleChange}
               placeholder="Enter service name..."
             />
+            <datalist id="service-name-suggestions">
+              {serviceSuggestions.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
 
           </label>
 

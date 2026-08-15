@@ -42,6 +42,11 @@ const Products = () => {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  const productSuggestions = useMemo(
+    () => [...new Set(products.map((product) => product.name).filter(Boolean))],
+    [products]
+  );
+
   // ====================================
   // LOAD PRODUCTS
   // ====================================
@@ -404,12 +409,18 @@ const Products = () => {
                   <label className="block text-sm font-semibold text-slate-700">Product Name</label>
                   <input
                     name="name"
+                    list="product-name-suggestions"
                     value={form.name}
                     onChange={handleChange}
                     placeholder="Enter product name..."
                     required
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
                   />
+                  <datalist id="product-name-suggestions">
+                    {productSuggestions.map((item) => (
+                      <option key={item} value={item} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

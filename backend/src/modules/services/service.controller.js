@@ -1,4 +1,15 @@
 import Service from "./service.model.js";
+import { findCatalogMatch, mergeCatalogValues } from "../catalog/catalogUtils.js";
+
+const findExistingServiceMatch = async (businessId, name, excludeId = null) => {
+  if (!name || !String(name).trim()) return null;
+
+  const query = { business: businessId };
+  if (excludeId) query._id = { $ne: excludeId };
+
+  const items = await Service.find(query).select("_id name price costPrice category isActive").lean();
+  return findCatalogMatch(items, name);
+};
 
 // ========================================
 // 🔥 CREATE SERVICE
@@ -23,23 +34,34 @@ const createService = async (req, res) => {
       });
     }
 
-    // 🔥 DUPLICATE CHECK
-    const existing =
-      await Service.findOne({
-        business: req.user.businessId,
-        name: name.trim()
+    const existing = await findExistingServiceMatch(req.user.businessId, name);
+    if (existing) {
+      const merged = mergeCatalogValues(existing, {
+        name,
+        price: Number(price) || Number(existing.price) || 0,
+        costPrice: Number(costPrice) || Number(existing.costPrice) || 0,
+        category: category || existing.category || "General"
       });
 
-    if (existing) {
-      return res.status(400).json({
-        message: "Service already exists"
-      });
+      const service = await Service.findByIdAndUpdate(existing._id, {
+        $set: {
+          name: merged.name,
+          category: merged.category || "General",
+          price: Number(merged.price) || 0,
+          costPrice: Number(merged.costPrice) || 0,
+          duration: Number(duration) || Number(existing.duration) || 0,
+          description: description || existing.description || "",
+          code: code || existing.code || ""
+        }
+      }, { new: true });
+
+      return res.status(200).json({ ...service.toObject(), merged: true, duplicateOf: existing._id });
     }
 
     const service =
       await Service.create({
 
-        name: name.trim(),
+        name: String(name).trim(),
 
         category:
           category || "General",
@@ -219,8 +241,31 @@ const updateService = async (
       isActive
     } = req.body;
 
-    service.name =
-      name ?? service.name;
+    if (name !== undefined) {
+      const duplicate = await findExistingServiceMatch(req.user.businessId, name, req.params.id);
+      if (duplicate) {
+        const merged = mergeCatalogValues(duplicate, {
+          name,
+          price: Number(price ?? duplicate.price ?? 0),
+          costPrice: Number(costPrice ?? duplicate.costPrice ?? 0),
+          category: category || duplicate.category || "General"
+        });
+        await Service.findByIdAndUpdate(duplicate._id, {
+          $set: {
+            name: merged.name,
+            category: merged.category || "General",
+            price: Number(merged.price) || 0,
+            costPrice: Number(merged.costPrice) || 0,
+            duration: Number(duration ?? duplicate.duration ?? 0),
+            description: description || duplicate.description || "",
+            code: code || duplicate.code || ""
+          }
+        });
+
+        return res.status(200).json({ ...duplicate, name: merged.name, merged: true });
+      }
+      service.name = String(name).trim();
+    }
 
     service.category =
       category ??
