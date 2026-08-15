@@ -89,7 +89,7 @@ const SupplierDetail = () => {
     );
   }
 
-  const { supplier, invoices = [], purchaseOrders = [], stockReceipts = [] } = supplierData;
+  const { supplier, invoices = [], purchaseOrders = [], stockReceipts = [], supplierItems = [] } = supplierData;
 
   const updateDraftItem = (index, field, value) => {
     setDraft((current) => {
@@ -477,6 +477,50 @@ const SupplierDetail = () => {
                           ) : (
                             <span className="text-xs text-slate-400">Received</span>
                           )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-2">
+              <FiBox className="text-emerald-600" />
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Items received from this supplier</h2>
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    <th className="pb-3">Product</th>
+                    <th className="pb-3">Date</th>
+                    <th className="pb-3">Qty</th>
+                    <th className="pb-3">Unit Cost</th>
+                    <th className="pb-3">Total</th>
+                    <th className="pb-3">Source</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {supplierItems.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="py-6 text-center text-slate-500">No inventory items recorded from this supplier yet.</td>
+                    </tr>
+                  ) : (
+                    supplierItems.slice(0, 10).map((item) => (
+                      <tr key={item._id} className="text-slate-700 dark:text-slate-300">
+                        <td className="py-3 pr-4 font-medium">{item.productName}</td>
+                        <td className="py-3 pr-4">{new Date(item.date).toLocaleDateString()}</td>
+                        <td className="py-3 pr-4">{item.quantity}</td>
+                        <td className="py-3 pr-4">{formatCurrency(item.unitCost || 0)}</td>
+                        <td className="py-3 pr-4">{formatCurrency(item.total || 0)}</td>
+                        <td className="py-3 pr-4">
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            {item.source}
+                          </span>
                         </td>
                       </tr>
                     ))

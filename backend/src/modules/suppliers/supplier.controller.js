@@ -1,6 +1,7 @@
 import Supplier from "./supplier.model.js";
 import Invoice from "../invoices/invoice.model.js";
 import PurchaseOrder from "../purchaseOrders/purchaseOrder.model.js";
+import Expense from "../expenses/expense.model.js";
 
 const normalizeSupplierPayload = (body = {}) => {
   const name = String(body.name || "").trim();
@@ -89,6 +90,14 @@ const getSupplierById = async (req, res) => {
       .populate("items.product", "name sku")
       .sort({ createdAt: -1 });
 
+    const inventoryExpenses = await Expense.find({
+      business: req.user.businessId,
+      supplier: supplier._id,
+      category: "inventory"
+    })
+      .populate("inventoryItems.product", "name sku")
+      .sort({ createdAt: -1 });
+
     const stockReceipts = invoices.flatMap((invoice) =>
       (invoice.items || []).map((item) => ({
         _id: `${invoice._id}-${item.name || item.product || "item"}`,
@@ -101,6 +110,21 @@ const getSupplierById = async (req, res) => {
         unitPrice: Number(item.price || 0),
         total: Number(item.total || 0),
         status: invoice.paymentStatus || "Unpaid"
+      }))
+    );
+
+    const supplierItems = inventoryExpenses.flatMap((expense) =>
+      (expense.inventoryItems || []).map((item) => ({
+        _id: `${expense._id}-${item.product || item.productName || "item"}-${item.quantity || 0}`,
+        source: "Expense",
+        expenseId: expense._id,
+        date: expense.date || expense.createdAt,
+        productName: item.productName || item.product?.name || "Unknown item",
+        product: item.product || null,
+        quantity: Number(item.quantity || 0),
+        unitCost: Number(item.unitCost || 0),
+        total: Number((Number(item.quantity || 0) * Number(item.unitCost || 0)).toFixed(2)),
+        status: expense.status || "pending"
       }))
     );
 
@@ -117,12 +141,13 @@ const getSupplierById = async (req, res) => {
         outstandingBalance,
         invoiceCount: invoices.length,
         purchaseOrderCount: purchaseOrders.length,
-        receiptCount: stockReceipts.length,
+        receiptCount: stockReceipts.length + supplierItems.length,
         lastOrderAt: invoices[0]?.createdAt || purchaseOrders[0]?.createdAt || supplier.updatedAt || supplier.createdAt
       },
       invoices,
       purchaseOrders,
-      stockReceipts
+      stockReceipts,
+      supplierItems
     });
   } catch (err) {
     return res.status(500).json({ message: err.message || "Failed to load supplier" });
