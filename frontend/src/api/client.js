@@ -145,6 +145,9 @@ const request = async (path, options = {}) => {
           return retryData;
         } catch (err) {
           processQueue(err, null);
+          if (typeof navigator !== "undefined" && !navigator.onLine) {
+            throw err;
+          }
           localStorage.clear();
           window.location.replace("/login");
           return;

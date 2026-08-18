@@ -33,6 +33,14 @@ const storedUser = () => {
   }
 };
 
+const storedBusiness = () => {
+  try {
+    return JSON.parse(localStorage.getItem("bms_business")) || null;
+  } catch {
+    return null;
+  }
+};
+
 export const usePermissions = (user, business) => {
   if (!user) {
     return {
@@ -78,7 +86,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.getItem("bms_token")
   );
 
-  const [business, setBusiness] = useState(null);
+  const [business, setBusiness] = useState(storedBusiness);
 
   const [loadingBusiness, setLoadingBusiness] =
     useState(true);
@@ -130,6 +138,9 @@ export const AuthProvider = ({ children }) => {
         if (!isMounted) return;
 
         setBusiness(data || businessFallback);
+        if (data) {
+          localStorage.setItem("bms_business", JSON.stringify(data));
+        }
 
       } catch (err) {
         console.error(
@@ -180,6 +191,10 @@ export const AuthProvider = ({ children }) => {
       JSON.stringify(normalizedUser)
     );
 
+    if (session.business) {
+      localStorage.setItem("bms_business", JSON.stringify(session.business));
+    }
+
     setToken(session.token);
     setUser(normalizedUser);
 
@@ -220,6 +235,8 @@ export const AuthProvider = ({ children }) => {
 
     localStorage.removeItem("bms_user");
 
+    localStorage.removeItem("bms_business");
+
     localStorage.removeItem(
       "bms_impersonation"
     );
@@ -244,6 +261,9 @@ export const AuthProvider = ({ children }) => {
       const data = await getBusiness();
 
       setBusiness(data || businessFallback);
+      if (data) {
+        localStorage.setItem("bms_business", JSON.stringify(data));
+      }
 
     } catch (err) {
       console.error(err);

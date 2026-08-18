@@ -2,6 +2,7 @@ const {
   app,
   BrowserWindow
 } = require("electron");
+const path = require("path");
 
 function createWindow() {
 
@@ -10,10 +11,11 @@ function createWindow() {
     height: 900
   });
 
-  // LOAD LIVE WEBSITE
-  win.loadURL(
-    "https://marthington.vercel.app"
-  );
+  if (app.isPackaged) {
+    win.loadFile(path.join(__dirname, "../frontend/dist/index.html"));
+  } else {
+    win.loadURL("http://localhost:5173");
+  }
 }
 
 app.whenReady().then(() => {
