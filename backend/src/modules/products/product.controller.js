@@ -287,4 +287,30 @@ const deleteProduct = async (req, res) => {
   }
 };
 
-export default { createProduct, bulkImportProducts, getProducts, updateProduct, deleteProduct, bulkDeleteProducts };
+// 🔥 GET PRODUCTS FOR AUTOCOMPLETE (minimal data for searchable dropdown)
+const getProductsForAutocomplete = async (req, res) => {
+  try {
+    const { search = "", limit = 20 } = req.query;
+    const businessId = req.user.businessId;
+
+    const filter = { business: businessId };
+    
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { sku: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    const products = await Product.find(filter)
+      .select('_id name category price costPrice stock sku')
+      .limit(parseInt(limit))
+      .lean();
+
+    res.json({ products });
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching products", error: error.message });
+  }
+};
+
+export default { createProduct, bulkImportProducts, getProducts, getProductsForAutocomplete, updateProduct, deleteProduct, bulkDeleteProducts };

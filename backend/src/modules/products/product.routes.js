@@ -34,6 +34,13 @@ router.delete(
   productController.bulkDeleteProducts
 );
 
+// 🔥 GET PRODUCTS FOR AUTOCOMPLETE
+router.get(
+  "/autocomplete",
+  protect,
+  productController.getProductsForAutocomplete
+);
+
 // 🔥 GET PRODUCTS
 router.get(
   "/",

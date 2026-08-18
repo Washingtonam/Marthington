@@ -197,6 +197,23 @@ const createExpense = async (req, res) => {
       return res.status(404).json({ message: "Business not found" });
     }
 
+    // 🔥 VALIDATE INVENTORY ITEMS IF PROVIDED
+    if (category === "inventory" && inventoryItems && inventoryItems.length > 0) {
+      for (const item of inventoryItems) {
+        // Check if product exists if productId is provided
+        if (item.productId) {
+          const product = await Product.findOne({ _id: item.productId, business: businessId });
+          if (!product) {
+            return res.status(400).json({ message: `Product with ID ${item.productId} not found` });
+          }
+          // Warn if stock is low but don't block the operation
+          if (product.stock < item.quantity) {
+            console.warn(`Warning: Adding ${item.quantity} units of ${product.name}, but only ${product.stock} in stock`);
+          }
+        }
+      }
+    }
+
     const parsedAmount = parseFloat(amount);
     const businessSettings = business?.approvalRules || {};
 

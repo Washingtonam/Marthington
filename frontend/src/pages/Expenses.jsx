@@ -54,10 +54,17 @@ const Expenses = () => {
 
   // Inventory form state for adding multiple items
   const [inventoryForm, setInventoryForm] = useState({
+    productId: "",
     productName: "",
+    category: "",
     quantity: "",
-    unitCost: ""
+    unitCost: "",
+    currentStock: 0
   });
+
+  // Product suggestions for autocomplete
+  const [productSuggestions, setProductSuggestions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Filters
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -179,6 +186,47 @@ const Expenses = () => {
   // ====================================
   // ACTIONS
   // ====================================
+
+  // 🔥 FETCH PRODUCT SUGGESTIONS FOR AUTOCOMPLETE
+  const fetchProductSuggestions = async (searchTerm) => {
+    if (!searchTerm.trim()) {
+      setProductSuggestions([]);
+      return;
+    }
+
+    try {
+      setLoadingSuggestions(true);
+      const res = await request(`/products/autocomplete?search=${encodeURIComponent(searchTerm)}&limit=10`);
+      setProductSuggestions(res.products || []);
+    } catch (err) {
+      console.error("Error fetching products:", err);
+      setProductSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  // 🔥 HANDLE PRODUCT SELECTION FROM DROPDOWN
+  const handleSelectProduct = (product) => {
+    // Check if already added
+    const isAlreadyAdded = formData.inventoryItems.some(item => item.productId === product._id);
+    
+    if (isAlreadyAdded) {
+      setStatusMsg({ type: "warning", text: `"${product.name}" is already in this expense` });
+      return;
+    }
+
+    setInventoryForm({
+      productId: product._id,
+      productName: product.name,
+      category: product.category,
+      quantity: "",
+      unitCost: product.costPrice || product.price,
+      currentStock: product.stock
+    });
+    setProductSuggestions([]);
+  };
+
   const addInventoryItem = () => {
     if (!inventoryForm.productName || !inventoryForm.quantity || !inventoryForm.unitCost) {
       setStatusMsg({ type: "error", text: "All inventory fields are required" });
@@ -186,7 +234,9 @@ const Expenses = () => {
     }
 
     const newItem = {
+      productId: inventoryForm.productId || null, // null if new product
       productName: inventoryForm.productName,
+      category: inventoryForm.category || "General",
       quantity: Number(inventoryForm.quantity),
       unitCost: Number(inventoryForm.unitCost)
     };
@@ -196,7 +246,7 @@ const Expenses = () => {
       inventoryItems: [...prev.inventoryItems, newItem]
     }));
 
-    setInventoryForm({ productName: "", quantity: "", unitCost: "" });
+    setInventoryForm({ productId: "", productName: "", category: "", quantity: "", unitCost: "", currentStock: 0 });
     setStatusMsg({ type: "success", text: "Inventory item added" });
     setTimeout(() => setStatusMsg({ type: "", text: "" }), 2000);
   };
@@ -276,7 +326,7 @@ const Expenses = () => {
           supplierPhone: "",
           inventoryItems: []
         });
-        setInventoryForm({ productName: "", quantity: "", unitCost: "" });
+        setInventoryForm({ productId: "", productName: "", category: "", quantity: "", unitCost: "", currentStock: 0 });
         setIsFormOpen(false);
         setStatusMsg({ type: "success", text: "Expense added successfully!" });
         
@@ -646,14 +696,59 @@ const Expenses = () => {
                 <div className="space-y-3 border border-gray-200 rounded-lg p-4 bg-gray-50">
                   <h4 className="font-bold text-gray-700">Add Inventory Items</h4>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <input
-                      type="text"
-                      placeholder="Product Name"
-                      value={inventoryForm.productName}
-                      onChange={e => setInventoryForm({...inventoryForm, productName: e.target.value})}
-                      className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 relative">
+                    {/* Product Name with Autocomplete */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Product Name or SKU"
+                        value={inventoryForm.productName}
+                        onChange={e => {
+                          setInventoryForm({...inventoryForm, productName: e.target.value});
+                          fetchProductSuggestions(e.target.value);
+                        }}
+                        onFocus={() => {
+                          if (inventoryForm.productName) {
+                            fetchProductSuggestions(inventoryForm.productName);
+                          }
+                        }}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                        autoComplete="off"
+                      />
+                      
+                      {/* Dropdown suggestions */}
+                      {productSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                          {productSuggestions.map(product => {
+                            const isAdded = formData.inventoryItems.some(item => item.productId === product._id);
+                            return (
+                              <div
+                                key={product._id}
+                                onClick={() => handleSelectProduct(product)}
+                                className={`px-4 py-3 cursor-pointer border-b border-gray-100 last:border-b-0 ${
+                                  isAdded 
+                                    ? 'bg-gray-100 opacity-60 cursor-not-allowed' 
+                                    : 'hover:bg-blue-50'
+                                }`}
+                              >
+                                <div className="font-semibold text-sm">{product.name}</div>
+                                <div className="text-xs text-gray-600 flex justify-between">
+                                  <span>Stock: {product.stock} | Price: ₦{Number(product.price).toLocaleString()}</span>
+                                  {isAdded && <span className="text-red-600 font-bold">✓ Added</span>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {loadingSuggestions && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg p-3 text-center text-gray-500 text-sm">
+                          Loading products...
+                        </div>
+                      )}
+                    </div>
+
                     <input
                       type="number"
                       min="1"
@@ -662,20 +757,36 @@ const Expenses = () => {
                       onChange={e => setInventoryForm({...inventoryForm, quantity: e.target.value})}
                       className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
                     />
+                    
                     <input
                       type="number"
                       min="0"
+                      step="0.01"
                       placeholder="Unit Cost"
                       value={inventoryForm.unitCost}
                       onChange={e => setInventoryForm({...inventoryForm, unitCost: e.target.value})}
                       className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
                     />
                   </div>
+
+                  {/* Current Stock Warning */}
+                  {inventoryForm.currentStock !== undefined && inventoryForm.quantity && (
+                    <div className={`text-sm px-3 py-2 rounded-lg ${
+                      Number(inventoryForm.quantity) > inventoryForm.currentStock
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      Current stock: {inventoryForm.currentStock} units 
+                      {Number(inventoryForm.quantity) > inventoryForm.currentStock && (
+                        <span> ⚠️ Adding more than available stock</span>
+                      )}
+                    </div>
+                  )}
                   
                   <button
                     type="button"
                     onClick={addInventoryItem}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold w-full"
                   >
                     + Add Item
                   </button>
@@ -686,7 +797,9 @@ const Expenses = () => {
                       {formData.inventoryItems.map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
                           <span className="text-sm font-semibold">
-                            {item.productName} × {item.quantity} @ ₦{Number(item.unitCost).toLocaleString()}
+                            {item.productName} 
+                            {!item.productId && <span className="text-orange-600"> (New)</span>}
+                            × {item.quantity} @ ₦{Number(item.unitCost).toLocaleString()}
                           </span>
                           <button
                             type="button"
