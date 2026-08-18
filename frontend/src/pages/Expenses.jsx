@@ -49,6 +49,7 @@ const Expenses = () => {
     budgetAllocation: "",
     supplierName: "",
     supplierPhone: "",
+    supplierId: "",
     inventoryItems: []
   });
 
@@ -65,6 +66,10 @@ const Expenses = () => {
   // Product suggestions for autocomplete
   const [productSuggestions, setProductSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  // Supplier suggestions for autocomplete
+  const [supplierSuggestions, setSupplierSuggestions] = useState([]);
+  const [loadingSupplierSuggestions, setLoadingSupplierSuggestions] = useState(false);
 
   // Filters
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -227,6 +232,36 @@ const Expenses = () => {
     setProductSuggestions([]);
   };
 
+  // 🔥 FETCH SUPPLIER SUGGESTIONS FOR AUTOCOMPLETE
+  const fetchSupplierSuggestions = async (searchTerm) => {
+    if (!searchTerm.trim()) {
+      setSupplierSuggestions([]);
+      return;
+    }
+
+    try {
+      setLoadingSupplierSuggestions(true);
+      const res = await request(`/suppliers/autocomplete?search=${encodeURIComponent(searchTerm)}&limit=10`);
+      setSupplierSuggestions(res.suppliers || []);
+    } catch (err) {
+      console.error("Error fetching suppliers:", err);
+      setSupplierSuggestions([]);
+    } finally {
+      setLoadingSupplierSuggestions(false);
+    }
+  };
+
+  // 🔥 HANDLE SUPPLIER SELECTION FROM DROPDOWN
+  const handleSelectSupplier = (supplier) => {
+    setFormData({
+      ...formData,
+      supplierName: supplier.name,
+      supplierPhone: supplier.phone,
+      supplierId: supplier._id
+    });
+    setSupplierSuggestions([]);
+  };
+
   const addInventoryItem = () => {
     if (!inventoryForm.productName || !inventoryForm.quantity || !inventoryForm.unitCost) {
       setStatusMsg({ type: "error", text: "All inventory fields are required" });
@@ -302,6 +337,7 @@ const Expenses = () => {
         notes: formData.notes,
         supplierName: formData.supplierName || undefined,
         supplierPhone: formData.supplierPhone || undefined,
+        supplierId: formData.supplierId || undefined,
         inventoryItems: formData.inventoryItems || []
       };
 
@@ -324,6 +360,7 @@ const Expenses = () => {
           budgetAllocation: "",
           supplierName: "",
           supplierPhone: "",
+          supplierId: "",
           inventoryItems: []
         });
         setInventoryForm({ productId: "", productName: "", category: "", quantity: "", unitCost: "", currentStock: 0 });
@@ -816,21 +853,83 @@ const Expenses = () => {
               )}
 
               {formData.category === "inventory" && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    placeholder="Supplier Name (optional)"
-                    value={formData.supplierName}
-                    onChange={e => setFormData({...formData, supplierName: e.target.value})}
-                    className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Supplier Phone (optional)"
-                    value={formData.supplierPhone}
-                    onChange={e => setFormData({...formData, supplierPhone: e.target.value})}
-                    className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
-                  />
+                <div className="space-y-3 border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <h4 className="font-bold text-gray-700">Supplier Information</h4>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative">
+                    {/* Supplier Name with Autocomplete */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Supplier Name (optional)"
+                        value={formData.supplierName}
+                        onChange={e => {
+                          setFormData({...formData, supplierName: e.target.value});
+                          fetchSupplierSuggestions(e.target.value);
+                        }}
+                        onFocus={() => {
+                          if (formData.supplierName) {
+                            fetchSupplierSuggestions(formData.supplierName);
+                          }
+                        }}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                        autoComplete="off"
+                      />
+                      
+                      {/* Dropdown suggestions */}
+                      {supplierSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                          {supplierSuggestions.map(supplier => (
+                            <div
+                              key={supplier._id}
+                              onClick={() => handleSelectSupplier(supplier)}
+                              className="px-4 py-3 cursor-pointer border-b border-gray-100 last:border-b-0 hover:bg-blue-50"
+                            >
+                              <div className="font-semibold text-sm">{supplier.name}</div>
+                              <div className="text-xs text-gray-600 flex justify-between">
+                                <span>{supplier.phone || "No phone"}</span>
+                                <span>Balance: ₦{Number(supplier.outstandingBalance || 0).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {loadingSupplierSuggestions && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg p-3 text-center text-gray-500 text-sm">
+                          Loading suppliers...
+                        </div>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Supplier Phone (optional)"
+                      value={formData.supplierPhone}
+                      onChange={e => setFormData({...formData, supplierPhone: e.target.value})}
+                      className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Supplier Metrics if selected */}
+                  {formData.supplierId && (
+                    <div className="bg-white p-3 rounded-lg border border-gray-200">
+                      <div className="text-xs text-gray-600 space-y-1">
+                        <div className="flex justify-between">
+                          <span>Outstanding Balance:</span>
+                          <span className="font-semibold text-red-600">₦{Number(
+                            supplierSuggestions.find(s => s._id === formData.supplierId)?.outstandingBalance || 0
+                          ).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Total Purchases:</span>
+                          <span className="font-semibold">₦{Number(
+                            supplierSuggestions.find(s => s._id === formData.supplierId)?.totalPurchases || 0
+                          ).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

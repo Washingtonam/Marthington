@@ -181,7 +181,7 @@ const checkAndAlertBudgetExceeded = async (businessId, month, year, createdBy) =
 // 🔥 CREATE EXPENSE
 const createExpense = async (req, res) => {
   try {
-    const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice, supplierName, supplierPhone, inventoryItems } = req.body;
+    const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice, supplierName, supplierPhone, supplierId, inventoryItems } = req.body;
     const businessId = req.user.businessId;
 
     if (!amount || !description) {
@@ -217,8 +217,18 @@ const createExpense = async (req, res) => {
     const parsedAmount = parseFloat(amount);
     const businessSettings = business?.approvalRules || {};
 
-    let supplierId = null;
-    if (supplierName) {
+    let finalSupplierId = null;
+    
+    // 🔥 HANDLE SUPPLIER LINKING
+    if (supplierId) {
+      // If supplierId provided, validate and use it directly
+      const existingSupplier = await Supplier.findOne({ _id: supplierId, business: businessId });
+      if (!existingSupplier) {
+        return res.status(400).json({ message: "Selected supplier not found" });
+      }
+      finalSupplierId = supplierId;
+    } else if (supplierName) {
+      // If only supplierName provided, find or create supplier
       let supplier = await Supplier.findOne({ business: businessId, name: supplierName });
       if (!supplier) {
         supplier = await Supplier.create({
@@ -227,13 +237,13 @@ const createExpense = async (req, res) => {
           phone: supplierPhone || ""
         });
       }
-      supplierId = supplier._id;
+      finalSupplierId = supplier._id;
     }
 
     const autoApprovalDecision = shouldAutoApproveExpense({
       amount: parsedAmount,
       category: category || "miscellaneous",
-      supplierId: supplierId || null,
+      supplierId: finalSupplierId || null,
       businessSettings
     });
 
@@ -251,7 +261,7 @@ const createExpense = async (req, res) => {
       status: autoApprovalDecision.status,
       linkedInvoice: linkedInvoice || null,
       budgetAllocation: budgetAllocation || null,
-      supplier: supplierId || null,
+      supplier: finalSupplierId || null,
       inventoryItems: inventoryItems || []
     });
 

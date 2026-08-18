@@ -364,6 +364,37 @@ const getSupplierPerformanceSummary = async (req, res) => {
   }
 };
 
+// 🔥 GET SUPPLIERS FOR AUTOCOMPLETE (minimal data for searchable dropdown)
+const getSuppliersForAutocomplete = async (req, res) => {
+  try {
+    const { search = "", limit = 20 } = req.query;
+    const businessId = req.user.businessId;
+
+    const filter = { 
+      business: businessId,
+      isActive: true // Only show active suppliers
+    };
+    
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    const suppliers = await Supplier.find(filter)
+      .select('_id name phone email outstandingBalance totalPurchases paymentTerms')
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({ suppliers });
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching suppliers", error: error.message });
+  }
+};
+
 export default {
   getSuppliers,
   getSupplierById,
@@ -371,5 +402,6 @@ export default {
   updateSupplier,
   deleteSupplier,
   getSupplierMetrics,
-  getSupplierPerformanceSummary
+  getSupplierPerformanceSummary,
+  getSuppliersForAutocomplete
 };

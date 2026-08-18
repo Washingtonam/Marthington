@@ -7,6 +7,7 @@ const router = express.Router();
 router.get("/", protect, supplierController.getSuppliers);
 router.post("/", protect, supplierController.createSupplier);
 router.get("/performance/summary", protect, supplierController.getSupplierPerformanceSummary);
+router.get("/autocomplete", protect, supplierController.getSuppliersForAutocomplete);
 router.get("/:id", protect, supplierController.getSupplierById);
 router.get("/:id/metrics", protect, supplierController.getSupplierMetrics);
 router.put("/:id", protect, supplierController.updateSupplier);
