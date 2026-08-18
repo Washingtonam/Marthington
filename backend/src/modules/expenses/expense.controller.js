@@ -183,6 +183,21 @@ const createExpense = async (req, res) => {
   try {
     const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice, supplierName, supplierPhone, supplierId, inventoryItems } = req.body;
     const businessId = req.user.businessId;
+    const clientOperationId = req.get("X-Operation-Id");
+
+    if (clientOperationId) {
+      const existingExpense = await Expense.findOne({ business: businessId, clientOperationId })
+        .populate("createdBy", "name email")
+        .populate("branch", "name")
+        .populate("supplier", "name phone");
+      if (existingExpense) {
+        return res.status(200).json({
+          message: "Expense already created",
+          expense: existingExpense,
+          duplicate: true
+        });
+      }
+    }
 
     if (!amount || !description) {
       return res.status(400).json({ message: "Amount and description are required" });
@@ -257,6 +272,7 @@ const createExpense = async (req, res) => {
       date: date ? new Date(date) : new Date(),
       notes: notes || "",
       createdBy: req.user.id,
+      ...(clientOperationId ? { clientOperationId } : {}),
       approvedBy: autoApprovalDecision.shouldAutoApprove ? req.user.id : null,
       status: autoApprovalDecision.status,
       linkedInvoice: linkedInvoice || null,

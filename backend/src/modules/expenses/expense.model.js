@@ -59,6 +59,10 @@ const expenseSchema = new mongoose.Schema(
       ref: "User"
     },
 
+    clientOperationId: {
+      type: String
+    },
+
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -120,6 +124,10 @@ expenseSchema.index({ business: 1, createdAt: -1 });
 expenseSchema.index({ business: 1, branch: 1 });
 expenseSchema.index({ business: 1, status: 1 });
 expenseSchema.index({ linkedInvoice: 1 });
+expenseSchema.index(
+  { business: 1, clientOperationId: 1 },
+  { unique: true, sparse: true }
+);
 
 const Expense = mongoose.model("Expense", expenseSchema);
 

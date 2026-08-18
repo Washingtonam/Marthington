@@ -373,6 +373,17 @@ const Expenses = () => {
         }
         
         setTimeout(() => setStatusMsg({ type: "", text: "" }), 3000);
+      } else if (res?.offline) {
+        const localExpense = {
+          _id: `pending-${res.operationId}`,
+          ...payload,
+          status: "pending",
+          syncStatus: "pending",
+          createdAt: new Date().toISOString()
+        };
+        setExpenses((current) => [localExpense, ...current]);
+        setIsFormOpen(false);
+        setStatusMsg({ type: "success", text: "Expense saved on this device and will sync automatically when online." });
       }
     } catch (err) {
       setStatusMsg({ type: "error", text: err.message || "Failed to add expense." });

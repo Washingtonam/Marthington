@@ -356,7 +356,12 @@ useEffect(() => {
         body: JSON.stringify(payload)
       });
 
-      if (res?.sale) {
+      if (res?.offline) {
+        if (bc.current) bc.current.postMessage({ type: "SALE_COMPLETE", receiptId: `PENDING-${res.operationId}` });
+        setCart([]);
+        setCustomer({ name: "", phone: "", notes: "" });
+        setUpgradeMsg("Sale saved on this device and will sync automatically when you are online.");
+      } else if (res?.sale) {
         if (bc.current) bc.current.postMessage({ type: "SALE_COMPLETE", receiptId: res.sale.receiptId });
 
         if (autoSend && customer.phone && isPro) {

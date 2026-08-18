@@ -126,6 +126,10 @@ const saleSchema = new mongoose.Schema(
       index: true
     },
 
+    clientOperationId: {
+      type: String
+    },
+
     isDeleted: {
       type: Boolean,
       default: false,
@@ -180,6 +184,11 @@ saleSchema.set("toJSON", {
 saleSchema.set("toObject", {
   virtuals: true
 });
+
+saleSchema.index(
+  { business: 1, clientOperationId: 1 },
+  { unique: true, sparse: true }
+);
 
 
 export default mongoose.model(

@@ -80,12 +80,21 @@ const reserveStockAtomically = async ({ businessId, branchId, productId, quantit
 
 // 🔥 CREATE SALE
 const createSale = async (req, res) => {
+  const clientOperationId = req.get("X-Operation-Id");
+  const businessId = req.user.businessId;
+
+  if (clientOperationId) {
+    const existingSale = await Sale.findOne({ business: businessId, clientOperationId });
+    if (existingSale) {
+      return res.json({ message: "Sale already completed", sale: existingSale, duplicate: true });
+    }
+  }
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
     const { items, autoSend, customerName, customerPhone, notes, paymentMethod, branch } = req.body;
-    const businessId = req.user.businessId;
     const branchId = branch || req.user.branchId || null;
 
     // 1. Fetch Business & Check Subscription
@@ -209,6 +218,7 @@ const createSale = async (req, res) => {
       business: businessId,
       branch: branchId || null,
       createdBy: req.user.id,
+      ...(clientOperationId ? { clientOperationId } : {}),
       customer: customer?._id || null,
       customerName: customerName || customer?.name || "Walk-in",
       customerPhone: customerPhone || "",

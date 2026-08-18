@@ -1,6 +1,6 @@
-import { db } from "./offlineDb";
+import { db, cacheCollection, getCachedCollection, queueOperation } from "./offlineDb";
 
-const API_URL = "https://marthington.onrender.com/api";
+export const API_URL = "https://marthington.onrender.com/api";
 
 let isRefreshing = false;
 let refreshQueue = [];
@@ -44,16 +44,28 @@ const request = async (path, options = {}) => {
   const token = localStorage.getItem("bms_token");
   const impersonation = localStorage.getItem("bms_impersonation");
   const isFormData = options.body instanceof FormData;
+  const method = options.method || "GET";
+  const isMutation = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  const operationId = isMutation
+    ? (options.headers?.["X-Operation-Id"] || `${Date.now()}-${crypto.randomUUID()}`)
+    : null;
 
   const headers = {
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(impersonation ? { "x-business-id": impersonation } : {}),
+    ...(operationId ? { "X-Operation-Id": operationId } : {}),
     ...options.headers
   };
 
   try {
-    const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+    let response;
+    try {
+      response = await fetch(`${API_URL}${path}`, { ...options, headers });
+    } catch (networkError) {
+      networkError.isNetworkError = true;
+      throw networkError;
+    }
 
     // If the server returns a 5xx, try to read its body to surface message, then jump to catch
     if (response.status >= 500) {
@@ -86,6 +98,7 @@ const request = async (path, options = {}) => {
               ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
               ...(tokenHeader || {}),
               ...(localStorage.getItem("bms_impersonation") ? { "x-business-id": localStorage.getItem("bms_impersonation") } : {}),
+              ...(operationId ? { "X-Operation-Id": operationId } : {}),
               ...options.headers
             };
 
@@ -121,6 +134,7 @@ const request = async (path, options = {}) => {
             ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
             ...(tokenHeader || {}),
             ...(localStorage.getItem("bms_impersonation") ? { "x-business-id": localStorage.getItem("bms_impersonation") } : {}),
+            ...(operationId ? { "X-Operation-Id": operationId } : {}),
             ...options.headers
           };
 
@@ -168,7 +182,12 @@ const request = async (path, options = {}) => {
       throw e;
     }
 
-    // SUCCESS: If we are fetching products, save them to IndexedDB for next time
+    // Cache successful reads so screens can render while offline.
+    if (!options.method || options.method === "GET") {
+      await cacheCollection(path, data);
+    }
+
+    // Keep the legacy product table populated for existing POS consumers.
     if (path.includes("/products") && (!options.method || options.method === "GET")) {
        // Ensure data is an array before saving
        const productsArray = Array.isArray(data) ? data : (data.products || []);
@@ -183,25 +202,23 @@ const request = async (path, options = {}) => {
   } catch (err) {
     console.warn(`Network fail for ${path}, checking offline database...`);
 
-    // OFFLINE FALLBACK: Load inventory from IndexedDB
-    if (path.includes("/products") && (!options.method || options.method === "GET")) {
-      const localProducts = await db.products.toArray();
-      if (localProducts.length > 0) {
-        return localProducts; // Return the cached inventory
-      }
+    // OFFLINE FALLBACK: return the last successful response for any GET.
+    if (!options.method || options.method === "GET") {
+      const cached = await getCachedCollection(path);
+      if (cached !== null) return cached;
     }
 
-    // OFFLINE POST: Queue sales if network is dead
-    if (options.method === "POST" && path.includes("/sales")) {
-      await db.pendingSales.add({
+    const canQueue = isMutation && (err.isNetworkError || navigator.onLine === false);
+
+    if (canQueue && !path.startsWith("/auth/")) {
+      const operationId = await queueOperation({
         path,
-        options: {
-            ...options,
-            body: typeof options.body === 'string' ? JSON.parse(options.body) : options.body
-        },
-        timestamp: Date.now()
+        options,
+        entity: path.split("/")[1] || "unknown",
+        action: method.toLowerCase(),
+        operationId
       });
-      return { success: true, offline: true };
+      return { success: true, offline: true, pending: true, operationId };
     }
 
     throw err;
