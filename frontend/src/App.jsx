@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext.jsx";
 
 // ====================================
@@ -171,7 +171,7 @@ const PageLoader = () => (
 
 const App = () => {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AuthProvider>
         {/* Suspense handles the waiting period while a page is being downloaded */}
         <Suspense fallback={<PageLoader />}>
@@ -343,7 +343,7 @@ const App = () => {
           </Routes>
         </Suspense>
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
