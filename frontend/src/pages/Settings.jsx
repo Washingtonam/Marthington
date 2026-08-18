@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { updateBusiness } from "../api/business.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
+import { getOfflineSnapshotMeta, saveOfflineSnapshot } from "../api/offlineDb.js";
 
 const Settings = () => {
   const location = useLocation();
@@ -33,6 +34,8 @@ const Settings = () => {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [downloadingOfflineData, setDownloadingOfflineData] = useState(false);
+  const [offlineDataSummary, setOfflineDataSummary] = useState(null);
   const [pricing, setPricing] = useState({
     monthly: { ngn: 15000, usd: 10 },
     yearly: { ngn: 150000, usd: 100 }
@@ -68,6 +71,41 @@ const Settings = () => {
     };
     loadPricing();
   }, []);
+
+  useEffect(() => {
+    getOfflineSnapshotMeta().then((syncedAt) => {
+      if (syncedAt) setOfflineDataSummary({ syncedAt });
+    });
+  }, []);
+
+  const downloadOfflineData = async () => {
+    setDownloadingOfflineData(true);
+    setUpgradeMsg("");
+
+    try {
+      const snapshot = await request("/sync/bootstrap");
+      const syncedAt = await saveOfflineSnapshot(snapshot);
+      const recordCount = [
+        snapshot.products,
+        snapshot.services,
+        snapshot.customers,
+        snapshot.suppliers,
+        snapshot.branches,
+        snapshot.branchInventory,
+        snapshot.sales,
+        snapshot.expenses,
+        snapshot.invoices,
+        snapshot.budgets
+      ].reduce((total, records) => total + (Array.isArray(records) ? records.length : 0), 0);
+
+      setOfflineDataSummary({ syncedAt, recordCount });
+      setUpgradeMsg(`Offline data downloaded successfully (${recordCount.toLocaleString()} records).`);
+    } catch (error) {
+      setUpgradeMsg(error.message || "Could not download offline data.");
+    } finally {
+      setDownloadingOfflineData(false);
+    }
+  };
 
   const verifyPaystackRedirect = useCallback(async (reference) => {
     if (!reference) return;
@@ -255,7 +293,26 @@ const Settings = () => {
         {/* BUSINESS TAB (Preserved) */}
         {activeTab === "business" && (
           <div className="tool-panel space-y-4 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
-            <h2 className="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">Business Profile</h2>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <h2 className="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">Business Profile</h2>
+              <button
+                type="button"
+                onClick={downloadOfflineData}
+                disabled={downloadingOfflineData}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {downloadingOfflineData ? "Downloading..." : "Download for offline use"}
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Save your catalog, stock, customers, branches, and recent records on this computer for offline access.
+            </p>
+            {offlineDataSummary?.syncedAt && (
+              <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                Last offline download: {new Date(offlineDataSummary.syncedAt).toLocaleString()}
+                {offlineDataSummary.recordCount ? ` (${offlineDataSummary.recordCount.toLocaleString()} records)` : ""}
+              </p>
+            )}
             <div className="grid gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-500 uppercase">Business Name</label>

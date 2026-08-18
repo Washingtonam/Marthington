@@ -33,6 +33,7 @@ import payoutRoutes from "./modules/affiliates/payout.routes.js";
 import notificationRoutes from "./modules/notifications/notification.routes.js";
 import categoryBudgetRoutes from "./modules/budgets/categoryBudget.routes.js";
 import budgetAlertRoutes from "./modules/budgets/budgetAlert.routes.js";
+import syncRoutes from "./modules/sync/sync.routes.js";
 
 const app = express();
 
@@ -83,6 +84,7 @@ app.use("/api/branches/inventory", branchInventoryRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/category-budgets", categoryBudgetRoutes);
 app.use("/api/budget-alerts", budgetAlertRoutes);
+app.use("/api/sync", syncRoutes);
 app.use("/api/affiliates", affiliateRoutes);
 app.use("/api/affiliates/payouts", payoutRoutes);
 app.use("/api/notifications", notificationRoutes);

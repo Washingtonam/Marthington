@@ -1,4 +1,10 @@
-import { db, cacheCollection, getCachedCollection, queueOperation } from "./offlineDb";
+import {
+  db,
+  cacheCollection,
+  getCachedCollection,
+  getOfflineSnapshotCollection,
+  queueOperation
+} from "./offlineDb";
 
 export const API_URL = "https://marthington.onrender.com/api";
 
@@ -38,6 +44,20 @@ const doRefresh = async () => {
   }
 
   return data.token;
+};
+
+const getSnapshotFallback = async (path) => {
+  if (path.startsWith("/products")) return getOfflineSnapshotCollection("products");
+  if (path.startsWith("/services")) return getOfflineSnapshotCollection("services");
+  if (path.startsWith("/customers")) return getOfflineSnapshotCollection("customers");
+  if (path.startsWith("/suppliers")) return getOfflineSnapshotCollection("suppliers");
+  if (path === "/branches" || path.startsWith("/branches?")) return getOfflineSnapshotCollection("branches");
+  if (path.startsWith("/branches/inventory")) return getOfflineSnapshotCollection("branchInventory");
+  if (path.startsWith("/expenses")) return getOfflineSnapshotCollection("expenses");
+  if (path.startsWith("/sales")) return getOfflineSnapshotCollection("sales");
+  if (path.startsWith("/invoices")) return getOfflineSnapshotCollection("invoices");
+  if (path === "/business") return getOfflineSnapshotCollection("business");
+  return null;
 };
 
 const request = async (path, options = {}) => {
@@ -206,6 +226,9 @@ const request = async (path, options = {}) => {
     if (!options.method || options.method === "GET") {
       const cached = await getCachedCollection(path);
       if (cached !== null) return cached;
+
+      const snapshotFallback = await getSnapshotFallback(path);
+      if (snapshotFallback !== null) return snapshotFallback;
     }
 
     const canQueue = isMutation && (err.isNetworkError || navigator.onLine === false);
