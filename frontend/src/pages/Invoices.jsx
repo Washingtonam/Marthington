@@ -1551,7 +1551,11 @@ const Invoices = () => {
 
                         <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
                           <span>
-                            {selectedProduct ? `Available stock: ${availableStock}` : "Choose a product to see stock"}
+                            {selectedCatalogItem?.catalogType === "product"
+                              ? `Available stock: ${selectedCatalogItem.stock ?? 0}`
+                              : selectedCatalogItem?.catalogType === "service"
+                                ? "Service"
+                                : "Choose a product or service"}
                           </span>
                           <span className="font-bold text-slate-700">
                             Line total: {formatCurrency(Number(item.total || 0))}
