@@ -37,6 +37,7 @@ const POS = () => {
   const debounceTimer = useRef(null);
   const bc = useRef(null);
   const isInitialMount = useRef(true);
+  const cartPanelRef = useRef(null);
 
   // ====================================
   // STATE MANAGEMENT
@@ -83,6 +84,11 @@ const POS = () => {
   const total = useMemo(() => 
     cart.reduce((sum, item) => sum + (item.quantity * item.sellingPrice), 0)
   , [cart]);
+
+  const branchInventoryMap = useMemo(
+    () => new Map((branchInventory || []).map((item) => [item.product?._id, item])),
+    [branchInventory]
+  );
 
   // ====================================
   // SYNC LOGIC (BroadcastChannel)
@@ -265,15 +271,8 @@ useEffect(() => {
   // ACTIONS
   // ====================================
   const addToCart = useCallback((item, type) => {
-    const branchInventoryMap = branchInventory.reduce((map, inventoryItem) => {
-      if (inventoryItem?.product?._id) {
-        map[inventoryItem.product._id] = inventoryItem;
-      }
-      return map;
-    }, {});
-
     const selectedStock = type === "product"
-      ? branchInventoryMap[item._id]?.quantity ?? item.stock
+      ? branchInventoryMap.get(item._id)?.quantity ?? item.stock
       : null;
 
     if (type === "product" && selectedStock !== null && Number(selectedStock) <= 0) {
@@ -317,12 +316,16 @@ useEffect(() => {
     setPulseType(type);
     setPulseId(pulseKey);
     window.setTimeout(() => setPulseId(null), 220);
-  }, [branchInventory]);
+  }, [branchInventoryMap]);
 
   const openCustomerDisplay = useCallback(() => {
     if (typeof window === "undefined") return;
     const displayUrl = `${window.location.origin}/app/customer-view`;
     window.open(displayUrl, "_blank", "noopener,noreferrer");
+  }, []);
+
+  const scrollToCart = useCallback(() => {
+    cartPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
   const updateQty = (id, newQty) => {
@@ -385,7 +388,7 @@ useEffect(() => {
   if (loading) return <div className="p-10 text-center font-bold text-blue-600 animate-pulse">Initializing POS System...</div>;
 
   return (
-    <div className="flex min-h-screen flex-col gap-6 bg-gray-50 p-2 lg:p-4 dark:bg-slate-950">
+    <div className="flex min-h-[calc(100vh-2rem)] flex-col gap-4 bg-gray-50 p-2 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:p-4 dark:bg-slate-950">
       {/* LEFT COLUMN: INVENTORY */}
       <div className="flex-1 space-y-4">
         <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -433,7 +436,7 @@ useEffect(() => {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 overflow-y-auto pr-2 custom-scrollbar md:grid-cols-2 2xl:grid-cols-3 max-h-[70vh]">
+        <div className="grid max-h-[calc(100vh-180px)] grid-cols-1 gap-3 overflow-y-auto pr-2 custom-scrollbar md:grid-cols-2 2xl:grid-cols-3">
           {activeTab === "products" ? (
             filteredProducts.map(p => {
               const pulseActive = pulseId === p._id && pulseType === "product";
@@ -446,22 +449,20 @@ useEffect(() => {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{formatDisplayText(p.name)}</h3>
-                      <span className={`stock-badge ${(Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock) <= 5) ? "stock-warning" : ""}`}>
-                        {Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock) <= 5
-                          ? `${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock} left`
-                          : `${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? p.stock} left`}
+                      <span className={`stock-badge ${(Number(branchInventoryMap.get(p._id)?.quantity ?? p.stock) <= 5) ? "stock-warning" : ""}`}>
+                        {Number(branchInventoryMap.get(p._id)?.quantity ?? p.stock)} left
                       </span>
                     </div>
                     <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
                       {formatDisplayText(p.category || "General")}
                     </p>
                     {selectedBranch ? (
-                      <p className={`mt-2 text-[11px] ${Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 0 ? "text-rose-600 dark:text-rose-400" : Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 5 ? "text-amber-600 dark:text-amber-400" : "text-slate-500 dark:text-slate-400"}`}>
-                        {Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 0
+                      <p className={`mt-2 text-[11px] ${Number(branchInventoryMap.get(p._id)?.quantity ?? 0) <= 0 ? "text-rose-600 dark:text-rose-400" : Number(branchInventoryMap.get(p._id)?.quantity ?? 0) <= 5 ? "text-amber-600 dark:text-amber-400" : "text-slate-500 dark:text-slate-400"}`}>
+                        {Number(branchInventoryMap.get(p._id)?.quantity ?? 0) <= 0
                           ? "Out of stock in selected branch"
-                          : Number(branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0) <= 5
-                            ? `Low stock in selected branch: ${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0} left`
-                            : `Branch stock: ${branchInventory.find(item => item.product?._id === p._id)?.quantity ?? 0}`}
+                          : Number(branchInventoryMap.get(p._id)?.quantity ?? 0) <= 5
+                            ? `Low stock in selected branch: ${branchInventoryMap.get(p._id)?.quantity ?? 0} left`
+                            : `Branch stock: ${branchInventoryMap.get(p._id)?.quantity ?? 0}`}
                       </p>
                     ) : (
                       <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
@@ -501,13 +502,13 @@ useEffect(() => {
       </div>
 
       {/* RIGHT COLUMN: CART */}
-      <div className="xl:w-[400px]">
+      <div ref={cartPanelRef} className="min-w-0 scroll-mt-4 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)]">
         {selectedBranch && branchInventory.length === 0 && (
           <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
             No inventory has been imported for the selected branch yet. Import stock before selling products from this location.
           </div>
         )}
-        <div className="sticky top-4 rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-900">
+        <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-900 lg:flex lg:h-full lg:flex-col">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">Cart</h2>
             <button onClick={() => setCart([])} className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 dark:bg-rose-950/40 dark:text-rose-300">Clear</button>
@@ -628,6 +629,16 @@ useEffect(() => {
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={scrollToCart}
+        className="fixed inset-x-3 bottom-3 z-20 flex items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-left text-white shadow-[0_14px_32px_rgba(15,23,42,0.28)] lg:hidden"
+        aria-label="Open cart"
+      >
+        <span className="text-xs font-bold uppercase tracking-[0.16em]">Cart · {cart.length} {cart.length === 1 ? "item" : "items"}</span>
+        <span className="text-sm font-black">{formatCurrency(total)}</span>
+      </button>
     </div>
   );
 };
