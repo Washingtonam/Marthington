@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildGLPostingFromExpense } from "../src/modules/transactions/transaction.utils.js";
+import {
+  buildGLPaymentPostingFromExpense,
+  buildGLPostingFromExpense
+} from "../src/modules/transactions/transaction.utils.js";
 
 test("buildGLPostingFromExpense creates a ledger-ready expense posting", () => {
   const expense = {
@@ -24,7 +27,38 @@ test("buildGLPostingFromExpense creates a ledger-ready expense posting", () => {
   assert.equal(posting.amount, 25000);
   assert.equal(posting.category, "rent");
   assert.equal(posting.description, "Office rent");
-  assert.equal(posting.accountName, "Operating Expenses");
+  assert.equal(posting.accountName, "Rent Expense");
   assert.equal(posting.postingType, "debit");
   assert.equal(posting.status, "posted");
+});
+
+test("buildGLPostingFromExpense keeps expense categories in distinct accounts", () => {
+  const logisticsPosting = buildGLPostingFromExpense({
+    business: "biz_456",
+    amount: 100,
+    category: "logistics"
+  });
+  const utilitiesPosting = buildGLPostingFromExpense({
+    business: "biz_456",
+    amount: 100,
+    category: "utilities"
+  });
+
+  assert.equal(logisticsPosting.accountName, "Logistics Expense");
+  assert.equal(utilitiesPosting.accountName, "Utilities Expense");
+  assert.notEqual(logisticsPosting.accountName, utilitiesPosting.accountName);
+});
+
+test("buildGLPaymentPostingFromExpense credits the selected payment account", () => {
+  const posting = buildGLPaymentPostingFromExpense({
+    business: "biz_456",
+    amount: 500,
+    category: "utilities",
+    paymentMethod: "bank_transfer"
+  });
+
+  assert.equal(posting.accountName, "Bank");
+  assert.equal(posting.postingType, "credit");
+  assert.equal(posting.transactionType, "expense");
+  assert.equal(posting.amount, 500);
 });

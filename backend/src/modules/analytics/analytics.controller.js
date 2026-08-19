@@ -64,6 +64,7 @@ const getAnalytics = async (req, res) => {
     const postedExpenseTransactions = await Transaction.find({
       businessId: businessObjectId,
       transactionType: "expense",
+      $or: [{ postingType: "debit" }, { postingType: { $exists: false } }],
       status: "posted",
       isDeleted: { $ne: true }
     }).lean();

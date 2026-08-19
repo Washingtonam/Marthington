@@ -37,7 +37,7 @@ const getRevenueStats = async (req, res) => {
       .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
 
     const totalExpenses = transactions
-      .filter((tx) => tx.transactionType === "expense")
+      .filter((tx) => tx.transactionType === "expense" && (!tx.postingType || tx.postingType === "debit"))
       .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
 
     const netRevenue = totalRevenue - totalExpenses;

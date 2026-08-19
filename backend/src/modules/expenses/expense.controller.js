@@ -6,7 +6,7 @@ import BranchInventory from "../branches/branchInventory.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
 import { sendBudgetExceededEmail } from "../../utils/emailService.js";
 import { EXPENSE_CATEGORIES } from "../../config/constants.js";
-import { postExpenseToGL } from "../transactions/transaction.utils.js";
+import { postExpenseToGL, reverseExpenseGL } from "../transactions/transaction.utils.js";
 import { shouldAutoApproveExpense } from "./expenseApproval.utils.js";
 import { findCatalogMatch } from "../catalog/catalogUtils.js";
 import Supplier from "../suppliers/supplier.model.js";
@@ -426,6 +426,8 @@ const updateExpense = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized to change expense status" });
     }
 
+    const wasApproved = expense.status === "approved";
+
     if (amount !== undefined) {
       if (amount <= 0) return res.status(400).json({ message: "Amount must be > 0" });
       expense.amount = parseFloat(amount);
@@ -444,6 +446,13 @@ const updateExpense = async (req, res) => {
     }
 
     await expense.save();
+
+    if (expense.status === "approved") {
+      await postExpenseToGL(expense);
+    } else if (wasApproved) {
+      await reverseExpenseGL(expense, req.user.id);
+    }
+
     await expense.populate("createdBy", "name email");
     await expense.populate("approvedBy", "name email");
 
@@ -463,10 +472,13 @@ const deleteExpense = async (req, res) => {
     const { id } = req.params;
     const businessId = req.user.businessId;
 
-    const expense = await Expense.findOneAndDelete({ _id: id, business: businessId });
+    const expense = await Expense.findOne({ _id: id, business: businessId });
     if (!expense) {
       return res.status(404).json({ message: "Expense not found" });
     }
+
+    await reverseExpenseGL(expense, req.user.id);
+    await expense.deleteOne();
 
     return res.status(200).json({
       message: "Expense deleted successfully",
@@ -488,6 +500,8 @@ const bulkDeleteExpenses = async (req, res) => {
       return res.status(400).json({ message: "No expenses selected for deletion" });
     }
 
+    const expenses = await Expense.find({ _id: { $in: ids }, business: businessId });
+    await Promise.all(expenses.map(expense => reverseExpenseGL(expense, req.user.id)));
     const result = await Expense.deleteMany({ _id: { $in: ids }, business: businessId });
 
     return res.status(200).json({
@@ -637,10 +651,14 @@ const rejectExpense = async (req, res) => {
       return res.status(404).json({ message: "Expense not found" });
     }
 
+    const wasApproved = expense.status === "approved";
     expense.status = "rejected";
     if (notes) expense.notes = notes;
 
     await expense.save();
+    if (wasApproved) {
+      await reverseExpenseGL(expense, req.user.id);
+    }
     await expense.populate("createdBy", "name email");
 
     return res.status(200).json({

@@ -68,8 +68,8 @@ export const buildReportSnapshot = ({ sales = [], products = [], transactions = 
   const periodGrossProfit = filteredSales.reduce((sum, sale) => sum + (Number(sale.totalProfit) || 0), 0);
 
   const periodTransactions = periodBoundary
-    ? transactions.filter((tx) => new Date(tx.occurredAt || tx.createdAt) >= periodBoundary)
-    : transactions;
+    ? transactions.filter((tx) => (!tx.postingType || tx.postingType === "debit") && new Date(tx.occurredAt || tx.createdAt) >= periodBoundary)
+    : transactions.filter((tx) => !tx.postingType || tx.postingType === "debit");
 
   const periodOperatingExpenses = periodTransactions.reduce(
     (sum, tx) => sum + (Number(tx.amount) || 0),
@@ -84,7 +84,7 @@ export const buildReportSnapshot = ({ sales = [], products = [], transactions = 
 
   const currentMonthTransactions = transactions.filter((tx) => {
     const date = new Date(tx.occurredAt || tx.createdAt);
-    return date >= monthStart && tx.status === "posted" && tx.transactionType === "expense";
+    return date >= monthStart && tx.status === "posted" && tx.transactionType === "expense" && (!tx.postingType || tx.postingType === "debit");
   });
 
   const monthlyOperatingExpenses = currentMonthTransactions.reduce(
@@ -161,6 +161,7 @@ const getReports = async (req, res) => {
     const transactions = await Transaction.find({
       businessId,
       transactionType: "expense",
+      $or: [{ postingType: "debit" }, { postingType: { $exists: false } }],
       status: "posted",
       isDeleted: { $ne: true },
     }).lean();
@@ -298,8 +299,8 @@ export const buildFinancialReportSnapshot = ({ sales = [], transactions = [], pe
   const periodGrossProfit = filteredSales.reduce((sum, sale) => sum + (Number(sale.totalProfit) || 0), 0);
 
   const relevantTransactions = getPeriodBoundary(period)
-    ? transactions.filter((tx) => new Date(tx.occurredAt || tx.createdAt) >= getPeriodBoundary(period))
-    : transactions;
+    ? transactions.filter((tx) => (!tx.postingType || tx.postingType === "debit") && new Date(tx.occurredAt || tx.createdAt) >= getPeriodBoundary(period))
+    : transactions.filter((tx) => !tx.postingType || tx.postingType === "debit");
 
   const periodOperatingExpenses = relevantTransactions.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
   const periodProfit = periodGrossProfit - periodOperatingExpenses;
@@ -354,6 +355,7 @@ const getOverviewReport = async (req, res) => {
     const transactions = await Transaction.find({
       businessId,
       transactionType: "expense",
+      $or: [{ postingType: "debit" }, { postingType: { $exists: false } }],
       status: "posted",
       isDeleted: { $ne: true },
     }).lean();
@@ -422,6 +424,7 @@ const getFinancialReport = async (req, res) => {
     const transactions = await Transaction.find({
       businessId,
       transactionType: "expense",
+      $or: [{ postingType: "debit" }, { postingType: { $exists: false } }],
       status: "posted",
       isDeleted: { $ne: true },
     }).lean();
