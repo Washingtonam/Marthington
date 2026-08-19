@@ -67,6 +67,7 @@ const Invoices = () => {
   const [productSearch, setProductSearch] = useState("");
   const [productDropdownIndex, setProductDropdownIndex] = useState(null);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const productSearchRequestRef = useRef(0);
   const [newInvoiceDraft, setNewInvoiceDraft] = useState({
     transactionType: "outgoing",
     branch: "",
@@ -234,30 +235,6 @@ const Invoices = () => {
       return;
     }
 
-    // Load products only when modal opens
-    if (productCatalog.length === 0 && !loadingProducts) {
-      setLoadingProducts(true);
-      try {
-        const [products, services] = await Promise.all([getProducts({ limit: 5000 }), getServices()]);
-        const productList = Array.isArray(products) ? products : products?.products || [];
-        const serviceList = Array.isArray(services) ? services : services?.data || services?.services || [];
-        setProductCatalog([
-          ...productList.map(product => ({ ...product, catalogType: "product" })),
-          ...serviceList.map(service => ({
-            ...service,
-            catalogType: "service",
-            price: Number(service.price || service.sellingPrice || 0),
-            stock: null
-          }))
-        ]);
-      } catch (err) {
-        console.error("Failed to load products:", err);
-        setProductCatalog([]);
-      } finally {
-        setLoadingProducts(false);
-      }
-    }
-
     setNewInvoiceDraft({
       transactionType: "outgoing",
       branch: userBranchId || "",
@@ -275,6 +252,57 @@ const Invoices = () => {
     setProductDropdownIndex(null);
     setNewInvoiceModalOpen(true);
   };
+
+  useEffect(() => {
+    const search = productSearch.trim();
+    if (!newInvoiceModalOpen || productDropdownIndex === null || !search) {
+      setProductCatalog([]);
+      setLoadingProducts(false);
+      return undefined;
+    }
+
+    const requestId = ++productSearchRequestRef.current;
+    let cancelled = false;
+
+    const loadCatalogMatches = async () => {
+      setLoadingProducts(true);
+      try {
+        const [productResult, serviceResult] = await Promise.allSettled([
+          getProducts({ search, limit: 50 }),
+          getServices({ search })
+        ]);
+        if (cancelled || requestId !== productSearchRequestRef.current) return;
+
+        const products = productResult.status === "fulfilled" ? productResult.value : [];
+        const services = serviceResult.status === "fulfilled" ? serviceResult.value : [];
+        const productList = Array.isArray(products) ? products : products?.products || [];
+        const serviceList = Array.isArray(services) ? services : services?.data || services?.services || [];
+        setProductCatalog([
+          ...productList.map(product => ({ ...product, catalogType: "product" })),
+          ...serviceList.map(service => ({
+            ...service,
+            catalogType: "service",
+            price: Number(service.price || service.sellingPrice || 0),
+            stock: null
+          }))
+        ]);
+      } catch (err) {
+        if (!cancelled && requestId === productSearchRequestRef.current) {
+          console.error("Failed to search products and services:", err);
+          setProductCatalog([]);
+        }
+      } finally {
+        if (!cancelled && requestId === productSearchRequestRef.current) {
+          setLoadingProducts(false);
+        }
+      }
+    };
+
+    loadCatalogMatches();
+    return () => {
+      cancelled = true;
+    };
+  }, [newInvoiceModalOpen, productDropdownIndex, productSearch]);
 
   const updateNewInvoiceItem = (index, field, value) => {
     setNewInvoiceDraft(prev => {
