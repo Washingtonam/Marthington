@@ -6,6 +6,7 @@ import { getInvoices, createInvoice, updateInvoicePayment, updateInvoice, delete
 import { formatCurrency } from "../utils/formatters.js";
 import { getBranches } from "../api/branches.js";
 import { getProducts } from "../api/products.js";
+import { getServices } from "../api/services.js";
 import InvoicePDFTemplate from "../components/InvoicePDFTemplate.jsx";
 import { downloadInvoicePDF } from "../utils/pdfGenerator.js";
 
@@ -237,8 +238,18 @@ const Invoices = () => {
     if (productCatalog.length === 0 && !loadingProducts) {
       setLoadingProducts(true);
       try {
-        const data = await getProducts();
-        setProductCatalog(Array.isArray(data) ? data : data?.products || []);
+        const [products, services] = await Promise.all([getProducts({ limit: 5000 }), getServices()]);
+        const productList = Array.isArray(products) ? products : products?.products || [];
+        const serviceList = Array.isArray(services) ? services : services?.data || services?.services || [];
+        setProductCatalog([
+          ...productList.map(product => ({ ...product, catalogType: "product" })),
+          ...serviceList.map(service => ({
+            ...service,
+            catalogType: "service",
+            price: Number(service.price || service.sellingPrice || 0),
+            stock: null
+          }))
+        ]);
       } catch (err) {
         console.error("Failed to load products:", err);
         setProductCatalog([]);
@@ -271,10 +282,12 @@ const Invoices = () => {
       nextItems[index] = { ...nextItems[index], [field]: value };
 
       if (field === "product") {
-        const selectedProduct = productCatalog.find(product => product._id === value);
-        if (selectedProduct) {
-          nextItems[index].name = selectedProduct.name || "";
-          nextItems[index].price = Number(selectedProduct.price || selectedProduct.sellingPrice || 0);
+        const selectedCatalogItem = productCatalog.find(product => product._id === value);
+        if (selectedCatalogItem) {
+          nextItems[index].product = selectedCatalogItem.catalogType === "product" ? selectedCatalogItem._id : "";
+          nextItems[index].service = selectedCatalogItem.catalogType === "service" ? selectedCatalogItem._id : "";
+          nextItems[index].name = selectedCatalogItem.name || "";
+          nextItems[index].price = Number(selectedCatalogItem.price || selectedCatalogItem.sellingPrice || 0);
         }
       }
 
@@ -314,9 +327,9 @@ const Invoices = () => {
   const handleCreateInvoice = async () => {
     const { items = [], customerName, customerPhone, customerEmail, dueDate, notes, invoiceType, tax, discount, transactionType, branch } = newInvoiceDraft;
 
-    const validItems = items.filter(item => item && (item.product || item.name));
+    const validItems = items.filter(item => item && (item.product || item.service || item.name));
     if (!validItems.length) {
-      alert("Add at least one product to the invoice.");
+      alert("Add at least one product or service to the invoice.");
       return;
     }
 
@@ -324,12 +337,13 @@ const Invoices = () => {
       const quantity = Number(item.quantity || 0);
       const price = Number(item.price || 0);
 
-      if (!item.product) {
-        throw new Error("Each invoice item must include a product.");
+      if (!item.product && !item.service) {
+        throw new Error("Each invoice item must include a product or service.");
       }
 
       return {
         product: item.product,
+        service: item.service,
         name: item.name || "Product",
         quantity,
         price,
@@ -1395,8 +1409,9 @@ const Invoices = () => {
 
                 <div className="space-y-4">
                   {(newInvoiceDraft.items || []).map((item, index) => {
-                    const selectedProduct = productCatalog.find(product => product._id === item.product);
-                    const availableStock = selectedProduct ? Number(selectedProduct.stock || 0) : 0;
+                    const selectedCatalogItem = productCatalog.find(catalogItem =>
+                      catalogItem._id === (item.product || item.service)
+                    );
 
                     return (
                       <div key={`${item.product || "new"}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -1415,11 +1430,11 @@ const Invoices = () => {
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                           <label className="space-y-2 text-sm font-bold text-slate-700 md:col-span-2 relative">
-                            Product
+                            Product or Service
                             <input
                               type="text"
-                              placeholder="Type product name..."
-                              value={productDropdownIndex === index ? productSearch : (selectedProduct?.name || "")}
+                              placeholder="Type product or service name..."
+                              value={productDropdownIndex === index ? productSearch : (selectedCatalogItem?.name || item.name || "")}
                               onChange={(e) => {
                                 setProductDropdownIndex(index);
                                 setProductSearch(e.target.value);
@@ -1435,11 +1450,13 @@ const Invoices = () => {
                                       .filter(product => {
                                         const searchLower = productSearch.toLowerCase();
                                         return product.name.toLowerCase().includes(searchLower) ||
-                                          (product.sku && product.sku.toLowerCase().includes(searchLower));
+                                          (product.sku && product.sku.toLowerCase().includes(searchLower)) ||
+                                          (product.code && product.code.toLowerCase().includes(searchLower));
                                       })
-                                      .slice(0, 15)
                                       .map(product => {
-                                        const stockDisplay = product.stock ?? 0;
+                                        const stockDisplay = product.catalogType === "service"
+                                          ? "Service"
+                                          : `${product.stock ?? 0} in stock`;
                                         return (
                                           <button
                                             key={product._id}
@@ -1452,14 +1469,15 @@ const Invoices = () => {
                                             className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-b-0 text-sm text-slate-700 transition-colors"
                                           >
                                             <div className="font-medium">{product.name}</div>
-                                            <div className="text-xs text-slate-500">{stockDisplay} in stock</div>
+                                            <div className="text-xs text-slate-500">{stockDisplay}</div>
                                           </button>
                                         );
                                       })}
                                     {productCatalog.filter(p => {
                                       const searchLower = productSearch.toLowerCase();
                                       return p.name.toLowerCase().includes(searchLower) ||
-                                        (p.sku && p.sku.toLowerCase().includes(searchLower));
+                                        (p.sku && p.sku.toLowerCase().includes(searchLower)) ||
+                                        (p.code && p.code.toLowerCase().includes(searchLower));
                                     }).length === 0 && (
                                       <div className="px-4 py-3 text-sm text-slate-500 text-center">
                                         No products found for "{productSearch}"

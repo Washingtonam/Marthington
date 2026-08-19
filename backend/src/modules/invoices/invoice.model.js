@@ -9,6 +9,12 @@ const invoiceItemSchema =
       default: null
     },
 
+    service: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Service",
+      default: null
+    },
+
     name: {
       type: String,
       required: true

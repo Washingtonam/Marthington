@@ -11,8 +11,9 @@ export const createProduct = async (payload) => {
 
 
 // 🔥 GET PRODUCTS
-export const getProducts = async () => {
-  const data = await request("/products");
+export const getProducts = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const data = await request(`/products${query ? `?${query}` : ""}`);
   
   // Handle both array and paginated response formats
   const productsList = Array.isArray(data) ? data : (data?.products || []);

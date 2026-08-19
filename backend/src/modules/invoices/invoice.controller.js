@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Invoice from "./invoice.model.js";
 import InvoiceCounter from "./invoiceCounter.model.js";
 import Product from "../products/product.model.js";
+import Service from "../services/service.model.js";
 import Customer from "../customers/customer.model.js";
 import Supplier from "../suppliers/supplier.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
@@ -125,6 +126,7 @@ const createInvoice = async (req, res) => {
     for (const item of items) {
       const invoiceItem = {
         product: item.product || null,
+        service: item.service || null,
         name: item.name,
         quantity: Number(item.quantity || 0),
         price: Number(item.price || 0),
@@ -137,6 +139,13 @@ const createInvoice = async (req, res) => {
         supplierCreditStatus: transactionType === "incoming" ? "Unpaid" : null,
         supplierBatchLabel: transactionType === "incoming" ? "Supplier Credit - Unpaid" : ""
       };
+
+      if (item.service) {
+        const service = await Service.findOne({ _id: item.service, business: businessId }).session(session);
+        if (!service) {
+          throw new Error(`Service not found for invoice item: ${item.name || "Unknown service"}`);
+        }
+      }
 
       if (transactionType === "incoming" && item.product) {
         const product = await Product.findById(item.product).session(session);
