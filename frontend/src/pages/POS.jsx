@@ -37,6 +37,7 @@ const POS = () => {
   const debounceTimer = useRef(null);
   const bc = useRef(null);
   const isInitialMount = useRef(true);
+  const customersLoaded = useRef(false);
   const cartPanelRef = useRef(null);
 
   // ====================================
@@ -56,6 +57,7 @@ const POS = () => {
   const [branches, setBranches] = useState([]);
   const [selectedBranch, setSelectedBranch] = useState(userBranchId);
   const [branchInventory, setBranchInventory] = useState([]);
+  const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
     setSelectedBranch(userBranchId || "");
@@ -77,6 +79,19 @@ const POS = () => {
 
   const isPro = business?.subscription?.status === "active";
   const canOverride = user?.role === "owner" || user?.role === "super_admin" || user?.permissions?.canOverridePrice;
+
+  const loadCustomers = useCallback(async () => {
+    if (customersLoaded.current) return;
+    customersLoaded.current = true;
+
+    try {
+      const data = await getCustomers();
+      setCustomers(Array.isArray(data) ? data : (data?.customers || []));
+    } catch (err) {
+      customersLoaded.current = false;
+      console.error("Customer list load failed", err);
+    }
+  }, []);
 
   // ====================================
   // COMPUTED
@@ -150,42 +165,39 @@ const POS = () => {
   // ====================================
   useEffect(() => {
     const loadData = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-        const limit = 5000;
-        const [prodRes, servRes, branchRes, customerRes] = await Promise.all([
-          request(`/products?limit=${limit}`),
-          getServices(),
-          getBranches(),
-          getCustomers()
-        ]);
-
-        const branchList = Array.isArray(branchRes) ? branchRes : [];
-        setBranches(branchList);
-
-        if (!userBranchId) {
-          setSelectedBranch("");
-        } else if (!branchList.some((branch) => branch._id === userBranchId)) {
-          setSelectedBranch("");
-        }
-
-        // Ensure we are setting arrays.
-        // If the API returns { products: [...] }, use prodRes.products.
+        const prodRes = await request("/products?limit=500");
         const cleanProducts = Array.isArray(prodRes)
           ? prodRes
           : (prodRes?.products || prodRes?.data?.products || []);
-        const cleanServices = Array.isArray(servRes) ? servRes : (servRes?.services || []);
-        const cleanCustomers = Array.isArray(customerRes) ? customerRes : (customerRes?.customers || []);
-
         setProducts(cleanProducts);
-        setServices(cleanServices);
-        setCustomers(cleanCustomers);
       } catch (err) {
         console.error("POS Load Error:", err);
         setUpgradeMsg("Failed to load inventory.");
-        setProducts([]); // Fallback to empty array to prevent .filter crash
+        setProducts([]);
       } finally {
         setLoading(false);
+      }
+
+      const [servicesResult, branchesResult] = await Promise.allSettled([
+        getServices(),
+        getBranches()
+      ]);
+
+      if (servicesResult.status === "fulfilled") {
+        const data = servicesResult.value;
+        setServices(Array.isArray(data) ? data : (data?.services || []));
+      }
+
+      if (branchesResult.status === "fulfilled") {
+        const data = branchesResult.value;
+        const branchList = Array.isArray(data) ? data : [];
+        setBranches(branchList);
+
+        if (!userBranchId || !branchList.some((branch) => branch._id === userBranchId)) {
+          setSelectedBranch("");
+        }
       }
     };
     loadData();
@@ -388,7 +400,7 @@ useEffect(() => {
   if (loading) return <div className="p-10 text-center font-bold text-blue-600 animate-pulse">Initializing POS System...</div>;
 
   return (
-    <div className="flex min-h-[calc(100vh-2rem)] flex-col gap-4 bg-gray-50 p-2 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:p-4 dark:bg-slate-950">
+    <div className="flex min-h-[calc(100vh-2rem)] flex-col gap-4 bg-gray-50 p-2 pb-24 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:p-4 dark:bg-slate-950">
       {/* LEFT COLUMN: INVENTORY */}
       <div className="flex-1 space-y-4">
         <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -502,7 +514,7 @@ useEffect(() => {
       </div>
 
       {/* RIGHT COLUMN: CART */}
-      <div ref={cartPanelRef} className="min-w-0 scroll-mt-4 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)]">
+      <div ref={cartPanelRef} className={`${cartOpen ? "block" : "hidden"} fixed inset-x-2 bottom-20 z-40 max-h-[calc(100vh-6rem)] min-w-0 overflow-y-auto scroll-mt-4 lg:block lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-h-none lg:overflow-visible`}>
         {selectedBranch && branchInventory.length === 0 && (
           <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
             No inventory has been imported for the selected branch yet. Import stock before selling products from this location.
@@ -511,7 +523,10 @@ useEffect(() => {
         <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-900 lg:flex lg:h-full lg:flex-col">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">Cart</h2>
-            <button onClick={() => setCart([])} className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 dark:bg-rose-950/40 dark:text-rose-300">Clear</button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCart([])} className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 dark:bg-rose-950/40 dark:text-rose-300">Clear</button>
+              <button onClick={() => setCartOpen(false)} className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 lg:hidden dark:bg-slate-800 dark:text-slate-300">Close</button>
+            </div>
           </div>
 
           <div className="mb-6 max-h-[35vh] space-y-3 overflow-y-auto pr-2 custom-scrollbar">
@@ -556,6 +571,7 @@ useEffect(() => {
                 list="customer-list"
                 placeholder="Client Name"
                 value={customer.name}
+                onFocus={loadCustomers}
                 onChange={e => handleCustomerNameChange(e.target.value)}
                 className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
               />
@@ -632,7 +648,10 @@ useEffect(() => {
 
       <button
         type="button"
-        onClick={scrollToCart}
+        onClick={() => {
+          setCartOpen(true);
+          scrollToCart();
+        }}
         className="fixed inset-x-3 bottom-3 z-20 flex items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-left text-white shadow-[0_14px_32px_rgba(15,23,42,0.28)] lg:hidden"
         aria-label="Open cart"
       >
