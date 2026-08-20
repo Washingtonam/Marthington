@@ -1,11 +1,14 @@
 import BranchInventory from "./branchInventory.model.js";
 import Branch from "./branch.model.js";
 import Product from "../products/product.model.js";
+import mongoose from "mongoose";
 import Business from "../businesses/business.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
 import User from "../users/user.model.js";
 import OperationLog from "../../models/operationLog.model.js";
 import importQueue from "../../queues/importQueue.js";
+
+const isObjectId = (value) => mongoose.isValidObjectId(value);
 
 const importProductToBranch = async (req, res) => {
   try {
@@ -21,6 +24,10 @@ const importProductToBranch = async (req, res) => {
 
     if (!branchId) {
       return res.status(400).json({ message: "branchId is required" });
+    }
+
+    if (!isObjectId(branchId)) {
+      return res.status(400).json({ message: "Invalid branchId" });
     }
 
     if (sourceType !== "headOffice" && sourceType !== "branch") {
@@ -214,6 +221,10 @@ const getBranchInventory = async (req, res) => {
       return res.status(400).json({ message: "branchId is required" });
     }
 
+    if (branchId !== "headOffice" && !isObjectId(branchId)) {
+      return res.status(400).json({ message: "Invalid branchId" });
+    }
+
     const page = Math.max(Number(req.query.page) || 1, 1);
     const requestedLimit = Number(req.query.limit) || 20;
     const limit = Math.min(Math.max(requestedLimit, 1), 100);
@@ -311,6 +322,14 @@ const updateBranchInventory = async (req, res) => {
 
     if (!branchId || !productId) {
       return res.status(400).json({ message: "branchId and productId are required" });
+    }
+
+    if (!isObjectId(productId)) {
+      return res.status(400).json({ message: "Invalid productId" });
+    }
+
+    if (branchId !== "headOffice" && !isObjectId(branchId)) {
+      return res.status(400).json({ message: "Invalid branchId" });
     }
 
     if (branchId === "headOffice") {

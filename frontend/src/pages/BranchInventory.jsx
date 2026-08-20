@@ -36,6 +36,7 @@ const BranchInventory = () => {
       const firstBranchId = (data?.[0]?._id) || "";
       setBranchId(firstBranchId);
       const firstSourceBranch = (data || []).find((branch) => branch._id !== firstBranchId)?._id || "";
+      const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || ""));
       setSourceBranchId(firstSourceBranch);
     } catch (err) {
       console.error(err);
