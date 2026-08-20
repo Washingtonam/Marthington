@@ -69,7 +69,7 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
   };
 
   return (
-    <div ref={ref} className="invoice-pdf-template">
+    <div ref={ref} id="invoice-pdf-template" className="invoice-pdf-template">
       {/* Header */}
       <div className="invoice-header">
         <div className="header-left">
