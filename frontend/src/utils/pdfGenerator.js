@@ -4,22 +4,45 @@ import html2canvas from "html2canvas";
 /**
  * Generate Invoice PDF/JPG from invoice data
  * @param {Object} invoice - Invoice data object
- * @param {string} elementId - ID of the HTML element to convert to PDF
+ * @param {HTMLElement|string} elementOrId - Invoice element or its DOM ID
  * @param {string} fileName - Name for the downloaded file
  * @param {string} format - Output format: 'pdf' or 'jpg' (default: 'pdf')
  */
-export const downloadInvoicePDF = async (invoice, elementId, fileName, format = 'pdf') => {
+export const downloadInvoicePDF = async (invoice, elementOrId, fileName, format = 'pdf') => {
+  let exportElement;
+
   try {
-    const element = document.getElementById(elementId);
-    if (!element) {
+    const sourceElement = typeof elementOrId === "string"
+      ? document.getElementById(elementOrId)
+      : elementOrId;
+
+    if (!sourceElement) {
       throw new Error("Invoice element not found");
     }
+
+    const sourceRect = sourceElement.getBoundingClientRect();
+    exportElement = sourceElement.cloneNode(true);
+    exportElement.removeAttribute("id");
+    exportElement.style.width = `${Math.ceil(sourceRect.width || 900)}px`;
+    exportElement.style.maxWidth = "none";
+    exportElement.style.maxHeight = "none";
+    exportElement.style.overflow = "visible";
+
+    const exportHost = document.createElement("div");
+    exportHost.style.position = "fixed";
+    exportHost.style.left = "-100000px";
+    exportHost.style.top = "0";
+    exportHost.style.width = `${Math.ceil(sourceRect.width || 900)}px`;
+    exportHost.style.background = "#ffffff";
+    exportHost.style.pointerEvents = "none";
+    exportHost.appendChild(exportElement);
+    document.body.appendChild(exportHost);
 
     if (document.fonts?.ready) {
       await document.fonts.ready;
     }
 
-    const images = Array.from(element.querySelectorAll("img"));
+    const images = Array.from(exportElement.querySelectorAll("img"));
     await Promise.all(images.map((image) => {
       if (image.complete) return Promise.resolve();
       return new Promise((resolve) => {
@@ -29,7 +52,7 @@ export const downloadInvoicePDF = async (invoice, elementId, fileName, format = 
     }));
 
     // Capture the invoice HTML as canvas
-    const canvas = await html2canvas(element, {
+    const canvas = await html2canvas(exportElement, {
       scale: 2,
       useCORS: true,
       logging: false,
@@ -89,6 +112,9 @@ export const downloadInvoicePDF = async (invoice, elementId, fileName, format = 
   } catch (error) {
     console.error("Error generating document:", error);
     throw error;
+  } finally {
+    const exportHost = exportElement?.parentElement;
+    if (exportHost) exportHost.remove();
   }
 };
 

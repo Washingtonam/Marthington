@@ -633,7 +633,7 @@ const Invoices = () => {
       return;
     }
 
-    if (!pdfRef.current || !document.getElementById("invoice-pdf-template")) {
+    if (!pdfRef.current) {
       alert("The invoice preview is still rendering. Please try again in a moment.");
       return;
     }
@@ -646,7 +646,7 @@ const Invoices = () => {
       
       await downloadInvoicePDF(
         pdfInvoice,
-        "invoice-pdf-template",
+        pdfRef.current,
         fileName,
         format
       );
