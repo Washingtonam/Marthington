@@ -628,7 +628,15 @@ const Invoices = () => {
   };
 
   const handleDownloadPdf = async (format = 'pdf') => {
-    if (!pdfRef.current || !pdfInvoice) return;
+    if (!pdfInvoice) {
+      alert("Invoice data is still loading. Please try again in a moment.");
+      return;
+    }
+
+    if (!pdfRef.current || !document.getElementById("invoice-pdf-template")) {
+      alert("The invoice preview is still rendering. Please try again in a moment.");
+      return;
+    }
 
     try {
       setPdfLoading(true);

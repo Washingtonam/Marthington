@@ -15,22 +15,42 @@ export const downloadInvoicePDF = async (invoice, elementId, fileName, format = 
       throw new Error("Invoice element not found");
     }
 
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+
+    const images = Array.from(element.querySelectorAll("img"));
+    await Promise.all(images.map((image) => {
+      if (image.complete) return Promise.resolve();
+      return new Promise((resolve) => {
+        image.addEventListener("load", resolve, { once: true });
+        image.addEventListener("error", resolve, { once: true });
+      });
+    }));
+
     // Capture the invoice HTML as canvas
     const canvas = await html2canvas(element, {
       scale: 2,
       useCORS: true,
       logging: false,
-      allowTaint: true,
+      allowTaint: false,
+      backgroundColor: "#ffffff",
     });
 
     const imgData = canvas.toDataURL("image/png");
 
     if (format === 'jpg') {
-      // Export as JPG
-      const jpgData = canvas.toDataURL("image/jpeg", 0.95);
+      const jpgCanvas = document.createElement("canvas");
+      jpgCanvas.width = canvas.width;
+      jpgCanvas.height = canvas.height;
+      const context = jpgCanvas.getContext("2d");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, jpgCanvas.width, jpgCanvas.height);
+      context.drawImage(canvas, 0, 0);
+      const jpgData = jpgCanvas.toDataURL("image/jpeg", 0.95);
       const link = document.createElement('a');
       link.href = jpgData;
-      link.download = fileName?.replace('.pdf', '.jpg') || `invoice-${invoice.invoiceNumber}.jpg`;
+      link.download = fileName?.replace(/\.pdf$/i, '.jpg') || `invoice-${invoice.invoiceNumber}.jpg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -56,7 +76,7 @@ export const downloadInvoicePDF = async (invoice, elementId, fileName, format = 
     pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
     heightLeft -= pageHeight - 20;
 
-    while (heightLeft >= 0) {
+    while (heightLeft > 0) {
       position = heightLeft - imgHeight;
       pdf.addPage();
       pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
