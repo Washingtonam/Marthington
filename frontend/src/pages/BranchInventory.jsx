@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import request from "../api/client.js";
 import { getBranchInventory, importBranchInventory, getImportStatus, updateBranchInventory } from "../api/branches.js";
 import { getBranches } from "../api/branches.js";
+import { createService, getServices } from "../api/services.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const BranchInventory = () => {
@@ -19,6 +21,13 @@ const BranchInventory = () => {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalItems: 0, hasNextPage: false, hasPrevPage: false });
+  const [catalogDrawerOpen, setCatalogDrawerOpen] = useState(false);
+  const [catalogType, setCatalogType] = useState("product");
+  const [catalogForm, setCatalogForm] = useState({ name: "", category: "", sku: "", costPrice: "", sellingPrice: "", stock: "", duration: "", code: "", description: "" });
+  const [catalogMatches, setCatalogMatches] = useState([]);
+  const [catalogSearching, setCatalogSearching] = useState(false);
+  const [catalogSaving, setCatalogSaving] = useState(false);
+  const [catalogMessage, setCatalogMessage] = useState("");
 
   const loadBranches = async () => {
     try {
@@ -240,6 +249,113 @@ const BranchInventory = () => {
     }
   };
 
+  useEffect(() => {
+    const searchTerm = catalogForm.name.trim();
+    if (!catalogDrawerOpen || searchTerm.length < 2) {
+      setCatalogMatches([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timeout = window.setTimeout(async () => {
+      setCatalogSearching(true);
+      try {
+        const result = catalogType === "product"
+          ? await request(`/products/autocomplete?search=${encodeURIComponent(searchTerm)}&limit=8`)
+          : await getServices({ search: searchTerm });
+        if (cancelled) return;
+        const items = catalogType === "product"
+          ? result?.products || []
+          : Array.isArray(result) ? result : result?.services || result?.data || [];
+        setCatalogMatches(items.map((item) => ({ ...item, catalogType })));
+      } catch (err) {
+        if (!cancelled) setCatalogMatches([]);
+      } finally {
+        if (!cancelled) setCatalogSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [catalogDrawerOpen, catalogForm.name, catalogType]);
+
+  const openCatalogDrawer = (type) => {
+    setCatalogType(type);
+    setCatalogForm({ name: "", category: "", sku: "", costPrice: "", sellingPrice: "", stock: "", duration: "", code: "", description: "" });
+    setCatalogMatches([]);
+    setCatalogMessage("");
+    setCatalogDrawerOpen(true);
+  };
+
+  const closeCatalogDrawer = () => {
+    if (catalogSaving) return;
+    setCatalogDrawerOpen(false);
+  };
+
+  const handleCatalogChange = (event) => {
+    const { name, value } = event.target;
+    setCatalogForm((current) => ({ ...current, [name]: value }));
+    setCatalogMessage("");
+  };
+
+  const selectCatalogMatch = (item) => {
+    setCatalogForm((current) => ({
+      ...current,
+      name: item.name || "",
+      category: item.category || current.category,
+      sku: item.sku || current.sku,
+      code: item.code || current.code,
+      costPrice: item.costPrice ?? current.costPrice,
+      sellingPrice: item.price ?? item.sellingPrice ?? current.sellingPrice,
+      stock: item.stock ?? current.stock,
+      duration: item.duration ?? current.duration,
+      description: item.description || current.description
+    }));
+    setCatalogMessage(`Existing ${catalogType} selected. Saving will update it instead of creating a duplicate.`);
+  };
+
+  const handleCatalogSubmit = async (event) => {
+    event.preventDefault();
+    if (!catalogForm.name.trim()) return;
+
+    try {
+      setCatalogSaving(true);
+      setCatalogMessage("");
+      if (catalogType === "product") {
+        await request("/products", {
+          method: "POST",
+          body: JSON.stringify({
+            name: catalogForm.name.trim(),
+            category: catalogForm.category,
+            sku: catalogForm.sku,
+            costPrice: Number(catalogForm.costPrice) || 0,
+            sellingPrice: Number(catalogForm.sellingPrice) || 0,
+            stock: Number(catalogForm.stock) || 0
+          })
+        });
+      } else {
+        await createService({
+          name: catalogForm.name.trim(),
+          category: catalogForm.category,
+          code: catalogForm.code,
+          costPrice: Number(catalogForm.costPrice) || 0,
+          price: Number(catalogForm.sellingPrice) || 0,
+          duration: Number(catalogForm.duration) || 0,
+          description: catalogForm.description
+        });
+      }
+      setCatalogMessage(`${catalogType === "product" ? "Product" : "Service"} saved successfully.`);
+      setCatalogMatches([]);
+      if (branchId) await loadInventory(branchId, 1, search);
+    } catch (err) {
+      setCatalogMessage(err.message || "Could not save catalog item.");
+    } finally {
+      setCatalogSaving(false);
+    }
+  };
+
   return (
     <section className="page-stack">
       <div className="page-heading">
@@ -247,9 +363,16 @@ const BranchInventory = () => {
           <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Inventory</span>
           <h1 className="mt-2 text-4xl font-semibold text-slate-900">Inventory Stock</h1>
         </div>
-        <p className="max-w-2xl text-sm text-slate-500">
-          Import products into a branch location and manage inventory counts in one place.
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => openCatalogDrawer("product")} className="btn btn-primary">+ Add product</button>
+          <button onClick={() => openCatalogDrawer("service")} className="btn btn-secondary">+ Add service</button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="page-card"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Stock control</p><p className="mt-2 text-sm text-slate-600">Adjust quantities and branch pricing.</p></div>
+        <div className="page-card"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Product catalog</p><p className="mt-2 text-sm text-slate-600">Create products without leaving inventory.</p></div>
+        <div className="page-card"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Service catalog</p><p className="mt-2 text-sm text-slate-600">Keep sellable services connected to POS.</p></div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr,320px]">
@@ -476,6 +599,64 @@ const BranchInventory = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {catalogDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={closeCatalogDrawer} />
+          <aside className="relative ml-auto flex h-full w-full max-w-[460px] flex-col overflow-y-auto bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Inventory catalog</p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-900">Add {catalogType}</h2>
+                <p className="mt-1 text-sm text-slate-500">Search first so existing catalog items stay connected.</p>
+              </div>
+              <button type="button" onClick={closeCatalogDrawer} className="rounded-full border border-slate-200 px-3 py-1 text-lg text-slate-500">×</button>
+            </div>
+
+            <form onSubmit={handleCatalogSubmit} className="grid gap-4 px-6 py-6">
+              <label className="text-sm font-semibold text-slate-700">
+                {catalogType === "product" ? "Product name" : "Service name"}
+                <input name="name" value={catalogForm.name} onChange={handleCatalogChange} placeholder={`Search or enter ${catalogType} name`} required autoFocus className="form-input mt-2 w-full" />
+              </label>
+
+              {catalogSearching && <p className="text-sm text-slate-500">Searching your catalog...</p>}
+              {!catalogSearching && catalogMatches.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-800">Similar catalog items</p>
+                  <div className="mt-2 grid gap-2">
+                    {catalogMatches.map((item) => (
+                      <button key={item._id} type="button" onClick={() => selectCatalogMatch(item)} className="rounded-lg border border-amber-200 bg-white p-3 text-left hover:border-amber-400">
+                        <span className="block font-semibold text-slate-900">{item.name}</span>
+                        <span className="mt-1 block text-xs text-slate-500">{item.category || "General"} · {item.sku || item.code || "No code"}{catalogType === "product" ? ` · Stock ${item.stock ?? 0}` : ""}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {catalogMessage && <p className={`rounded-xl p-3 text-sm ${catalogMessage.includes("successfully") ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>{catalogMessage}</p>}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-semibold text-slate-700">Category<input name="category" value={catalogForm.category} onChange={handleCatalogChange} placeholder="General" className="form-input mt-2 w-full" /></label>
+                <label className="text-sm font-semibold text-slate-700">{catalogType === "product" ? "SKU" : "Service code"}<input name={catalogType === "product" ? "sku" : "code"} value={catalogType === "product" ? catalogForm.sku : catalogForm.code} onChange={handleCatalogChange} placeholder="Optional" className="form-input mt-2 w-full" /></label>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-semibold text-slate-700">Cost price<input type="number" min="0" name="costPrice" value={catalogForm.costPrice} onChange={handleCatalogChange} className="form-input mt-2 w-full" /></label>
+                <label className="text-sm font-semibold text-slate-700">{catalogType === "product" ? "Selling price" : "Service price"}<input type="number" min="0" name="sellingPrice" value={catalogForm.sellingPrice} onChange={handleCatalogChange} className="form-input mt-2 w-full" /></label>
+              </div>
+              {catalogType === "product" ? (
+                <label className="text-sm font-semibold text-slate-700">Opening stock<input type="number" min="0" name="stock" value={catalogForm.stock} onChange={handleCatalogChange} className="form-input mt-2 w-full" /></label>
+              ) : (
+                <>
+                  <label className="text-sm font-semibold text-slate-700">Duration<input type="number" min="0" name="duration" value={catalogForm.duration} onChange={handleCatalogChange} placeholder="Minutes" className="form-input mt-2 w-full" /></label>
+                  <label className="text-sm font-semibold text-slate-700">Description<textarea name="description" value={catalogForm.description} onChange={handleCatalogChange} rows="3" className="form-input mt-2 w-full" /></label>
+                </>
+              )}
+              <button type="submit" disabled={catalogSaving} className="btn btn-primary mt-2 w-full">{catalogSaving ? "Saving..." : `Save ${catalogType}`}</button>
+            </form>
+          </aside>
         </div>
       )}
     </section>
