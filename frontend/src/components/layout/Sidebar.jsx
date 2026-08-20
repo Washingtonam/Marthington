@@ -1,4 +1,7 @@
-import { NavLink } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+
+const SIDEBAR_GROUPS_STORAGE_KEY = "marthington-sidebar-groups";
 
 const defaultNavGroups = [
   {
@@ -61,6 +64,44 @@ export default function Sidebar({
   theme,
   toggleTheme,
 }) {
+  const { pathname } = useLocation();
+  const [openGroups, setOpenGroups] = useState(() => {
+    if (typeof window === "undefined") return {};
+
+    try {
+      return JSON.parse(localStorage.getItem(SIDEBAR_GROUPS_STORAGE_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(SIDEBAR_GROUPS_STORAGE_KEY, JSON.stringify(openGroups));
+    }
+  }, [openGroups]);
+
+  useEffect(() => {
+    const activeGroup = navigationGroups.find((group) =>
+      group.items.some((item) =>
+        item.to === "/app"
+          ? pathname === item.to
+          : pathname === item.to || pathname.startsWith(`${item.to}/`)
+      )
+    );
+
+    if (activeGroup) {
+      setOpenGroups((current) => ({ ...current, [activeGroup.label]: true }));
+    }
+  }, [navigationGroups, pathname]);
+
+  const toggleGroup = (groupLabel) => {
+    setOpenGroups((current) => ({
+      ...current,
+      [groupLabel]: current[groupLabel] === false,
+    }));
+  };
+
   return (
     <>
       <div
@@ -95,13 +136,33 @@ export default function Sidebar({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {navigationGroups.map((group) => (
-            <div key={group.label} className="mb-5">
-              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">
-                {group.label}
-              </p>
+          {navigationGroups.map((group, groupIndex) => {
+            const isPermanent = groupIndex === 0;
+            const isOpen = isPermanent || openGroups[group.label] !== false;
+            const groupId = `sidebar-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
-              <div className="space-y-1">
+            return (
+            <div key={group.label} className="mb-5">
+              {isPermanent ? (
+                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">
+                  {group.label}
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  className="mb-2 flex w-full items-center justify-between rounded-lg px-3 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-900 dark:hover:text-slate-300"
+                  onClick={() => toggleGroup(group.label)}
+                  aria-expanded={isOpen}
+                  aria-controls={groupId}
+                >
+                  <span>{group.label}</span>
+                  <span className="text-sm leading-none" aria-hidden="true">
+                    {isOpen ? "⌄" : "›"}
+                  </span>
+                </button>
+              )}
+
+              <div id={groupId} className={`space-y-1 ${isOpen ? "" : "hidden"}`}>
                 {group.items.map((item) => (
                   <NavLink
                     key={item.to}
@@ -122,7 +183,8 @@ export default function Sidebar({
                 ))}
               </div>
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="border-t border-slate-200 p-3 dark:border-slate-800">
