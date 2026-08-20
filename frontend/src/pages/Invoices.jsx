@@ -7,6 +7,7 @@ import { formatCurrency } from "../utils/formatters.js";
 import { getBranches } from "../api/branches.js";
 import { getProducts } from "../api/products.js";
 import { getServices } from "../api/services.js";
+import { getCustomers, createCustomer } from "../api/customers.js";
 import InvoicePDFTemplate from "../components/InvoicePDFTemplate.jsx";
 import { downloadInvoicePDF } from "../utils/pdfGenerator.js";
 
@@ -63,6 +64,12 @@ const Invoices = () => {
   const [emailHistoryOpen, setEmailHistoryOpen] = useState(false);
   const [emailHistory, setEmailHistory] = useState([]);
   const [newInvoiceModalOpen, setNewInvoiceModalOpen] = useState(false);
+  const [isInvoiceDrawerMounted, setIsInvoiceDrawerMounted] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [customerLookupOpen, setCustomerLookupOpen] = useState(false);
+  const [customerCreationOpen, setCustomerCreationOpen] = useState(false);
+  const [customerCreating, setCustomerCreating] = useState(false);
+  const [newCustomerFields, setNewCustomerFields] = useState({ name: "", phone: "", email: "" });
   const [productCatalog, setProductCatalog] = useState([]);
   const [productSearch, setProductSearch] = useState("");
   const [productDropdownIndex, setProductDropdownIndex] = useState(null);
@@ -71,6 +78,7 @@ const Invoices = () => {
   const [newInvoiceDraft, setNewInvoiceDraft] = useState({
     transactionType: "outgoing",
     branch: "",
+    customer: "",
     customerName: "",
     customerPhone: "",
     customerEmail: "",
@@ -83,6 +91,18 @@ const Invoices = () => {
   });
 
   const { isPro, loadingBusiness, branchId: userBranchId } = useAuth();
+
+  useEffect(() => {
+    if (newInvoiceModalOpen) {
+      setIsInvoiceDrawerMounted(true);
+      return undefined;
+    }
+
+    if (!isInvoiceDrawerMounted) return undefined;
+
+    const timeoutId = setTimeout(() => setIsInvoiceDrawerMounted(false), 300);
+    return () => clearTimeout(timeoutId);
+  }, [newInvoiceModalOpen, isInvoiceDrawerMounted]);
 
   // ====================================
   // DATA LOADING
@@ -238,6 +258,7 @@ const Invoices = () => {
     setNewInvoiceDraft({
       transactionType: "outgoing",
       branch: userBranchId || "",
+      customer: "",
       customerName: "",
       customerPhone: "",
       customerEmail: "",
@@ -248,9 +269,90 @@ const Invoices = () => {
       discount: 0,
       items: [{ product: "", name: "", quantity: 1, price: 0, total: 0 }]
     });
+    setCustomerLookupOpen(false);
+    try {
+      const data = await getCustomers();
+      setCustomers(Array.isArray(data) ? data : data?.customers || []);
+    } catch (err) {
+      console.error("Failed to load customers:", err);
+      setCustomers([]);
+    }
     setProductSearch("");
     setProductDropdownIndex(null);
     setNewInvoiceModalOpen(true);
+  };
+
+  const closeInvoiceDrawer = () => {
+    setCustomerLookupOpen(false);
+    setProductDropdownIndex(null);
+    setNewInvoiceModalOpen(false);
+  };
+
+  const customerMatches = useMemo(() => {
+    const query = newInvoiceDraft.customerName.trim().toLowerCase();
+    const phoneQuery = newInvoiceDraft.customerPhone.trim().toLowerCase();
+    if (!query && !phoneQuery) return customers.slice(0, 8);
+
+    return customers.filter(customer => {
+      const name = String(customer.name || "").toLowerCase();
+      const phone = String(customer.phone || "").toLowerCase();
+      return (query && name.includes(query)) || (phoneQuery && phone.includes(phoneQuery));
+    }).slice(0, 8);
+  }, [customers, newInvoiceDraft.customerName, newInvoiceDraft.customerPhone]);
+
+  const handleCustomerLookupChange = (field, value) => {
+    setNewInvoiceDraft(prev => ({
+      ...prev,
+      [field]: value,
+      customer: ""
+    }));
+    setCustomerLookupOpen(true);
+  };
+
+  const handleSelectCustomer = (customer) => {
+    setNewInvoiceDraft(prev => ({
+      ...prev,
+      customer: customer._id,
+      customerName: customer.name || "",
+      customerPhone: customer.phone || "",
+      customerEmail: customer.email || ""
+    }));
+    setCustomerLookupOpen(false);
+  };
+
+  const handleOpenCustomerCreation = () => {
+    setNewCustomerFields({
+      name: newInvoiceDraft.customerName.trim(),
+      phone: newInvoiceDraft.customerPhone.trim(),
+      email: newInvoiceDraft.customerEmail.trim()
+    });
+    setCustomerLookupOpen(false);
+    setCustomerCreationOpen(true);
+  };
+
+  const handleCreateCustomer = async () => {
+    const name = newCustomerFields.name.trim();
+    if (!name) {
+      alert("Enter a customer name.");
+      return;
+    }
+
+    try {
+      setCustomerCreating(true);
+      const customer = await createCustomer({
+        name,
+        phone: newCustomerFields.phone.trim(),
+        email: newCustomerFields.email.trim()
+      });
+      setCustomers(prev => [customer, ...prev]);
+      handleSelectCustomer(customer);
+      setCustomerCreationOpen(false);
+    } catch (err) {
+      console.error("Failed to create customer:", err);
+      alert(err.message || "Failed to create customer.");
+    } finally {
+      setCustomerCreating(false);
+    }
   };
 
   useEffect(() => {
@@ -353,7 +455,7 @@ const Invoices = () => {
   };
 
   const handleCreateInvoice = async () => {
-    const { items = [], customerName, customerPhone, customerEmail, dueDate, notes, invoiceType, tax, discount, transactionType, branch } = newInvoiceDraft;
+    const { items = [], customer, customerName, customerPhone, customerEmail, dueDate, notes, invoiceType, tax, discount, transactionType, branch } = newInvoiceDraft;
 
     const validItems = items.filter(item => item && (item.product || item.service || item.name));
     if (!validItems.length) {
@@ -384,6 +486,7 @@ const Invoices = () => {
       const invoice = await createInvoice({
         transactionType,
         branch: branch || null,
+        customer: customer || null,
         customerName,
         customerPhone,
         customerEmail,
@@ -400,6 +503,7 @@ const Invoices = () => {
       setNewInvoiceDraft({
         transactionType: "outgoing",
         branch: userBranchId || "",
+        customer: "",
         customerName: "",
         customerPhone: "",
         customerEmail: "",
@@ -1319,18 +1423,23 @@ const Invoices = () => {
         </div>
       )}
 
-      {newInvoiceModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto" onClick={() => {
-          setProductDropdownIndex(null);
-        }}>
-          <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      {isInvoiceDrawerMounted && (
+        <div className="fixed inset-0 z-50 flex">
+          <div
+            className={`absolute inset-0 bg-black/40 backdrop-blur-sm drawer-backdrop ${newInvoiceModalOpen ? "open" : ""}`}
+            onClick={closeInvoiceDrawer}
+          />
+          <div
+            className={`ml-auto h-full w-full max-w-5xl overflow-y-auto bg-white shadow-2xl drawer-panel dark:border-l dark:border-slate-700 dark:bg-slate-900 ${newInvoiceModalOpen ? "open" : ""}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-4 p-6 border-b border-slate-200">
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-widest">new invoice</p>
                 <h2 className="text-2xl font-black text-slate-900">Create invoice</h2>
               </div>
               <button
-                onClick={() => setNewInvoiceModalOpen(false)}
+                onClick={closeInvoiceDrawer}
                 className="text-slate-500 hover:text-slate-900 text-2xl"
                 aria-label="Close"
               >
@@ -1381,15 +1490,50 @@ const Invoices = () => {
                   </select>
                 </label>
 
-                <label className="space-y-2 text-sm font-bold text-slate-700">
-                  {newInvoiceDraft.transactionType === "incoming" ? "Supplier Name" : "Customer Name"}
+                <div className="relative space-y-2 text-sm font-bold text-slate-700">
+                  <label htmlFor="invoice-customer-name">
+                    {newInvoiceDraft.transactionType === "incoming" ? "Supplier Name" : "Customer Name"}
+                  </label>
                   <input
+                    id="invoice-customer-name"
                     value={newInvoiceDraft.customerName}
-                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, customerName: e.target.value }))}
-                    placeholder={newInvoiceDraft.transactionType === "incoming" ? "Supplier name" : "Customer name"}
+                    onFocus={() => newInvoiceDraft.transactionType === "outgoing" && setCustomerLookupOpen(true)}
+                    onChange={(e) => newInvoiceDraft.transactionType === "outgoing"
+                      ? handleCustomerLookupChange("customerName", e.target.value)
+                      : setNewInvoiceDraft(prev => ({ ...prev, customerName: e.target.value }))}
+                    placeholder={newInvoiceDraft.transactionType === "incoming" ? "Supplier name" : "Search customer name"}
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   />
-                </label>
+                  {newInvoiceDraft.transactionType === "outgoing" && customerLookupOpen && (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                      {customerMatches.map(customer => (
+                        <button
+                          key={customer._id}
+                          type="button"
+                          onClick={() => handleSelectCustomer(customer)}
+                          className="block w-full px-4 py-3 text-left hover:bg-blue-50"
+                        >
+                          <span className="block font-bold text-slate-900">{customer.name}</span>
+                          {(customer.phone || customer.email) && (
+                            <span className="block text-xs font-normal text-slate-500">
+                              {[customer.phone, customer.email].filter(Boolean).join(" • ")}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={handleOpenCustomerCreation}
+                        className="w-full border-t border-slate-100 px-4 py-3 text-left font-bold text-blue-600 hover:bg-blue-50"
+                      >
+                        + Create New Customer
+                      </button>
+                      {!customerMatches.length && !newInvoiceDraft.customerName.trim() && (
+                        <p className="px-4 py-3 text-xs font-normal text-slate-500">Type a name or phone number to search.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <label className="space-y-2 text-sm font-bold text-slate-700">
                   {newInvoiceDraft.transactionType === "incoming" ? "Supplier Email" : "Customer Email"}
@@ -1406,7 +1550,10 @@ const Invoices = () => {
                   {newInvoiceDraft.transactionType === "incoming" ? "Supplier Phone" : "Customer Phone"}
                   <input
                     value={newInvoiceDraft.customerPhone}
-                    onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, customerPhone: e.target.value }))}
+                    onFocus={() => newInvoiceDraft.transactionType === "outgoing" && setCustomerLookupOpen(true)}
+                    onChange={(e) => newInvoiceDraft.transactionType === "outgoing"
+                      ? handleCustomerLookupChange("customerPhone", e.target.value)
+                      : setNewInvoiceDraft(prev => ({ ...prev, customerPhone: e.target.value }))}
                     placeholder="+234..."
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   />
@@ -1625,7 +1772,7 @@ const Invoices = () => {
 
             <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-6 sm:flex-row sm:justify-end">
               <button
-                onClick={() => setNewInvoiceModalOpen(false)}
+                onClick={closeInvoiceDrawer}
                 className="rounded-2xl border border-slate-300 px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100"
               >
                 Cancel
@@ -1636,6 +1783,74 @@ const Invoices = () => {
                 className="rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {creatingInvoice ? "Creating..." : "Create Invoice"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {customerCreationOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4" onClick={() => setCustomerCreationOpen(false)}>
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">CRM</p>
+                <h2 className="text-2xl font-black text-slate-900">Create New Customer</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomerCreationOpen(false)}
+                className="text-2xl text-slate-400 hover:text-slate-900"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4">
+              <label className="block text-sm font-bold text-slate-700">
+                Name *
+                <input
+                  autoFocus
+                  value={newCustomerFields.name}
+                  onChange={(e) => setNewCustomerFields(prev => ({ ...prev, name: e.target.value }))}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+              <label className="block text-sm font-bold text-slate-700">
+                Phone
+                <input
+                  value={newCustomerFields.phone}
+                  onChange={(e) => setNewCustomerFields(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+234..."
+                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+              <label className="block text-sm font-bold text-slate-700">
+                Email
+                <input
+                  type="email"
+                  value={newCustomerFields.email}
+                  onChange={(e) => setNewCustomerFields(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="email@example.com"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setCustomerCreationOpen(false)}
+                className="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateCustomer}
+                disabled={customerCreating}
+                className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {customerCreating ? "Creating..." : "Create Customer"}
               </button>
             </div>
           </div>
