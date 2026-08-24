@@ -6,6 +6,7 @@ import InventoryMovement from "../inventory/inventory.model.js";
 import Sale from "../sales/sale.model.js";
 import Invoice from "../invoices/invoice.model.js";
 import Expense from "../expenses/expense.model.js";
+import mongoose from "mongoose";
 
 const createBranch = async (req, res) => {
   try {
@@ -81,6 +82,10 @@ const updateBranch = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid branch ID" });
+    }
+
     const branch = await Branch.findOne({
       _id: req.params.id,
       business: req.user.businessId
@@ -118,7 +123,11 @@ const deleteBranch = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    const branch = await Branch.findOneAndDelete({
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid branch ID" });
+    }
+
+    const branch = await Branch.findOne({
       _id: req.params.id,
       business: req.user.businessId
     });
@@ -141,6 +150,8 @@ const deleteBranch = async (req, res) => {
         counts: { inventoryCount, movementCount, saleCount, invoiceCount, expenseCount }
       });
     }
+
+    await branch.deleteOne();
 
     res.json({ message: "Branch deleted" });
   } catch (err) {

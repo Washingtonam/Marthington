@@ -79,9 +79,9 @@ app.use("/api/transactions", transactionRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
-app.use("/api/branches", branchRoutes);
 app.use("/api/branches/inventory", branchInventoryRoutes);
 app.use("/api/branches/transfers", branchTransferRoutes);
+app.use("/api/branches", branchRoutes);
 // 🔥 EXPENSES ROUTE
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/category-budgets", categoryBudgetRoutes);
