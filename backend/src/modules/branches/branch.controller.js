@@ -1,5 +1,11 @@
 import Branch from "./branch.model.js";
 import User from "../users/user.model.js";
+import { isPrivileged } from "../../utils/branchAccess.js";
+import BranchInventory from "./branchInventory.model.js";
+import InventoryMovement from "../inventory/inventory.model.js";
+import Sale from "../sales/sale.model.js";
+import Invoice from "../invoices/invoice.model.js";
+import Expense from "../expenses/expense.model.js";
 
 const createBranch = async (req, res) => {
   try {
@@ -48,7 +54,11 @@ const getBranches = async (req, res) => {
   try {
     let branchQuery = { business: req.user.businessId };
 
-    if (req.user.role !== "owner" && req.user.role !== "super_admin" && req.user.branchId) {
+    const canViewAllBranches =
+      isPrivileged(req.user) ||
+      req.user.permissions?.canViewAllBranchInventory === true;
+
+    if (!canViewAllBranches && req.user.branchId) {
       branchQuery = {
         ...branchQuery,
         _id: req.user.branchId
@@ -115,6 +125,21 @@ const deleteBranch = async (req, res) => {
 
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
+    }
+
+    const [inventoryCount, movementCount, saleCount, invoiceCount, expenseCount] = await Promise.all([
+      BranchInventory.countDocuments({ business: req.user.businessId, branch: branch._id }),
+      InventoryMovement.countDocuments({ business: req.user.businessId, branch: branch._id }),
+      Sale.countDocuments({ business: req.user.businessId, branch: branch._id }),
+      Invoice.countDocuments({ business: req.user.businessId, branch: branch._id }),
+      Expense.countDocuments({ business: req.user.businessId, branch: branch._id })
+    ]);
+
+    if (inventoryCount || movementCount || saleCount || invoiceCount || expenseCount) {
+      return res.status(409).json({
+        message: "Cannot delete a branch with historical records. Deactivate it instead.",
+        counts: { inventoryCount, movementCount, saleCount, invoiceCount, expenseCount }
+      });
     }
 
     res.json({ message: "Branch deleted" });

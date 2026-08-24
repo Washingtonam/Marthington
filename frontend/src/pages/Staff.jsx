@@ -23,7 +23,12 @@ const initialForm = {
     canViewBranches: false,
     canManageBranches: false,
     canViewBranchInventory: false,
+    canViewAllBranchInventory: false,
     canManageBranchInventory: false,
+    canManageAllBranchInventory: false,
+    canViewPurchaseOrders: false,
+    canManagePurchaseOrders: false,
+    canReceiveInventory: false,
     canViewCustomers: false,
     canManageCustomers: false,
     canViewInvoices: false,
@@ -96,9 +101,29 @@ const permissionLabels = {
     label: "View branch inventory",
     description: "See inventory quantities for branch locations."
   },
+  canViewAllBranchInventory: {
+    label: "View all branch inventory",
+    description: "See inventory quantities outside the assigned branch."
+  },
   canManageBranchInventory: {
     label: "Manage branch inventory",
     description: "Import and edit branch-specific inventory and pricing."
+  },
+  canManageAllBranchInventory: {
+    label: "Manage all branch inventory",
+    description: "Import and edit inventory outside the assigned branch."
+  },
+  canViewPurchaseOrders: {
+    label: "View purchase orders",
+    description: "See purchase orders and receiving history."
+  },
+  canManagePurchaseOrders: {
+    label: "Manage purchase orders",
+    description: "Create and update purchase orders."
+  },
+  canReceiveInventory: {
+    label: "Receive inventory",
+    description: "Record delivered stock against purchase orders."
   },
   canViewCustomers: {
     label: "View customers",
@@ -196,7 +221,12 @@ const rolePermissionPresets = {
     canViewBranches: false,
     canManageBranches: false,
     canViewBranchInventory: false,
+    canViewAllBranchInventory: false,
     canManageBranchInventory: false,
+    canManageAllBranchInventory: false,
+    canViewPurchaseOrders: false,
+    canManagePurchaseOrders: false,
+    canReceiveInventory: false,
     canViewCustomers: false,
     canManageCustomers: false,
     canViewInvoices: false,
@@ -231,7 +261,12 @@ const rolePermissionPresets = {
     canViewBranches: false,
     canManageBranches: false,
     canViewBranchInventory: false,
+    canViewAllBranchInventory: false,
     canManageBranchInventory: false,
+    canManageAllBranchInventory: false,
+    canViewPurchaseOrders: false,
+    canManagePurchaseOrders: false,
+    canReceiveInventory: false,
     canViewCustomers: true,
     canManageCustomers: false,
     canViewInvoices: false,
@@ -266,7 +301,12 @@ const rolePermissionPresets = {
     canViewBranches: true,
     canManageBranches: true,
     canViewBranchInventory: true,
+    canViewAllBranchInventory: false,
     canManageBranchInventory: true,
+    canManageAllBranchInventory: false,
+    canViewPurchaseOrders: true,
+    canManagePurchaseOrders: true,
+    canReceiveInventory: true,
     canViewCustomers: true,
     canManageCustomers: true,
     canViewInvoices: true,
@@ -291,7 +331,7 @@ const rolePermissionPresets = {
 };
 
 const permissionGroups = {
-  inventory: ["canManageProducts", "canViewProducts", "canViewBranches", "canManageBranches", "canViewBranchInventory", "canManageBranchInventory"],
+  inventory: ["canManageProducts", "canViewProducts", "canViewBranches", "canManageBranches", "canViewBranchInventory", "canViewAllBranchInventory", "canManageBranchInventory", "canManageAllBranchInventory", "canViewPurchaseOrders", "canManagePurchaseOrders", "canReceiveInventory"],
   customers: ["canViewCustomers", "canManageCustomers"],
   finance: ["canViewInvoices", "canManageInvoices", "canViewExpenses", "canManageExpenses", "canViewPayments", "canManagePayments", "canViewFinancialReports"],
   pos: ["canAccessPOS", "canMakeSale", "canViewSales", "canApplyDiscounts", "canProcessReturns"],

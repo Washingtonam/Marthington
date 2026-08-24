@@ -11,7 +11,7 @@ const notificationSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: ["payout_approved", "payout_rejected", "payout_settled", "profile_update", "general"],
+      enum: ["payout_approved", "payout_rejected", "payout_settled", "branch_transfer_requested", "branch_transfer_approved", "branch_transfer_rejected", "profile_update", "general"],
       default: "general",
       index: true
     },
@@ -34,6 +34,12 @@ const notificationSchema = new mongoose.Schema(
     payoutRequestId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "PayoutRequest",
+      default: null
+    },
+
+    transferRequestId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BranchTransferRequest",
       default: null
     },
 

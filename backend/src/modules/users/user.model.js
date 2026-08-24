@@ -57,7 +57,33 @@ const permissionSchema = new mongoose.Schema(
       default: false
     },
 
+    canViewAllBranchInventory: {
+      type: Boolean,
+      default: false
+    },
+
     canManageBranchInventory: {
+      type: Boolean,
+      default: false
+    },
+
+    canManageAllBranchInventory: {
+      type: Boolean,
+      default: false
+    },
+
+    // PURCHASING
+    canViewPurchaseOrders: {
+      type: Boolean,
+      default: false
+    },
+
+    canManagePurchaseOrders: {
+      type: Boolean,
+      default: false
+    },
+
+    canReceiveInventory: {
       type: Boolean,
       default: false
     },

@@ -67,3 +67,18 @@ test('Reports: 30-day snapshot filters sales and costs to the selected period', 
   assert.equal(snapshot.recentSales.length, 2);
   assert.equal(snapshot.lowStockProducts.length, 2);
 });
+
+test('Reports: branch inventory uses branch quantities and prices', () => {
+  const snapshot = buildReportSnapshot({
+    products: [],
+    inventory: [
+      { quantity: 4, branchPrice: 25, product: { _id: 'p-1', name: 'Milk', price: 30 } },
+      { quantity: 20, branchPrice: 50, product: { _id: 'p-2', name: 'Rice', price: 60 } }
+    ],
+    period: '30'
+  });
+
+  assert.equal(snapshot.overview.inventoryValue, 1100);
+  assert.equal(snapshot.lowStockProducts.length, 1);
+  assert.equal(snapshot.lowStockProducts[0].stock, 4);
+});

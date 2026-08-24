@@ -21,6 +21,10 @@ const branchInventorySchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    unitCost: {
+      type: Number,
+      default: 0
+    },
     branchPrice: {
       type: Number,
       default: null

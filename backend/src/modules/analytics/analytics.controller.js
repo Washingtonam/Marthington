@@ -6,6 +6,8 @@ import Invoice from "../invoices/invoice.model.js";
 import Transaction from "../transactions/transaction.model.js";
 import School from "../schools/School.js";
 import Student from "../schools/Student.js";
+import BranchInventory from "../branches/branchInventory.model.js";
+import { getScopedBranchQuery, isPrivileged } from "../../utils/branchAccess.js";
 
 const retailSalesFilter = (businessId) => ({
   $and: [
@@ -41,10 +43,22 @@ const getAnalytics = async (req, res) => {
     }
 
     const businessObjectId = new mongoose.Types.ObjectId(req.user.businessId);
+    const branchQuery = getScopedBranchQuery(req.user, businessObjectId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these analytics" });
 
     // 2. Original retail metrics calculation logic goes here...
-    const sales = await Sale.find(retailSalesFilter(businessObjectId)).lean();
-    const products = await Product.find({ business: businessObjectId }).lean();
+    const sales = await Sale.find({
+      ...retailSalesFilter(businessObjectId),
+      ...(branchQuery.branch ? { branch: branchQuery.branch } : {})
+    }).lean();
+    const products = isPrivileged(req.user) || !branchQuery.branch
+      ? await Product.find({ business: businessObjectId }).lean()
+      : [];
+    const branchInventory = branchQuery.branch
+      ? await BranchInventory.find({ business: businessObjectId, branch: branchQuery.branch })
+        .populate("product", "name price")
+        .lean()
+      : [];
 
     const totalSales = sales.length;
     const productsCount = products.length;
@@ -64,6 +78,7 @@ const getAnalytics = async (req, res) => {
     const postedExpenseTransactions = await Transaction.find({
       businessId: businessObjectId,
       transactionType: "expense",
+      ...(branchQuery.branch ? { branchId: branchQuery.branch } : {}),
       $or: [{ postingType: "debit" }, { postingType: { $exists: false } }],
       status: "posted",
       isDeleted: { $ne: true }
@@ -79,12 +94,19 @@ const getAnalytics = async (req, res) => {
 
     const averageOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
 
-    const inventoryValue = products.reduce(
+    const inventoryValue = branchInventory.length
+      ? branchInventory.reduce(
+        (sum, item) => sum + (Number(item.branchPrice ?? item.product?.price) || 0) * (Number(item.quantity) || 0),
+        0
+      )
+      : products.reduce(
       (sum, product) => sum + (Number(product.price) || 0) * (Number(product.stock) || 0),
       0
     );
 
-    const lowStockCount = products.filter((product) => Number(product.stock) <= 5).length;
+    const lowStockCount = branchInventory.length
+      ? branchInventory.filter((item) => Number(item.quantity) <= 5).length
+      : products.filter((product) => Number(product.stock) <= 5).length;
 
     // 🔥 ADD AR/AP METRICS
     const invoices = await Invoice.find({ business: businessObjectId }).lean();

@@ -3,6 +3,7 @@ import Business from "../businesses/business.model.js";
 import applyBusinessFilter from "../../utils/applyBusinessFilter.js";
 import XLSX from "xlsx";
 import { findCatalogMatch, mergeCatalogValues } from "../catalog/catalogUtils.js";
+import { isPrivileged } from "../../utils/branchAccess.js";
 
 const findExistingProductMatch = async (businessId, name, excludeId = null) => {
   if (!name || !String(name).trim()) return null;
@@ -40,7 +41,7 @@ const createProduct = async (req, res) => {
     if (existing) {
       const merged = mergeCatalogValues(existing, {
         name,
-        stock: Number(stock) || 0,
+        stock: isPrivileged(req.user) ? Number(stock) || 0 : Number(existing.stock || 0),
         price: Number(sellingPrice) || Number(existing.price) || 0,
         costPrice: Number(costPrice) || Number(existing.costPrice) || 0,
         sku: sku || existing.sku || ""
@@ -52,7 +53,7 @@ const createProduct = async (req, res) => {
           category: category || existing.category || "General",
           price: Number(merged.price) || 0,
           costPrice: Number(merged.costPrice) || 0,
-          stock: Number(merged.stock) || 0,
+          stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : Number(existing.stock || 0),
           sku: merged.sku || `SKU-${Date.now()}`
         }
       }, { new: true });
@@ -65,7 +66,7 @@ const createProduct = async (req, res) => {
       category: category || "General",
       price: Number(sellingPrice) || 0,
       costPrice: Number(costPrice) || 0,
-      stock: Number(stock) || 0,
+      stock: isPrivileged(req.user) ? Number(stock) || 0 : 0,
       sku: sku || `SKU-${Date.now()}`,
       business: business._id
     });
@@ -96,7 +97,7 @@ const bulkImportProducts = async (req, res) => {
       if (existing) {
         const merged = mergeCatalogValues(existing, {
           name: row.name,
-          stock: Number(row.stock || 0),
+          stock: isPrivileged(req.user) ? Number(row.stock || 0) : Number(existing.stock || 0),
           price: Number(row.sellingPrice || row.price || 0),
           costPrice: Number(row.costPrice || 0),
           sku: row.sku || existing.sku || ""
@@ -107,7 +108,7 @@ const bulkImportProducts = async (req, res) => {
             name: merged.name,
             price: Number(merged.price) || 0,
             costPrice: Number(merged.costPrice) || 0,
-            stock: Number(merged.stock) || 0,
+            stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : Number(existing.stock || 0),
             sku: merged.sku || existing.sku || `SKU-${Date.now()}`
           }
         });
@@ -119,7 +120,7 @@ const bulkImportProducts = async (req, res) => {
         category: row.category || "General",
         price: Number(row.sellingPrice || row.price || 0),
         costPrice: Number(row.costPrice || 0),
-        stock: Number(row.stock || 0),
+        stock: isPrivileged(req.user) ? Number(row.stock || 0) : 0,
         sku: row.sku || `SKU-${Math.random().toString(36).substr(2, 9)}`,
         business: business._id
       });
@@ -178,6 +179,7 @@ const getProducts = async (req, res) => {
     // Standardize price fields for frontend
     const safeProducts = products.map(p => ({
       ...p,
+      stock: isPrivileged(req.user) ? p.stock : 0,
       sellingPrice: p.price || 0
     }));
 
@@ -208,7 +210,7 @@ const updateProduct = async (req, res) => {
       if (duplicate) {
         const merged = mergeCatalogValues(duplicate, {
           name,
-          stock: Number(stock ?? duplicate.stock ?? 0),
+          stock: isPrivileged(req.user) ? Number(stock ?? duplicate.stock ?? 0) : Number(duplicate.stock || 0),
           price: Number(sellingPrice ?? duplicate.price ?? 0),
           costPrice: Number(costPrice ?? duplicate.costPrice ?? 0),
           sku: sku || duplicate.sku || ""
@@ -220,7 +222,7 @@ const updateProduct = async (req, res) => {
             category: category || duplicate.category || "General",
             price: Number(merged.price) || 0,
             costPrice: Number(merged.costPrice) || 0,
-            stock: Number(merged.stock) || 0,
+            stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : Number(duplicate.stock || 0),
             sku: merged.sku || duplicate.sku || `SKU-${Date.now()}`
           }
         });
@@ -234,7 +236,7 @@ const updateProduct = async (req, res) => {
     if (category !== undefined) updateData.category = category;
     if (sellingPrice !== undefined) updateData.price = Number(sellingPrice);
     if (costPrice !== undefined) updateData.costPrice = Number(costPrice);
-    if (stock !== undefined) updateData.stock = Number(stock);
+    if (stock !== undefined && isPrivileged(req.user)) updateData.stock = Number(stock);
     if (sku !== undefined) updateData.sku = sku;
 
     const product = await Product.findOneAndUpdate(

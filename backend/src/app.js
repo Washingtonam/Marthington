@@ -22,6 +22,7 @@ import billingRoutes from "./modules/billing/billing.routes.js";
 import flutterwaveRoutes from "./modules/payments/flutterwave.routes.js";
 import branchRoutes from "./modules/branches/branch.routes.js";
 import branchInventoryRoutes from "./modules/branches/branchInventory.routes.js";
+import branchTransferRoutes from "./modules/branches/branchTransfer.routes.js";
 
 // 🔥 ADD THIS
 import paymentRoutes from "./modules/payments/payment.routes.js";
@@ -80,6 +81,7 @@ app.use("/api/suppliers", supplierRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
 app.use("/api/branches", branchRoutes);
 app.use("/api/branches/inventory", branchInventoryRoutes);
+app.use("/api/branches/transfers", branchTransferRoutes);
 // 🔥 EXPENSES ROUTE
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/category-budgets", categoryBudgetRoutes);

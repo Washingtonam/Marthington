@@ -7,10 +7,33 @@ import InventoryMovement from "../inventory/inventory.model.js";
 import User from "../users/user.model.js";
 import OperationLog from "../../models/operationLog.model.js";
 import importQueue from "../../queues/importQueue.js";
+import { canAccessBranch as canAccessBranchForUser, isPrivileged } from "../../utils/branchAccess.js";
 
 const isObjectId = (value) => mongoose.isValidObjectId(value);
 
+export const canAccessBranch = (req, branchId, action = "view") => {
+  return canAccessBranchForUser(req.user, branchId, action);
+};
+
+const assertBranchAccess = (req, res, branchId, action) => {
+  if (branchId === "headOffice") {
+    if (!isPrivileged(req.user)) {
+      res.status(403).json({ message: "Only the owner can access head office stock" });
+      return false;
+    }
+    return true;
+  }
+
+  if (!canAccessBranch(req, branchId, action)) {
+    res.status(403).json({ message: "You do not have access to this branch inventory" });
+    return false;
+  }
+
+  return true;
+};
+
 const importProductToBranch = async (req, res) => {
+  let session;
   try {
     const {
       branchId,
@@ -39,6 +62,8 @@ const importProductToBranch = async (req, res) => {
       return res.status(404).json({ message: "Branch not found" });
     }
 
+    if (!assertBranchAccess(req, res, branchId, "manage")) return;
+
     // BULK IMPORT: when no productId supplied, register branch inventory items
     // in the target branch without changing head office stock.
     if (!productId) {
@@ -54,6 +79,8 @@ const importProductToBranch = async (req, res) => {
         if (!sourceBranch) {
           return res.status(404).json({ message: "Source branch not found" });
         }
+
+        if (!assertBranchAccess(req, res, sourceBranchId, "manage")) return;
       }
 
       // Create an operation log and enqueue a background job for processing.
@@ -99,8 +126,13 @@ const importProductToBranch = async (req, res) => {
       return res.status(400).json({ message: "Quantity must be a positive number" });
     }
 
-    const product = await Product.findOne({ _id: productId, business: businessId });
+    session = await mongoose.startSession();
+    session.startTransaction();
+
+    const product = await Product.findOne({ _id: productId, business: businessId }).session(session);
     if (!product) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Product not found" });
     }
 
@@ -121,23 +153,31 @@ const importProductToBranch = async (req, res) => {
         return res.status(404).json({ message: "Source branch not found" });
       }
 
+      if (!assertBranchAccess(req, res, sourceBranchId, "manage")) {
+        await session.abortTransaction();
+        session.endSession();
+        return;
+      }
+
       sourceBranchIdForTransfer = sourceBranch._id;
 
       const sourceInventory = await BranchInventory.findOne({
         business: businessId,
         branch: sourceBranchIdForTransfer,
         product: productId
-      });
+      }).session(session);
 
       if (!sourceInventory || sourceInventory.quantity < transferQuantity) {
+        await session.abortTransaction();
+        session.endSession();
         return res.status(400).json({ message: "Insufficient stock in source branch for transfer" });
       }
 
       sourceStockBefore = sourceInventory.quantity;
       sourceInventory.quantity -= transferQuantity;
-      await sourceInventory.save();
+      await sourceInventory.save({ session });
 
-      await InventoryMovement.create({
+      await InventoryMovement.create([{
         business: businessId,
         branch: sourceBranchIdForTransfer,
         product: productId,
@@ -147,7 +187,7 @@ const importProductToBranch = async (req, res) => {
         newStock: sourceInventory.quantity,
         note: `Transferred to branch ${branch.name}`,
         createdBy: req.user.id
-      });
+      }], { session });
     } else {
       if (product.stock < transferQuantity) {
         return res.status(400).json({ message: "Insufficient central stock for transfer" });
@@ -155,9 +195,9 @@ const importProductToBranch = async (req, res) => {
 
       sourceStockBefore = product.stock;
       product.stock -= transferQuantity;
-      await product.save();
+      await product.save({ session });
 
-      await InventoryMovement.create({
+      await InventoryMovement.create([{
         business: businessId,
         product: productId,
         branch: branchId,
@@ -167,11 +207,14 @@ const importProductToBranch = async (req, res) => {
         newStock: product.stock,
         note: `Transferred to branch ${branch.name}`,
         createdBy: req.user.id
-      });
+      }], { session });
     }
 
-    const targetInventory = await BranchInventory.findOne({ business: businessId, branch: branchId, product: productId });
+    const targetInventory = await BranchInventory.findOne({ business: businessId, branch: branchId, product: productId }).session(session);
     const targetPreviousStock = targetInventory ? targetInventory.quantity : 0;
+    const sourceUnitCost = sourceType === "branch"
+      ? Number((await BranchInventory.findOne({ business: businessId, branch: sourceBranchIdForTransfer, product: productId }).session(session))?.unitCost || product.costPrice || 0)
+      : Number(product.costPrice || 0);
 
     const inventory = await BranchInventory.findOneAndUpdate(
       { business: businessId, branch: branchId, product: productId },
@@ -183,12 +226,17 @@ const importProductToBranch = async (req, res) => {
           createdBy: req.user.id
         },
         $inc: { quantity: transferQuantity },
-        ...(branchPrice !== undefined ? { $set: { branchPrice: Number(branchPrice) } } : {})
+        $set: {
+          unitCost: targetInventory && targetInventory.quantity > 0
+            ? ((targetInventory.quantity * Number(targetInventory.unitCost || 0)) + (transferQuantity * sourceUnitCost)) / (targetInventory.quantity + transferQuantity)
+            : sourceUnitCost,
+          ...(branchPrice !== undefined ? { branchPrice: Number(branchPrice) } : {})
+        },
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true, session }
     );
 
-    await InventoryMovement.create({
+    await InventoryMovement.create([{
       business: businessId,
       branch: branchId,
       product: productId,
@@ -200,10 +248,17 @@ const importProductToBranch = async (req, res) => {
         ? `Received from branch ${sourceBranchIdForTransfer}`
         : "Received from head office",
       createdBy: req.user.id
-    });
+    }], { session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.json(inventory);
   } catch (err) {
+    if (session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
     res.status(500).json({ message: err.message });
   }
 };
@@ -213,10 +268,6 @@ const getBranchInventory = async (req, res) => {
     const businessId = req.user.businessId;
     let branchId = req.query.branchId || req.user.branchId;
 
-    if (req.user.role !== "owner" && req.user.role !== "super_admin") {
-      branchId = req.user.branchId || branchId;
-    }
-
     if (!branchId) {
       return res.status(400).json({ message: "branchId is required" });
     }
@@ -225,6 +276,8 @@ const getBranchInventory = async (req, res) => {
       return res.status(400).json({ message: "Invalid branchId" });
     }
 
+    if (!assertBranchAccess(req, res, branchId, "view")) return;
+
     const page = Math.max(Number(req.query.page) || 1, 1);
     const requestedLimit = Number(req.query.limit) || 20;
     const limit = Math.min(Math.max(requestedLimit, 1), 100);
@@ -232,10 +285,6 @@ const getBranchInventory = async (req, res) => {
     const search = String(req.query.search || "").trim();
 
     if (branchId === "headOffice") {
-      if (req.user.role !== "owner") {
-        return res.status(403).json({ message: "Only the owner can view head office stock" });
-      }
-
       const filter = { business: businessId };
       if (search) {
         filter.$or = [
@@ -332,11 +381,9 @@ const updateBranchInventory = async (req, res) => {
       return res.status(400).json({ message: "Invalid branchId" });
     }
 
-    if (branchId === "headOffice") {
-      if (req.user.role !== "owner") {
-        return res.status(403).json({ message: "Only the owner can update head office stock" });
-      }
+    if (!assertBranchAccess(req, res, branchId, "manage")) return;
 
+    if (branchId === "headOffice") {
       const product = await Product.findOne({ _id: productId, business: businessId });
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
@@ -382,6 +429,7 @@ const getImportStatus = async (req, res) => {
     const id = req.params.id;
     const job = await OperationLog.findById(id).lean();
     if (!job) return res.status(404).json({ message: "Job not found" });
+    if (job.business?.toString() !== req.user.businessId || !assertBranchAccess(req, res, job.branch?.toString(), "manage")) return;
     res.json({ status: job.status, metadata: job.metadata, error: job.error });
   } catch (err) {
     res.status(500).json({ message: err.message });

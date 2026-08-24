@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import request from "../api/client.js";
-import { getBranchInventory, importBranchInventory, getImportStatus, updateBranchInventory } from "../api/branches.js";
+import { getBranchInventory, importBranchInventory, getImportStatus, updateBranchInventory, createTransferRequest, getTransferRequests, reviewTransferRequest } from "../api/branches.js";
 import { getBranches } from "../api/branches.js";
 import { createService, getServices } from "../api/services.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -28,15 +28,25 @@ const BranchInventory = () => {
   const [catalogSearching, setCatalogSearching] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState("");
+  const [transferRequests, setTransferRequests] = useState([]);
+  const [transferForm, setTransferForm] = useState({ sourceType: "headOffice", sourceBranch: "", product: "", quantity: "" });
+  const [transferMessage, setTransferMessage] = useState("");
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [reviewNote, setReviewNote] = useState({});
+  const canReviewTransfers = user?.role === "owner" || user?.role === "super_admin";
+  const canRequestTransfers = Boolean(user?.permissions?.canManageBranchInventory) && user?.role !== "owner";
 
   const loadBranches = async () => {
     try {
       const data = await getBranches();
-      setBranches(data || []);
-      const firstBranchId = (data?.[0]?._id) || "";
-      setBranchId(firstBranchId);
-      const firstSourceBranch = (data || []).find((branch) => branch._id !== firstBranchId)?._id || "";
-      const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || ""));
+      const availableBranches = Array.isArray(data) ? data : [];
+      setBranches(availableBranches);
+      const assignedBranchId = user?.branch?._id || user?.branch || "";
+      const defaultBranchId = user?.role === "owner"
+        ? "headOffice"
+        : availableBranches.find((branch) => branch._id === assignedBranchId)?._id || "";
+      setBranchId(defaultBranchId);
+      const firstSourceBranch = availableBranches.find((branch) => branch._id !== defaultBranchId)?._id || "";
       setSourceBranchId(firstSourceBranch);
     } catch (err) {
       console.error(err);
@@ -71,7 +81,40 @@ const BranchInventory = () => {
 
   useEffect(() => {
     loadBranches();
-  }, []);
+  }, [user]);
+
+  useEffect(() => {
+    if (!canReviewTransfers && !canRequestTransfers) return;
+    getTransferRequests(canReviewTransfers ? "pending" : "")
+      .then((data) => setTransferRequests(Array.isArray(data) ? data : []))
+      .catch(() => setTransferRequests([]));
+  }, [canReviewTransfers, canRequestTransfers]);
+
+  const submitTransferRequest = async (event) => {
+    event.preventDefault();
+    if (!transferForm.product || !transferForm.quantity || !branchId || branchId === "headOffice") return;
+    try {
+      setTransferSaving(true);
+      setTransferMessage("");
+      await createTransferRequest({ ...transferForm, targetBranch: branchId, quantity: Number(transferForm.quantity) });
+      setTransferForm((current) => ({ ...current, product: "", quantity: "" }));
+      setTransferMessage("Transfer request submitted for approval.");
+    } catch (err) {
+      setTransferMessage(err.message || "Could not submit transfer request.");
+    } finally {
+      setTransferSaving(false);
+    }
+  };
+
+  const handleTransferReview = async (requestId, status) => {
+    try {
+      await reviewTransferRequest(requestId, status, reviewNote[requestId] || "");
+      setTransferRequests((current) => current.filter((item) => item._id !== requestId));
+      setTransferMessage(`Transfer request ${status}.`);
+    } catch (err) {
+      setTransferMessage(err.message || "Could not review transfer request.");
+    }
+  };
 
   // 🔥 LISTEN FOR INVENTORY UPDATES FROM EXPENSE APPROVAL
   useEffect(() => {
@@ -573,6 +616,73 @@ const BranchInventory = () => {
           )}
         </div>
       </div>
+
+      {(canRequestTransfers || canReviewTransfers) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {canRequestTransfers && (
+            <form className="page-card space-y-4" onSubmit={submitTransferRequest}>
+              <div>
+                <h2 className="text-xl font-semibold">Request stock transfer</h2>
+                <p className="mt-1 text-sm text-slate-500">Ask an owner to replenish this branch without changing stock immediately.</p>
+              </div>
+              <select className="form-select w-full" value={transferForm.sourceType} onChange={(e) => setTransferForm({ ...transferForm, sourceType: e.target.value, sourceBranch: "" })}>
+                <option value="headOffice">From Head Office</option>
+                <option value="branch">From another branch</option>
+              </select>
+              {transferForm.sourceType === "branch" && (
+                <select className="form-select w-full" value={transferForm.sourceBranch} onChange={(e) => setTransferForm({ ...transferForm, sourceBranch: e.target.value })}>
+                  <option value="">Select source branch</option>
+                  {branches.filter((branch) => branch._id !== branchId).map((branch) => <option key={branch._id} value={branch._id}>{branch.name}</option>)}
+                </select>
+              )}
+              <select className="form-select w-full" value={transferForm.product} onChange={(e) => setTransferForm({ ...transferForm, product: e.target.value })}>
+                <option value="">Select product</option>
+                {inventory.map((item) => item.product?._id && <option key={item.product._id} value={item.product._id}>{item.product.name} ({item.product.sku || "no SKU"})</option>)}
+              </select>
+              <input className="form-input w-full" type="number" min="1" step="1" placeholder="Quantity" value={transferForm.quantity} onChange={(e) => setTransferForm({ ...transferForm, quantity: e.target.value })} />
+              <button className="btn btn-primary" type="submit" disabled={transferSaving || !inventory.length}>{transferSaving ? "Submitting..." : "Submit request"}</button>
+              {transferMessage && <p className="text-sm text-slate-600">{transferMessage}</p>}
+              {transferRequests.length > 0 && (
+                <div className="border-t border-slate-200 pt-3">
+                  <p className="text-sm font-semibold text-slate-700">Your recent requests</p>
+                  <div className="mt-2 space-y-2">
+                    {transferRequests.slice(0, 5).map((transfer) => (
+                      <div key={transfer._id} className="flex items-center justify-between gap-3 text-sm">
+                        <span>{transfer.product?.name || "Product"} x {transfer.quantity}</span>
+                        <span className={`font-semibold capitalize ${transfer.status === "approved" ? "text-emerald-700" : transfer.status === "rejected" ? "text-rose-700" : "text-amber-700"}`}>{transfer.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </form>
+          )}
+
+          {canReviewTransfers && (
+            <div className="page-card space-y-3">
+              <div>
+                <h2 className="text-xl font-semibold">Pending transfer requests</h2>
+                <p className="mt-1 text-sm text-slate-500">Approve or reject stock movement requests before inventory changes.</p>
+              </div>
+              {!transferRequests.length && <p className="text-sm text-slate-500">No pending requests.</p>}
+              {transferRequests.map((transfer) => (
+                <div key={transfer._id} className="rounded-xl border border-slate-200 p-3">
+                  <div className="flex flex-wrap justify-between gap-2 text-sm">
+                    <strong>{transfer.product?.name || "Product"} x {transfer.quantity}</strong>
+                    <span className="text-slate-500">{transfer.requestedBy?.name || "Staff"}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{transfer.sourceType === "headOffice" ? "Head Office" : transfer.sourceBranch?.name} to {transfer.targetBranch?.name}</p>
+                  <input className="form-input mt-2 w-full" placeholder="Review note (optional)" value={reviewNote[transfer._id] || ""} onChange={(e) => setReviewNote({ ...reviewNote, [transfer._id]: e.target.value })} />
+                  <div className="mt-2 flex gap-2">
+                    <button className="btn btn-primary" onClick={() => handleTransferReview(transfer._id, "approved")}>Approve</button>
+                    <button className="btn" onClick={() => handleTransferReview(transfer._id, "rejected")}>Reject</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

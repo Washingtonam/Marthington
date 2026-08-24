@@ -15,6 +15,7 @@ import {
   buildSaleLedgerEntry,
   getCustomerSaleImpact
 } from "./sales.utils.js";
+import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
 
 // 🔥 GENERATE RECEIPT ID
 const generateReceiptId = () => {
@@ -95,7 +96,10 @@ const createSale = async (req, res) => {
 
   try {
     const { items, autoSend, customerName, customerPhone, notes, paymentMethod, branch } = req.body;
-    const branchId = branch || req.user.branchId || null;
+    const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
+    if (branchId === undefined) {
+      throw new Error("You can only create sales for your assigned branch unless cross-branch management is enabled.");
+    }
 
     // 1. Fetch Business & Check Subscription
     const business = await Business.findById(businessId).session(session);
@@ -118,6 +122,7 @@ const createSale = async (req, res) => {
       const normalizedPhone = Customer.normalizePhoneNumber(customerPhone);
       customer = await Customer.findOne({
         business: businessId,
+        ...(branchId ? { branch: branchId } : {}),
         phoneNormalized: normalizedPhone
       }).session(session);
 
@@ -126,7 +131,8 @@ const createSale = async (req, res) => {
           business: businessId,
           name: customerName || "Walk-in Customer",
           phone: normalizedPhone,
-          phoneNormalized: normalizedPhone
+          phoneNormalized: normalizedPhone,
+          branch: branchId
         }], { session }).then(res => res[0]);
       }
     }
@@ -325,6 +331,9 @@ const getSales = async (req, res) => {
       businessId: req.user.businessId,
       isSuperAdmin: req.user.role === "super_admin"
     });
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these sales" });
+    Object.assign(query, branchQuery);
 
     const sales = await Sale.find(query)
       .sort({ createdAt: -1 })
@@ -351,6 +360,9 @@ const getDeletedSales = async (req, res) => {
       includeDeleted: true,
       canAccessDeleted: true
     });
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these sales" });
+    Object.assign(query, branchQuery);
 
     const sales = await Sale.find(query)
       .sort({ deletedAt: -1, createdAt: -1 })
@@ -378,6 +390,9 @@ const getSaleById = async (req, res) => {
     if (req.user.role !== "super_admin" && sale.business._id.toString() !== req.user.businessId) {
       return res.status(403).json({ message: "Unauthorized" });
     }
+
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, sale.branch?.toString());
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to this sale" });
 
     res.json(sale);
   } catch (error) {

@@ -56,3 +56,15 @@ export const updateBranchInventory = async ({ branchId, productId, quantity, bra
 export const getImportStatus = async (jobId) => {
   return request(`/branches/inventory/import/${jobId}`);
 };
+
+export const createTransferRequest = (payload) => request("/branches/transfers", {
+  method: "POST",
+  body: JSON.stringify(payload)
+});
+
+export const getTransferRequests = (status = "") => request(`/branches/transfers${status ? `?status=${encodeURIComponent(status)}` : ""}`);
+
+export const reviewTransferRequest = (id, status, note = "") => request(`/branches/transfers/${id}/review`, {
+  method: "POST",
+  body: JSON.stringify({ status, note })
+});

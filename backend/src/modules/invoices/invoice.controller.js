@@ -11,6 +11,7 @@ import Payment from "../payments/payment.model.js";
 import EmailHistory from "../../models/emailHistory.model.js";
 import { sendInvoiceCreatedEmail, sendPaymentReceivedEmail, sendInvoiceSharedEmail } from "../../utils/emailService.js";
 import { getOutgoingStockDelta, validateOutgoingStockAvailability } from "./invoice.stock.js";
+import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
 
 const generateInvoiceNumber = async (businessId) => {
   const now = new Date();
@@ -78,7 +79,10 @@ const createInvoice = async (req, res) => {
     } = req.body;
 
     const businessId = req.user.businessId;
-    const branchId = branch || req.user.branchId || null;
+    const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
+    if (branchId === undefined) {
+      throw new Error("You can only create invoices for your assigned branch unless cross-branch management is enabled.");
+    }
 
     const subtotal = items.reduce((sum, item) => sum + Number(item.total || 0), 0);
     const totalAmount = subtotal + Number(tax || 0) - Number(discount || 0);
@@ -771,6 +775,9 @@ const deleteInvoice = async (req, res) => {
 const getInvoices = async (req, res) => {
   try {
     const query = { business: req.user.businessId };
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these invoices" });
+    Object.assign(query, branchQuery);
 
     if (req.query.transactionType) {
       query.transactionType = req.query.transactionType;
@@ -825,6 +832,11 @@ const getInvoiceById =
         });
       }
 
+      const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, invoice.branch?.toString());
+      if (!branchQuery) {
+        return res.status(403).json({ message: "You do not have access to this invoice" });
+      }
+
       res.json(invoice);
 
     } catch (err) {
@@ -852,6 +864,11 @@ const getInvoicePDF = async (req, res) => {
     // Verify business ownership
     if (invoice.business._id.toString() !== req.user.businessId) {
       return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, invoice.branch?.toString());
+    if (!branchQuery) {
+      return res.status(403).json({ message: "You do not have access to this invoice" });
     }
 
     // Return invoice data with HTML template structure for PDF conversion

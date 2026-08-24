@@ -10,6 +10,13 @@ import { postExpenseToGL, reverseExpenseGL } from "../transactions/transaction.u
 import { shouldAutoApproveExpense } from "./expenseApproval.utils.js";
 import { findCatalogMatch } from "../catalog/catalogUtils.js";
 import Supplier from "../suppliers/supplier.model.js";
+import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
+
+const getExpenseScope = (req, requestedBranch) => getScopedBranchQuery(
+  req.user,
+  req.user.businessId,
+  requestedBranch && requestedBranch !== "all" ? requestedBranch : undefined
+);
 
 // 🔥 PROCESS INVENTORY UPDATES FOR EXPENSE
 const processInventoryUpdates = async (expense, businessId, userId, branchId = null) => {
@@ -184,6 +191,10 @@ const createExpense = async (req, res) => {
     const { amount, description, category, paymentMethod, date, notes, branch, budgetAllocation, linkedInvoice, supplierName, supplierPhone, supplierId, inventoryItems } = req.body;
     const businessId = req.user.businessId;
     const clientOperationId = req.get("X-Operation-Id");
+    const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
+    if (branchId === undefined) {
+      return res.status(403).json({ message: "You can only create expenses for your assigned branch." });
+    }
 
     if (clientOperationId) {
       const existingExpense = await Expense.findOne({ business: businessId, clientOperationId })
@@ -264,7 +275,7 @@ const createExpense = async (req, res) => {
 
     const expense = await Expense.create({
       business: businessId,
-      branch: branch || null,
+      branch: branchId,
       amount: parsedAmount,
       description: description.trim(),
       category: category || "miscellaneous",
@@ -283,7 +294,7 @@ const createExpense = async (req, res) => {
 
     if (category === "inventory" && inventoryItems && inventoryItems.length > 0) {
       if (autoApprovalDecision.shouldAutoApprove) {
-        await processInventoryUpdates(expense, businessId, req.user.id, branch);
+        await processInventoryUpdates(expense, businessId, req.user.id, branchId);
       }
     }
 
@@ -320,7 +331,9 @@ const getExpenses = async (req, res) => {
     const { category, startDate, endDate, paymentMethod, status, branch } = req.query;
 
     // Build filter
-    const filter = { business: businessId };
+    const scopedQuery = getScopedBranchQuery(req.user, businessId, branch && branch !== "all" ? branch : undefined);
+    if (!scopedQuery) return res.status(403).json({ message: "You do not have access to these expenses" });
+    const filter = scopedQuery;
 
     if (category && category !== "all") {
       filter.category = category;
@@ -334,9 +347,7 @@ const getExpenses = async (req, res) => {
       filter.status = status;
     }
 
-    if (branch && branch !== "all") {
-      filter.branch = branch;
-    }
+    if (branch && branch !== "all" && !filter.branch) filter.branch = branch;
 
     // Date range filter
     if (startDate || endDate) {
@@ -393,7 +404,9 @@ const getExpenseById = async (req, res) => {
     const { id } = req.params;
     const businessId = req.user.businessId;
 
-    const expense = await Expense.findOne({ _id: id, business: businessId })
+    const scope = getScopedBranchQuery(req.user, businessId);
+    if (!scope) return res.status(403).json({ message: "You do not have access to this expense" });
+    const expense = await Expense.findOne({ _id: id, ...scope })
       .populate("createdBy", "name email")
       .populate("approvedBy", "name email")
       .exec();
@@ -416,7 +429,9 @@ const updateExpense = async (req, res) => {
     const businessId = req.user.businessId;
     const { amount, description, category, paymentMethod, date, notes, status } = req.body;
 
-    const expense = await Expense.findOne({ _id: id, business: businessId });
+    const scope = getScopedBranchQuery(req.user, businessId);
+    if (!scope) return res.status(403).json({ message: "You do not have access to this expense" });
+    const expense = await Expense.findOne({ _id: id, ...scope });
     if (!expense) {
       return res.status(404).json({ message: "Expense not found" });
     }
@@ -472,7 +487,9 @@ const deleteExpense = async (req, res) => {
     const { id } = req.params;
     const businessId = req.user.businessId;
 
-    const expense = await Expense.findOne({ _id: id, business: businessId });
+    const scope = getScopedBranchQuery(req.user, businessId);
+    if (!scope) return res.status(403).json({ message: "You do not have access to this expense" });
+    const expense = await Expense.findOne({ _id: id, ...scope });
     if (!expense) {
       return res.status(404).json({ message: "Expense not found" });
     }
@@ -520,7 +537,8 @@ const getExpenseSummary = async (req, res) => {
     const businessId = req.user.businessId;
     const { startDate, endDate } = req.query;
 
-    const filter = { business: businessId };
+    const filter = getExpenseScope(req);
+    if (!filter) return res.status(403).json({ message: "You do not have access to this expense summary" });
 
     if (startDate || endDate) {
       filter.date = {};
@@ -601,7 +619,9 @@ const approveExpense = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized to approve expenses" });
     }
 
-    const expense = await Expense.findOne({ _id: id, business: businessId });
+    const scope = getExpenseScope(req);
+    if (!scope) return res.status(403).json({ message: "You do not have access to this expense" });
+    const expense = await Expense.findOne({ _id: id, ...scope });
     if (!expense) {
       return res.status(404).json({ message: "Expense not found" });
     }
@@ -646,7 +666,9 @@ const rejectExpense = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized to reject expenses" });
     }
 
-    const expense = await Expense.findOne({ _id: id, business: businessId });
+    const scope = getExpenseScope(req);
+    if (!scope) return res.status(403).json({ message: "You do not have access to this expense" });
+    const expense = await Expense.findOne({ _id: id, ...scope });
     if (!expense) {
       return res.status(404).json({ message: "Expense not found" });
     }
@@ -677,7 +699,8 @@ const getExpenseTrends = async (req, res) => {
     const businessId = req.user.businessId;
     const { months = 6, category } = req.query;
 
-    const filter = { business: businessId };
+    const filter = getExpenseScope(req);
+    if (!filter) return res.status(403).json({ message: "You do not have access to expense trends" });
     if (category && category !== "all") {
       filter.category = category;
     }
@@ -734,7 +757,9 @@ const linkInvoice = async (req, res) => {
     const businessId = req.user.businessId;
     const { invoiceId } = req.body;
 
-    const expense = await Expense.findOne({ _id: id, business: businessId });
+    const scope = getExpenseScope(req);
+    if (!scope) return res.status(403).json({ message: "You do not have access to this expense" });
+    const expense = await Expense.findOne({ _id: id, ...scope });
     if (!expense) {
       return res.status(404).json({ message: "Expense not found" });
     }
@@ -758,13 +783,12 @@ const getReconciliationReport = async (req, res) => {
     const businessId = req.user.businessId;
     const { category, branch } = req.query;
 
-    const filter = { business: businessId };
+    const filter = getExpenseScope(req, branch);
+    if (!filter) return res.status(403).json({ message: "You do not have access to this reconciliation report" });
     if (category && category !== "all") {
       filter.category = category;
     }
-    if (branch && branch !== "all") {
-      filter.branch = branch;
-    }
+    if (branch && branch !== "all" && !filter.branch) filter.branch = branch;
 
     const expenses = await Expense.find(filter)
       .populate("linkedInvoice", "invoiceNumber amount balanceDue status")
@@ -796,7 +820,8 @@ const getBudgetVsActual = async (req, res) => {
     const businessId = req.user.businessId;
     const { category, month, year } = req.query;
 
-    const filter = { business: businessId };
+    const filter = getExpenseScope(req);
+    if (!filter) return res.status(403).json({ message: "You do not have access to this budget report" });
     if (category && category !== "all") {
       filter.category = category;
     }
@@ -859,13 +884,13 @@ const getPendingProcurementExpenses = async (req, res) => {
     const { branch, supplier } = req.query;
 
     const filter = {
-      business: businessId,
+      ...(getExpenseScope(req, branch) || {}),
       status: "pending",
       linkedPurchaseOrder: { $exists: true, $ne: null },
       category: "inventory"
     };
 
-    if (branch) filter.branch = branch;
+    if (branch && branch !== "all" && !filter.branch) filter.branch = branch;
     if (supplier) filter.supplier = supplier;
 
     const expenses = await Expense.find(filter)

@@ -1,6 +1,8 @@
 import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
 import Transaction from "../transactions/transaction.model.js";
+import BranchInventory from "../branches/branchInventory.model.js";
+import { getScopedBranchQuery, isPrivileged } from "../../utils/branchAccess.js";
 
 const retailSalesFilter = (businessId) => ({
   $and: [
@@ -43,7 +45,7 @@ const getPeriodBoundary = (period) => {
   return null;
 };
 
-export const buildReportSnapshot = ({ sales = [], products = [], transactions = [], period = "30" }) => {
+export const buildReportSnapshot = ({ sales = [], products = [], inventory = [], transactions = [], period = "30" }) => {
   const now = new Date();
   const periodBoundary = getPeriodBoundary(period);
 
@@ -93,7 +95,12 @@ export const buildReportSnapshot = ({ sales = [], products = [], transactions = 
   );
 
   const monthlyProfit = monthlyGrossProfit - monthlyOperatingExpenses;
-  const inventoryValue = products.reduce((sum, product) => sum + ((Number(product.price) || 0) * (Number(product.stock) || 0)), 0);
+  const stockItems = inventory.length ? inventory : products;
+  const inventoryValue = stockItems.reduce((sum, item) => {
+    const price = Number(item.branchPrice ?? item.product?.price ?? item.price) || 0;
+    const quantity = Number(item.quantity ?? item.stock) || 0;
+    return sum + (price * quantity);
+  }, 0);
 
   const staffMap = {};
 
@@ -142,7 +149,11 @@ export const buildReportSnapshot = ({ sales = [], products = [], transactions = 
       periodProfit,
     },
     staffPerformance: Object.values(staffMap).sort((a, b) => b.todayRevenue - a.todayRevenue),
-    lowStockProducts: products.filter((product) => (Number(product.stock) || 0) <= 5),
+    lowStockProducts: stockItems
+      .filter((item) => Number(item.quantity ?? item.stock) <= 5)
+      .map((item) => item.product
+        ? { ...item.product, stock: Number(item.quantity || 0), branchPrice: item.branchPrice }
+        : item),
     recentSales: filteredSales.slice(0, 20),
   };
 };
@@ -152,21 +163,32 @@ const getReports = async (req, res) => {
     const businessId = req.user.businessId;
     const period = req.query.period || "30";
 
-    const sales = await Sale.find({ ...retailSalesFilter(businessId), isDeleted: { $ne: true } })
+    const branchQuery = getScopedBranchQuery(req.user, businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
+
+    const sales = await Sale.find({ ...retailSalesFilter(businessId), ...branchQuery.branch ? { branch: branchQuery.branch } : {}, isDeleted: { $ne: true } })
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
-    const products = await Product.find({ business: businessId });
+    const products = isPrivileged(req.user) || !branchQuery.branch
+      ? await Product.find({ business: businessId })
+      : [];
+    const inventory = branchQuery.branch
+      ? await BranchInventory.find({ business: businessId, branch: branchQuery.branch })
+        .populate("product", "name sku category price costPrice")
+        .lean()
+      : [];
 
     const transactions = await Transaction.find({
       businessId,
       transactionType: "expense",
+      ...(branchQuery.branch ? { branchId: branchQuery.branch } : {}),
       $or: [{ postingType: "debit" }, { postingType: { $exists: false } }],
       status: "posted",
       isDeleted: { $ne: true },
     }).lean();
 
-    const snapshot = buildReportSnapshot({ sales, products, transactions, period });
+    const snapshot = buildReportSnapshot({ sales, products, inventory, transactions, period });
     res.json(snapshot);
   } catch (err) {
     console.error("Report Generation Error:", err.message);
@@ -270,15 +292,18 @@ export const buildStaffReportSnapshot = ({ sales = [], period = "30" }) => {
   };
 };
 
-export const buildInventoryReportSnapshot = ({ products = [], period = "30" }) => {
-  const lowStockProducts = (products || []).filter((product) => (Number(product.stock) || 0) <= 5);
-  const inventoryValue = products.reduce((sum, product) => sum + ((Number(product.price) || 0) * (Number(product.stock) || 0)), 0);
+export const buildInventoryReportSnapshot = ({ products = [], inventory = [], period = "30" }) => {
+  const stockItems = inventory.length
+    ? inventory.map((entry) => ({ ...(entry.product || {}), stock: Number(entry.quantity || 0), price: Number(entry.branchPrice ?? entry.product?.price ?? 0) }))
+    : products;
+  const lowStockProducts = stockItems.filter((product) => (Number(product.stock) || 0) <= 5);
+  const inventoryValue = stockItems.reduce((sum, product) => sum + ((Number(product.price) || 0) * (Number(product.stock) || 0)), 0);
 
   return {
     overview: {
       inventoryValue,
       lowStockCount: lowStockProducts.length,
-      totalProducts: products.length,
+      totalProducts: stockItems.length,
       period,
     },
     lowStockProducts,
@@ -346,21 +371,25 @@ const getOverviewReport = async (req, res) => {
   try {
     const businessId = req.user.businessId;
     const period = req.query.period || "30";
+    const branchQuery = getScopedBranchQuery(req.user, businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
 
-    const sales = await Sale.find({ ...retailSalesFilter(businessId), isDeleted: { $ne: true } })
+    const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } })
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
-    const products = await Product.find({ business: businessId });
+    const products = branchQuery.branch ? [] : await Product.find({ business: businessId });
+    const inventory = branchQuery.branch ? await BranchInventory.find({ business: businessId, branch: branchQuery.branch }).populate("product", "name sku category price costPrice").lean() : [];
     const transactions = await Transaction.find({
       businessId,
+      ...(branchQuery.branch ? { branchId: branchQuery.branch } : {}),
       transactionType: "expense",
       $or: [{ postingType: "debit" }, { postingType: { $exists: false } }],
       status: "posted",
       isDeleted: { $ne: true },
     }).lean();
 
-    res.json(buildReportSnapshot({ sales, products, transactions, period }));
+    res.json(buildReportSnapshot({ sales, products, inventory, transactions, period }));
   } catch (err) {
     console.error("Overview Report Error:", err.message);
     res.status(500).json({ message: err.message });
@@ -371,8 +400,10 @@ const getSalesReport = async (req, res) => {
   try {
     const businessId = req.user.businessId;
     const period = req.query.period || "30";
+    const branchQuery = getScopedBranchQuery(req.user, businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
 
-    const sales = await Sale.find({ ...retailSalesFilter(businessId), isDeleted: { $ne: true } })
+    const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } })
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
@@ -387,8 +418,10 @@ const getStaffReport = async (req, res) => {
   try {
     const businessId = req.user.businessId;
     const period = req.query.period || "30";
+    const branchQuery = getScopedBranchQuery(req.user, businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
 
-    const sales = await Sale.find({ ...retailSalesFilter(businessId), isDeleted: { $ne: true } })
+    const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } })
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
@@ -403,9 +436,12 @@ const getInventoryReport = async (req, res) => {
   try {
     const businessId = req.user.businessId;
     const period = req.query.period || "30";
-    const products = await Product.find({ business: businessId });
+    const branchQuery = getScopedBranchQuery(req.user, businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
+    const products = branchQuery.branch ? [] : await Product.find({ business: businessId });
+    const inventory = branchQuery.branch ? await BranchInventory.find({ business: businessId, branch: branchQuery.branch }).populate("product", "name sku category price costPrice").lean() : [];
 
-    res.json(buildInventoryReportSnapshot({ products, period }));
+    res.json(buildInventoryReportSnapshot({ products, inventory, period }));
   } catch (err) {
     console.error("Inventory Report Error:", err.message);
     res.status(500).json({ message: err.message });
@@ -416,13 +452,16 @@ const getFinancialReport = async (req, res) => {
   try {
     const businessId = req.user.businessId;
     const period = req.query.period || "30";
+    const branchQuery = getScopedBranchQuery(req.user, businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
 
-    const sales = await Sale.find({ ...retailSalesFilter(businessId), isDeleted: { $ne: true } })
+    const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } })
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
     const transactions = await Transaction.find({
       businessId,
+      ...(branchQuery.branch ? { branchId: branchQuery.branch } : {}),
       transactionType: "expense",
       $or: [{ postingType: "debit" }, { postingType: { $exists: false } }],
       status: "posted",

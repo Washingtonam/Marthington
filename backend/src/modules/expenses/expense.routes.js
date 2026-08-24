@@ -31,14 +31,6 @@ router.get(
   expenseController.getExpenseSummary
 );
 
-// 🔥 GET SINGLE EXPENSE
-router.get(
-  "/:id",
-  protect,
-  checkPermission("canViewExpenses"),
-  expenseController.getExpenseById
-);
-
 // 🔥 UPDATE EXPENSE
 router.put(
   "/:id",
@@ -119,6 +111,14 @@ router.get(
   protect,
   checkPermission("canViewExpenses"),
   expenseController.getPendingProcurementExpenses
+);
+
+// 🔥 GET SINGLE EXPENSE
+router.get(
+  "/:id",
+  protect,
+  checkPermission("canViewExpenses"),
+  expenseController.getExpenseById
 );
 
 // 🔥 APPROVE PROCUREMENT EXPENSE (ENHANCED)

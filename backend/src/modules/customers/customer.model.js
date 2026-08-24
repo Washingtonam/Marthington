@@ -35,6 +35,12 @@ const customerSchema =
       required: true
     },
 
+    branch: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Branch",
+      default: null
+    },
+
     name: {
       type: String,
       required: true,

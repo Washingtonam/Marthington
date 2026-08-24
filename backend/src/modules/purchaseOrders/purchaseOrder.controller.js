@@ -1,15 +1,19 @@
 import PurchaseOrder from "./purchaseOrder.model.js";
 import Supplier from "../suppliers/supplier.model.js";
 import Product from "../products/product.model.js";
+import Branch from "../branches/branch.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
+import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
 import BranchInventory from "../branches/branchInventory.model.js";
 import Expense from "../expenses/expense.model.js";
 import { getPurchaseApprovalStatus } from "./purchaseOrderBudget.js";
+import mongoose from "mongoose";
 
 const getPurchaseOrders = async (req, res) => {
   try {
     const { supplierId, status } = req.query;
-    const query = { business: req.user.businessId };
+    const query = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
+    if (!query) return res.status(403).json({ message: "You do not have access to these purchase orders" });
 
     if (supplierId) query.supplier = supplierId;
     if (status) query.status = status;
@@ -30,6 +34,21 @@ const getPurchaseOrders = async (req, res) => {
 const createPurchaseOrder = async (req, res) => {
   try {
     const { supplier, items = [], status = "pending", notes = "", destinationBranch, paymentTerms = "immediate" } = req.body;
+
+    const resolvedDestinationBranch = resolveOperationalBranchId({
+      user: req.user,
+      requestedBranchId: destinationBranch
+    });
+    if (resolvedDestinationBranch === undefined) {
+      return res.status(403).json({ message: "You can only create purchase orders for your assigned branch unless cross-branch management is enabled." });
+    }
+    if (resolvedDestinationBranch && !mongoose.isValidObjectId(resolvedDestinationBranch)) {
+      return res.status(400).json({ message: "Invalid destination branch" });
+    }
+    if (resolvedDestinationBranch) {
+      const branchRecord = await Branch.findOne({ _id: resolvedDestinationBranch, business: req.user.businessId });
+      if (!branchRecord) return res.status(400).json({ message: "Invalid destination branch" });
+    }
 
     if (!supplier) {
       return res.status(400).json({ message: "Supplier is required" });
@@ -67,7 +86,7 @@ const createPurchaseOrder = async (req, res) => {
       totalAmount,
       status,
       notes,
-      destinationBranch: destinationBranch || null,
+      destinationBranch: resolvedDestinationBranch,
       paymentTerms,
       receiptStatus: "awaiting"
     });
@@ -85,12 +104,25 @@ const createPurchaseOrder = async (req, res) => {
 
 const updatePurchaseOrder = async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, business: req.user.businessId });
+    const scopedQuery = getScopedBranchQuery(req.user, req.user.businessId);
+    if (!scopedQuery) return res.status(403).json({ message: "You do not have access to this purchase order" });
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...scopedQuery });
     if (!order) {
       return res.status(404).json({ message: "Purchase order not found" });
     }
 
-    const { status, notes, items = [] } = req.body;
+    const { status, notes, items = [], destinationBranch } = req.body;
+
+    if (destinationBranch !== undefined) {
+      const resolvedDestinationBranch = resolveOperationalBranchId({ user: req.user, requestedBranchId: destinationBranch });
+      if (resolvedDestinationBranch === undefined) {
+        return res.status(403).json({ message: "You cannot move this purchase order to that branch" });
+      }
+      if (resolvedDestinationBranch && !mongoose.isValidObjectId(resolvedDestinationBranch)) {
+        return res.status(400).json({ message: "Invalid destination branch" });
+      }
+      order.destinationBranch = resolvedDestinationBranch;
+    }
 
     if (status) order.status = status;
     if (notes !== undefined) order.notes = notes;
@@ -134,12 +166,12 @@ const updatePurchaseOrder = async (req, res) => {
  * Atomically:
  * 1. Records partial/full quantities received per item
  * 2. Updates Inventory stock for each product
- * 3. Creates InventoryMovement records with cost tracking
  * 4. Auto-creates Expense record (categorized as "inventory")
  * 5. Updates Supplier ledger (outstanding balance)
  * 6. Updates PO receipt status (awaiting → partial → complete)
  */
 const recordReceipt = async (req, res) => {
+  let session;
   try {
     const { id } = req.params;
     const { receivedItems = [], paymentStatus = "unpaid", branch = null } = req.body;
@@ -149,7 +181,10 @@ const recordReceipt = async (req, res) => {
     }
 
     // Fetch PO with all details
-    const po = await PurchaseOrder.findOne({ _id: id, business: req.user.businessId })
+    const scopedQuery = getScopedBranchQuery(req.user, req.user.businessId);
+    if (!scopedQuery) return res.status(403).json({ message: "You do not have access to this purchase order" });
+
+    const po = await PurchaseOrder.findOne({ _id: id, ...scopedQuery })
       .populate("supplier")
       .populate("items.product");
 
@@ -211,10 +246,21 @@ const recordReceipt = async (req, res) => {
     }
 
     // ===== START: ATOMIC TRANSACTION =====
+    session = await mongoose.startSession();
+    session.startTransaction();
     
     // Step 1: Update inventory for each received item
     const inventoryMovements = [];
-    const targetBranchId = branch || po.destinationBranch || null;
+    const targetBranchId = resolveOperationalBranchId({
+      user: req.user,
+      requestedBranchId: branch || po.destinationBranch?._id || po.destinationBranch
+    });
+
+    if (targetBranchId === undefined) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: "You can only receive stock into your assigned branch unless cross-branch management is enabled." });
+    }
 
     for (const [, received] of receivedMap) {
       const { item, quantityReceived, actualUnitCost } = received;
@@ -225,92 +271,99 @@ const recordReceipt = async (req, res) => {
       const product = await Product.findOne({
         _id: productId,
         business: req.user.businessId
-      });
+      }).session(session);
 
       if (!product) continue;
 
       const previousStock = Number(product.stock || 0);
       const previousCost = Number(product.costPrice || 0);
-      const updatedStock = previousStock + quantityReceived;
-      const newCost = updatedStock > 0
-        ? ((previousStock * previousCost) + (quantityReceived * actualUnitCost)) / updatedStock
-        : actualUnitCost;
-
-      product.stock = updatedStock;
-      product.costPrice = Number(newCost.toFixed(2));
-      await product.save();
 
       if (targetBranchId) {
         const branchInventory = await BranchInventory.findOne({
           business: req.user.businessId,
           branch: targetBranchId,
           product: product._id
-        });
+        }).session(session);
 
         const previousBranchStock = Number(branchInventory?.quantity || 0);
         const updatedBranchStock = previousBranchStock + quantityReceived;
 
         if (branchInventory) {
+          const previousUnitCost = Number(branchInventory.unitCost || 0);
+          branchInventory.unitCost = updatedBranchStock > 0
+            ? ((previousBranchStock * previousUnitCost) + (quantityReceived * actualUnitCost)) / updatedBranchStock
+            : actualUnitCost;
           branchInventory.quantity = updatedBranchStock;
-          await branchInventory.save();
+          await branchInventory.save({ session });
         } else {
-          await BranchInventory.create({
+          await BranchInventory.create([{
+              business: req.user.businessId,
+              branch: targetBranchId,
+              product: product._id,
+              quantity: quantityReceived,
+              unitCost: actualUnitCost,
+              createdBy: req.user.id
+            }], { session });
+        }
+
+        const [movement] = await InventoryMovement.create([{
             business: req.user.businessId,
             branch: targetBranchId,
             product: product._id,
+            type: "purchase",
             quantity: quantityReceived,
+            unitCost: actualUnitCost,
+            previousStock: previousBranchStock,
+            newStock: updatedBranchStock,
+            note: `Received ${quantityReceived} units from ${supplier.name} (PO: ${po._id})`,
             createdBy: req.user.id
-          });
-        }
+          }], { session });
 
-        const movement = await InventoryMovement.create({
-          business: req.user.businessId,
-          branch: targetBranchId,
-          product: product._id,
-          type: "purchase",
-          quantity: quantityReceived,
-          unitCost: actualUnitCost,
-          previousStock: previousBranchStock,
-          newStock: updatedBranchStock,
-          note: `Received ${quantityReceived} units from ${supplier.name} (PO: ${po._id})`,
-          createdBy: req.user.id
-        });
+        inventoryMovements.push(movement);
+      } else {
+        const updatedStock = previousStock + quantityReceived;
+        const newCost = updatedStock > 0
+          ? ((previousStock * previousCost) + (quantityReceived * actualUnitCost)) / updatedStock
+          : actualUnitCost;
+
+        product.stock = updatedStock;
+        product.costPrice = Number(newCost.toFixed(2));
+        await product.save({ session });
+      }
+
+      if (!targetBranchId) {
+        const [movement] = await InventoryMovement.create([{
+            business: req.user.businessId,
+            product: product._id,
+            type: "purchase",
+            quantity: quantityReceived,
+            unitCost: actualUnitCost,
+            previousStock,
+            newStock: product.stock,
+            note: `Central stock adjustment for PO receipt ${po._id}`,
+            createdBy: req.user.id
+          }], { session });
 
         inventoryMovements.push(movement);
       }
-
-      const movement = await InventoryMovement.create({
-        business: req.user.businessId,
-        branch: targetBranchId,
-        product: product._id,
-        type: "purchase",
-        quantity: quantityReceived,
-        unitCost: actualUnitCost,
-        previousStock,
-        newStock: product.stock,
-        note: `Central stock adjustment for PO receipt ${po._id}`,
-        createdBy: req.user.id
-      });
-
-      inventoryMovements.push(movement);
     }
 
     // Step 2: Auto-create Expense record (categorized as "inventory")
     const expenseDescription = `Stock purchase from ${supplier.name}`;
-    const expense = await Expense.create({
-      business: req.user.businessId,
-      branch: branch || po.destinationBranch || null,
-      amount: totalReceivedCost,
-      description: expenseDescription,
-      category: "inventory",
-      paymentMethod: paymentStatus === "paid" ? "cash" : "store_credit",
-      date: new Date(),
-      createdBy: req.user.id,
-      status: paymentStatus === "paid" ? "approved" : "pending",
-      linkedPurchaseOrder: po._id,
-      supplier: supplier._id,
-      notes: `Auto-created from receipt of ${po._id}`
-    });
+    const [expense] = await Expense.create([{
+        business: req.user.businessId,
+        branch: targetBranchId || null,
+        amount: totalReceivedCost,
+        description: expenseDescription,
+        category: "inventory",
+        paymentMethod: paymentStatus === "paid" ? "cash" : "store_credit",
+        date: new Date(),
+        createdBy: req.user.id,
+        status: paymentStatus === "paid" ? "approved" : "pending",
+        linkedPurchaseOrder: po._id,
+        supplier: supplier._id,
+        notes: `Auto-created from receipt of ${po._id}`
+      }], { session });
 
     // Step 3: Update PO receipt tracking
     for (const [itemIndex, received] of receivedMap) {
@@ -335,7 +388,7 @@ const recordReceipt = async (req, res) => {
     po.receivedBy = req.user.id;
     po.linkedExpense = expense._id;
 
-    await po.save();
+    await po.save({ session });
 
     // Step 5: Update Supplier ledger
     supplier.totalPurchases = (Number(supplier.totalPurchases || 0)) + totalReceivedCost;
@@ -346,7 +399,10 @@ const recordReceipt = async (req, res) => {
       supplier.outstandingBalance = (Number(supplier.outstandingBalance || 0)) + totalReceivedCost;
     }
 
-    await supplier.save();
+    await supplier.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     // ===== END: ATOMIC TRANSACTION =====
 
@@ -375,6 +431,10 @@ const recordReceipt = async (req, res) => {
     });
   } catch (err) {
     console.error("recordReceipt error:", err);
+    if (session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
     return res.status(500).json({ message: err.message || "Failed to record receipt" });
   }
 };
@@ -397,14 +457,17 @@ const getSupplierLedger = async (req, res) => {
     }
 
     // Get all purchase orders from this supplier
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to this supplier ledger" });
+
     const purchaseOrders = await PurchaseOrder.find({
-      business: req.user.businessId,
+      ...branchQuery,
       supplier: supplierId
     }).sort({ createdAt: -1 });
 
     // Get all related expenses
     const expenses = await Expense.find({
-      business: req.user.businessId,
+      ...branchQuery,
       supplier: supplierId
     }).sort({ createdAt: -1 });
 
