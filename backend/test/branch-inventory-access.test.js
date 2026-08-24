@@ -63,3 +63,15 @@ test("assigned staff operations stay on their branch", () => {
   assert.equal(resolveOperationalBranchId({ user: req.user }), "branch-a");
   assert.equal(resolveOperationalBranchId({ user: req.user, requestedBranchId: "branch-b" }), undefined);
 });
+
+test("manage-all permission also manages the assigned branch", () => {
+  const req = requestFor({
+    permissions: {
+      canManageBranchInventory: false,
+      canManageAllBranchInventory: true
+    }
+  });
+
+  assert.equal(canAccessBranch(req.user, "branch-a", "manage"), true);
+  assert.equal(resolveOperationalBranchId({ user: req.user, requestedBranchId: "branch-a" }), "branch-a");
+});

@@ -100,7 +100,9 @@ const request = async (path, options = {}) => {
         }
       }
       const msg = (body && (body.message || body.error)) || body || "Server Error";
-      throw new Error(msg);
+      const serverError = new Error(msg);
+      serverError.status = response.status;
+      throw serverError;
     }
 
     const data = await response.json().catch(() => ({}));
@@ -173,6 +175,7 @@ const request = async (path, options = {}) => {
           }
           if (!retryRes.ok) {
             const e = new Error(retryData.message || "Request failed.");
+            e.status = retryRes.status;
             e.body = retryData;
             throw e;
           }
@@ -198,6 +201,7 @@ const request = async (path, options = {}) => {
 
     if (!response.ok) {
       const e = new Error(data.message || "Request failed.");
+      e.status = response.status;
       e.body = data;
       throw e;
     }
@@ -220,7 +224,11 @@ const request = async (path, options = {}) => {
     return data;
 
   } catch (err) {
-    console.warn(`Network fail for ${path}, checking offline database...`);
+    if (err.status >= 500) {
+      console.error(`Server request failed for ${path}: ${err.message}`);
+    } else if (err.isNetworkError || navigator.onLine === false) {
+      console.warn(`Network unavailable for ${path}, checking offline database...`);
+    }
 
     // OFFLINE FALLBACK: return the last successful response for any GET.
     if (!options.method || options.method === "GET") {

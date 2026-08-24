@@ -368,58 +368,76 @@ const updateBranchInventory = async (req, res) => {
     const businessId = req.user.businessId;
     const branchId = req.body.branchId || req.user.branchId;
     const { productId, quantity, branchPrice } = req.body;
+    const normalizedBranchId = typeof branchId === "object" ? branchId?._id : branchId;
+    const normalizedProductId = typeof productId === "object" ? productId?._id : productId;
 
-    if (!branchId || !productId) {
+    if (!normalizedBranchId || !normalizedProductId) {
       return res.status(400).json({ message: "branchId and productId are required" });
     }
 
-    if (!isObjectId(productId)) {
+    if (!isObjectId(normalizedProductId)) {
       return res.status(400).json({ message: "Invalid productId" });
     }
 
-    if (branchId !== "headOffice" && !isObjectId(branchId)) {
+    if (normalizedBranchId !== "headOffice" && !isObjectId(normalizedBranchId)) {
       return res.status(400).json({ message: "Invalid branchId" });
     }
 
-    if (!assertBranchAccess(req, res, branchId, "manage")) return;
+    const numericQuantity = quantity === undefined ? undefined : Number(quantity);
+    const numericPrice = branchPrice === undefined ? undefined : Number(branchPrice);
+    if (numericQuantity !== undefined && (!Number.isFinite(numericQuantity) || numericQuantity < 0)) {
+      return res.status(400).json({ message: "Quantity must be a valid non-negative number" });
+    }
+    if (numericPrice !== undefined && (!Number.isFinite(numericPrice) || numericPrice < 0)) {
+      return res.status(400).json({ message: "Branch price must be a valid non-negative number" });
+    }
 
-    if (branchId === "headOffice") {
-      const product = await Product.findOne({ _id: productId, business: businessId });
+    if (!assertBranchAccess(req, res, normalizedBranchId, "manage")) return;
+
+    if (normalizedBranchId === "headOffice") {
+      const product = await Product.findOne({ _id: normalizedProductId, business: businessId });
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
       }
 
-      if (quantity !== undefined) {
-        product.stock = Number(quantity);
+      if (numericQuantity !== undefined) {
+        product.stock = numericQuantity;
       }
-      if (branchPrice !== undefined) {
-        product.price = Number(branchPrice);
+      if (numericPrice !== undefined) {
+        product.price = numericPrice;
       }
 
       await product.save();
       return res.json(product);
     }
 
-    const branch = await Branch.findOne({ _id: branchId, business: businessId });
+    const branch = await Branch.findOne({ _id: normalizedBranchId, business: businessId });
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
 
-    const inventory = await BranchInventory.findOne({ business: businessId, branch: branchId, product: productId });
+    const inventory = await BranchInventory.findOne({ business: businessId, branch: normalizedBranchId, product: normalizedProductId });
     if (!inventory) {
       return res.status(404).json({ message: "Branch inventory entry not found" });
     }
 
     if (quantity !== undefined) {
-      inventory.quantity = Number(quantity);
+      inventory.quantity = numericQuantity;
     }
     if (branchPrice !== undefined) {
-      inventory.branchPrice = Number(branchPrice);
+      inventory.branchPrice = numericPrice;
     }
 
     await inventory.save();
     res.json(inventory);
   } catch (err) {
+    console.error("UPDATE BRANCH INVENTORY ERROR", {
+      message: err.message,
+      stack: err.stack,
+      userId: req.user?.id,
+      branchId: req.body?.branchId || req.user?.branchId,
+      productId: req.body?.productId
+    });
     res.status(500).json({ message: err.message });
   }
 };

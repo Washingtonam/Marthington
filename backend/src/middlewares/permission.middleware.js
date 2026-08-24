@@ -13,11 +13,18 @@ const checkPermission = (permission) => {
 
       const permissions = req.user.permissions || {};
 
+      const hasPermission = permissions[permission] === true ||
+        (permission === "canViewBranchInventory" && (
+          permissions.canViewAllBranchInventory === true ||
+          permissions.canManageAllBranchInventory === true
+        )) ||
+        (permission === "canManageBranchInventory" && permissions.canManageAllBranchInventory === true);
+
       const branchScopedPosAccess =
         (permission === "canViewBranches" || permission === "canViewBranchInventory") &&
         permissions.canAccessPOS === true;
 
-      if (!permissions[permission] && !branchScopedPosAccess) {
+      if (!hasPermission && !branchScopedPosAccess) {
         return res.status(403).json({
           message: "Permission denied"
         });

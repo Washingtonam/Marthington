@@ -22,7 +22,7 @@ const hasManageAccess = (user = {}, branchId) => {
   const permissions = user.permissions || {};
 
   if (requestedBranchId === assignedBranchId) {
-    return permissions.canManageBranchInventory === true;
+    return permissions.canManageBranchInventory === true || permissions.canManageAllBranchInventory === true;
   }
 
   return permissions.canManageAllBranchInventory === true;
