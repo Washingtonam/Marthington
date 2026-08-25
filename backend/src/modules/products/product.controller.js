@@ -4,6 +4,7 @@ import applyBusinessFilter from "../../utils/applyBusinessFilter.js";
 import XLSX from "xlsx";
 import { findCatalogMatch, mergeCatalogValues } from "../catalog/catalogUtils.js";
 import { isPrivileged } from "../../utils/branchAccess.js";
+import BranchInventory from "../branches/branchInventory.model.js";
 
 const findExistingProductMatch = async (businessId, name, excludeId = null) => {
   if (!name || !String(name).trim()) return null;
@@ -176,12 +177,29 @@ const getProducts = async (req, res) => {
       .limit(limit)
       .lean();
 
+    const branchInventory = req.user.branchId
+      ? await BranchInventory.find({
+          business: req.user.businessId,
+          branch: req.user.branchId,
+          product: { $in: products.map((product) => product._id) }
+        }).lean()
+      : [];
+    const branchStockByProduct = new Map(
+      branchInventory.map((entry) => [String(entry.product), entry])
+    );
+
     // Standardize price fields for frontend
-    const safeProducts = products.map(p => ({
-      ...p,
-      stock: isPrivileged(req.user) ? p.stock : 0,
-      sellingPrice: p.price || 0
-    }));
+    const safeProducts = products.map((product) => {
+      const branchEntry = branchStockByProduct.get(String(product._id));
+      const isBranchUser = Boolean(req.user.branchId) && !isPrivileged(req.user);
+
+      return {
+        ...product,
+        stock: isBranchUser ? Number(branchEntry?.quantity || 0) : product.stock,
+        price: isBranchUser ? Number(branchEntry?.branchPrice ?? product.price ?? 0) : product.price || 0,
+        sellingPrice: isBranchUser ? Number(branchEntry?.branchPrice ?? product.price ?? 0) : product.price || 0
+      };
+    });
 
     res.json({
       products: safeProducts,

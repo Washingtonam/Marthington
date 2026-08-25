@@ -28,6 +28,18 @@ const BranchInventory = () => {
   const [catalogSearching, setCatalogSearching] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState("");
+
+  const broadcastInventoryChange = (productId) => {
+    if (!window.BroadcastChannel) return;
+    const channel = new BroadcastChannel("inventory-updates");
+    channel.postMessage({
+      type: "inventory-changed",
+      branchId,
+      productId,
+      timestamp: Date.now()
+    });
+    channel.close();
+  };
   const [transferRequests, setTransferRequests] = useState([]);
   const [transferForm, setTransferForm] = useState({ sourceType: "headOffice", sourceBranch: "", product: "", quantity: "" });
   const [transferMessage, setTransferMessage] = useState("");
@@ -200,6 +212,7 @@ const BranchInventory = () => {
         branchPrice: edit.branchPrice
       });
       setSaveMessage(`Updated ${item.product?.name || "product"} successfully.`);
+      broadcastInventoryChange(item.product?._id);
       await loadInventory(branchId, page, search);
     } catch (err) {
       setSaveMessage(err.message || "Failed to save inventory item.");
@@ -223,6 +236,7 @@ const BranchInventory = () => {
           quantity: edit.quantity,
           branchPrice: edit.branchPrice
         });
+        broadcastInventoryChange(item.product?._id);
       }
       setBulkSaveMessage("All inventory items updated successfully.");
       await loadInventory(branchId, page, search);

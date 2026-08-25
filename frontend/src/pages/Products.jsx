@@ -13,7 +13,8 @@ const initialForm = {
 };
 
 const Products = () => {
-  const { business, isPro } = useAuth(); // Using the boolean from context
+  const { business, isPro, user } = useAuth(); // Using the boolean from context
+  const isBranchUser = Boolean(user?.branch) && user?.role !== "owner" && user?.role !== "super_admin";
 
   // ====================================
   // STATE
@@ -54,6 +55,12 @@ const Products = () => {
     loadProducts();
   }, [page, search, categoryFilter]);
 
+  useEffect(() => {
+    const refreshOnFocus = () => loadProducts();
+    window.addEventListener("focus", refreshOnFocus);
+    return () => window.removeEventListener("focus", refreshOnFocus);
+  }, [page, search, categoryFilter]);
+
   // 🔥 LISTEN FOR INVENTORY UPDATES FROM EXPENSE APPROVAL
   useEffect(() => {
     if (!window.BroadcastChannel) return;
@@ -71,7 +78,7 @@ const Products = () => {
       channel.removeEventListener("message", handleInventoryUpdate);
       channel.close();
     };
-  }, []);
+  }, [page, search, categoryFilter]);
 
   useEffect(() => {
     if (!page && !search && !categoryFilter) return;
@@ -498,7 +505,9 @@ const Products = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700">Stock Quantity</label>
+                  <label className="block text-sm font-semibold text-slate-700">
+                    {isBranchUser ? "Branch Stock Quantity" : "Head Office Stock Quantity"}
+                  </label>
                   <input
                     type="number"
                     name="stock"
@@ -506,8 +515,14 @@ const Products = () => {
                     onChange={handleChange}
                     placeholder="Quantity"
                     required
+                    readOnly={isBranchUser}
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
                   />
+                  {isBranchUser && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Update branch stock from the Inventory Stock page.
+                    </p>
+                  )}
                 </div>
 
                 <button
