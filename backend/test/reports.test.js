@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildReportSnapshot } from '../src/modules/reports/reports.controller.js';
+import { buildReportSnapshot, buildDailyAnalysisSnapshot } from '../src/modules/reports/reports.controller.js';
 
 test('Reports: 30-day snapshot filters sales and costs to the selected period', () => {
   const now = Date.now();
@@ -81,4 +81,23 @@ test('Reports: branch inventory uses branch quantities and prices', () => {
   assert.equal(snapshot.overview.inventoryValue, 1100);
   assert.equal(snapshot.lowStockProducts.length, 1);
   assert.equal(snapshot.lowStockProducts[0].stock, 4);
+});
+
+test('Reports: daily analysis separates payment methods and subtracts expenses', () => {
+  const date = '2026-08-25';
+  const snapshot = buildDailyAnalysisSnapshot({
+    date,
+    sales: [
+      { totalAmount: 500, paymentMethod: 'cash', createdAt: `${date}T10:00:00.000Z`, items: [{ costPrice: 200, quantity: 1 }] },
+      { totalAmount: 300, paymentMethod: 'bank_transfer', createdAt: `${date}T12:00:00.000Z`, items: [{ costPrice: 100, quantity: 1 }] },
+      { totalAmount: 900, paymentMethod: 'cash', createdAt: '2026-08-24T12:00:00.000Z', items: [] },
+    ],
+    transactions: [{ amount: 150, category: 'transport', occurredAt: `${date}T15:00:00.000Z` }],
+  });
+
+  assert.deepEqual(snapshot.summary, { salesCount: 2, revenue: 800, cogs: 300, grossProfit: 500, expenses: 150, netProfit: 350 });
+  assert.deepEqual(snapshot.paymentMethods, [
+    { method: 'cash', count: 1, amount: 500 },
+    { method: 'bank_transfer', count: 1, amount: 300 },
+  ]);
 });

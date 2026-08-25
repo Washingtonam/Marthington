@@ -992,6 +992,10 @@ a {
   transition: background 180ms ease;
 }
 
+.sales-row {
+  grid-template-columns: minmax(160px, 1.4fr) minmax(100px, 1fr) minmax(90px, 0.7fr) minmax(90px, 0.7fr) minmax(100px, 0.8fr) minmax(170px, 1.2fr);
+}
+
 /* Staff row visual refinements */
 .staff-row {
   border-bottom: 1px solid rgba(0,0,0,0.03);

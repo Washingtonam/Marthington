@@ -65,6 +65,8 @@ const POS = () => {
 
   const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
   const [autoSend, setAutoSend] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentReference, setPaymentReference] = useState("");
 
   const handleCustomerNameChange = (value) => {
     const typed = value.trim();
@@ -356,6 +358,8 @@ useEffect(() => {
         customerName: customer.name,
         customerPhone: customer.phone,
         notes: customer.notes,
+        paymentMethod,
+        paymentReference,
         branch: selectedBranch || undefined,
         items: cart.map(i => ({
           itemType: i.itemType,
@@ -375,6 +379,8 @@ useEffect(() => {
         if (bc.current) bc.current.postMessage({ type: "SALE_COMPLETE", receiptId: `PENDING-${res.operationId}` });
         setCart([]);
         setCustomer({ name: "", phone: "", notes: "" });
+        setPaymentMethod("cash");
+        setPaymentReference("");
         setUpgradeMsg("Sale saved on this device and will sync automatically when you are online.");
       } else if (res?.sale) {
         if (bc.current) bc.current.postMessage({ type: "SALE_COMPLETE", receiptId: res.sale.receiptId });
@@ -388,6 +394,8 @@ useEffect(() => {
         
         setCart([]);
         setCustomer({ name: "", phone: "", notes: "" });
+        setPaymentMethod("cash");
+        setPaymentReference("");
         navigate(`/app/sales/${res.sale._id}`);
       }
     } catch (err) {
@@ -617,6 +625,29 @@ useEffect(() => {
             <div className="flex flex-col items-center justify-center gap-2 py-3 text-center">
                 <span className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400">Total Amount</span>
                 <span className="text-3xl font-black tracking-tight text-slate-900">{formatCurrency(total)}</span>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Payment method</label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              >
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="bank_transfer">Bank transfer</option>
+                <option value="credit">Credit / debt</option>
+                <option value="other">Other</option>
+              </select>
+              {paymentMethod !== "cash" && paymentMethod !== "credit" && (
+                <input
+                  value={paymentReference}
+                  onChange={(e) => setPaymentReference(e.target.value)}
+                  placeholder="Reference (optional)"
+                  className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
+                />
+              )}
             </div>
 
             <div className="flex items-center justify-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">

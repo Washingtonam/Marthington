@@ -58,4 +58,10 @@ router.get(
   salesController.getSaleById
 );
 
+router.patch(
+  "/:id/payment",
+  protect,
+  salesController.updatePaymentMethod
+);
+
 export default router;

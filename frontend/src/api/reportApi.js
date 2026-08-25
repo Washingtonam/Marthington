@@ -2,6 +2,7 @@ import request from "./client.js";
 
 export const REPORT_TYPES = Object.freeze({
   overview: "overview",
+  dailyAnalysis: "daily-analysis",
   sales: "sales",
   staff: "staff",
   inventory: "inventory",
@@ -10,6 +11,7 @@ export const REPORT_TYPES = Object.freeze({
 
 const REPORT_ENDPOINTS = {
   [REPORT_TYPES.overview]: "/reports/overview",
+  [REPORT_TYPES.dailyAnalysis]: "/reports/daily-analysis",
   [REPORT_TYPES.sales]: "/reports/sales",
   [REPORT_TYPES.staff]: "/reports/staff",
   [REPORT_TYPES.inventory]: "/reports/inventory",

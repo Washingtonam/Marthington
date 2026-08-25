@@ -79,6 +79,9 @@ const Reports = () => {
   const [selectedBranch, setSelectedBranch] = useState("all");
   const [selectedStaff, setSelectedStaff] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("all");
+  const [dailyDate, setDailyDate] = useState(new Date().toISOString().slice(0, 10));
+  const [dailyAnalysis, setDailyAnalysis] = useState(null);
   const [showCustomizationMenu, setShowCustomizationMenu] = useState(false);
   const [widgetVisibility, setWidgetVisibility] = useState(() => {
     const stored = localStorage.getItem(WIDGET_CONFIG_KEY);
@@ -326,6 +329,12 @@ const Reports = () => {
     return unsubscribe;
   }, [period]);
 
+  useEffect(() => {
+    getReport(REPORT_TYPES.dailyAnalysis, { date: dailyDate })
+      .then(setDailyAnalysis)
+      .catch((err) => setError(err.message || "Failed to load daily analysis"));
+  }, [dailyDate]);
+
   const overview = reports?.overview || {};
   const recentSales = reports?.recentSales || [];
   const allTransactions = reports?.raw?.transactions || [];
@@ -391,8 +400,12 @@ const Reports = () => {
       });
     }
 
+    if (selectedPaymentMethod !== "all") {
+      filtered = filtered.filter(t => (t.paymentMethod || "cash").toLowerCase() === selectedPaymentMethod);
+    }
+
     return filtered;
-  }, [transactionsByDateRange, selectedBranch, selectedStaff, selectedCategory]);
+  }, [transactionsByDateRange, selectedBranch, selectedStaff, selectedCategory, selectedPaymentMethod]);
 
   // 7-day moving average calculation
   const movingAverageData = useMemo(() => {
@@ -452,7 +465,7 @@ const Reports = () => {
     const sales = multiDimensionalFiltered;
     const grossRevenue = sales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
     const cogs = sales.reduce((sum, s) => {
-      const itemsCost = (s.items || []).reduce((itemSum, item) => itemSum + ((Number(item.cost) || 0) * (Number(item.quantity) || 0)), 0);
+      const itemsCost = (s.items || []).reduce((itemSum, item) => itemSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0);
       return sum + itemsCost;
     }, 0);
     const grossProfit = grossRevenue - cogs;
@@ -498,7 +511,7 @@ const Reports = () => {
 
     const grossRevenue = sales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
     const cogs = sales.reduce((sum, s) => {
-      const itemsCost = (s.items || []).reduce((itemSum, item) => itemSum + ((Number(item.cost) || 0) * (Number(item.quantity) || 0)), 0);
+      const itemsCost = (s.items || []).reduce((itemSum, item) => itemSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0);
       return sum + itemsCost;
     }, 0);
     const grossProfit = grossRevenue - cogs;
@@ -1091,7 +1104,7 @@ const Reports = () => {
         <div className="mb-3">
           <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Advanced Filters</span>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {/* Branch Filter */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Branch</label>
@@ -1136,12 +1149,65 @@ const Reports = () => {
               ))}
             </select>
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Payment method</label>
+            <select
+              value={selectedPaymentMethod}
+              onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            >
+              <option value="all">All methods</option>
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="bank_transfer">Bank transfer</option>
+              <option value="credit">Credit / debt</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
         </div>
-        {(selectedBranch !== "all" || selectedStaff !== "all" || selectedCategory !== "all") && (
+        {(selectedBranch !== "all" || selectedStaff !== "all" || selectedCategory !== "all" || selectedPaymentMethod !== "all") && (
           <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-            🔍 Filters active: {[selectedBranch !== "all" && `Branch: ${selectedBranch}`, selectedStaff !== "all" && `Staff: ${selectedStaff}`, selectedCategory !== "all" && `Category: ${selectedCategory}`].filter(Boolean).join(" • ")}
+            Filters active: {[selectedBranch !== "all" && `Branch: ${selectedBranch}`, selectedStaff !== "all" && `Staff: ${selectedStaff}`, selectedCategory !== "all" && `Category: ${selectedCategory}`, selectedPaymentMethod !== "all" && `Payment: ${selectedPaymentMethod}`].filter(Boolean).join(" • ")}
           </div>
         )}
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Daily analysis</span>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Revenue less cost of goods and operating expenses.</p>
+          </div>
+          <input
+            type="date"
+            value={dailyDate}
+            onChange={(e) => setDailyDate(e.target.value)}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {[
+            ["Sales", dailyAnalysis?.summary?.revenue, "text-slate-900 dark:text-slate-100"],
+            ["COGS", dailyAnalysis?.summary?.cogs, "text-slate-600 dark:text-slate-300"],
+            ["Gross profit", dailyAnalysis?.summary?.grossProfit, "text-emerald-600 dark:text-emerald-400"],
+            ["Expenses", dailyAnalysis?.summary?.expenses, "text-amber-600 dark:text-amber-400"],
+            ["Net result", dailyAnalysis?.summary?.netProfit, "text-blue-600 dark:text-blue-400"],
+          ].map(([label, value, color]) => (
+            <div key={label} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
+              <div className={`mt-2 text-lg font-black ${color}`}>{formatCurrency(value || 0)}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
+          {(dailyAnalysis?.paymentMethods || []).map((item) => (
+            <span key={item.method} className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold dark:bg-slate-800 dark:text-slate-300">
+              {item.method.replace("_", " ")} · {formatCurrency(item.amount)} ({item.count})
+            </span>
+          ))}
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold dark:bg-slate-800 dark:text-slate-300">{dailyAnalysis?.summary?.salesCount || 0} sales</span>
+        </div>
       </div>
 
       {/* DAILY AUDIT METRICS SUMMARY */}

@@ -21,6 +21,13 @@ router.get(
 );
 
 router.get(
+  "/daily-analysis",
+  protect,
+  checkPermission("canViewReports"),
+  reportsController.getDailyAnalysisReport
+);
+
+router.get(
   "/sales",
   protect,
   checkPermission("canViewReports"),

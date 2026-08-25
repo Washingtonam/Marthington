@@ -37,6 +37,10 @@ const Sales = () => {
   const [viewMode, setViewMode] = useState("active");
   const [deletedRecords, setDeletedRecords] = useState([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
+  const [paymentTarget, setPaymentTarget] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [updatingPayment, setUpdatingPayment] = useState(false);
   const { user } = useAuth();
   const isOwner = user?.role === "owner";
 
@@ -98,6 +102,24 @@ const Sales = () => {
       setStatusMessage(err.message || "Unable to delete transaction");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handlePaymentUpdate = async () => {
+    if (!paymentTarget) return;
+    try {
+      setUpdatingPayment(true);
+      await request(`/sales/${paymentTarget._id}/payment`, {
+        method: "PATCH",
+        body: JSON.stringify({ paymentMethod, paymentReference })
+      });
+      setPaymentTarget(null);
+      setStatusMessage("Payment method updated");
+      await loadSales();
+    } catch (err) {
+      setStatusMessage(err.message || "Unable to update payment method");
+    } finally {
+      setUpdatingPayment(false);
     }
   };
 
@@ -266,7 +288,7 @@ const Sales = () => {
 
           {/* HEADER */}
 
-          <div className="product-row product-row-head">
+          <div className="product-row sales-row product-row-head">
 
             <span>
               Receipt
@@ -279,6 +301,8 @@ const Sales = () => {
             <span>
               Total
             </span>
+
+            {viewMode === "active" && <span>Payment</span>}
 
             <span>
               {viewMode === "archived" ? "Deleted By" : "Staff"}
@@ -315,7 +339,7 @@ const Sales = () => {
               {filteredSales.map((sale) => (
                 <div
                   key={sale._id}
-                  className="product-row text-left hover:bg-gray-50 transition"
+                  className="product-row sales-row text-left hover:bg-gray-50 transition"
                 >
                   {/* RECEIPT */}
                   <button
@@ -352,6 +376,10 @@ const Sales = () => {
                     {formatCurrency(sale.totalAmount)}
                   </span>
 
+                  <span className="text-xs font-semibold capitalize text-slate-600">
+                    {(sale.paymentMethod || "cash").replace("_", " ")}
+                  </span>
+
                   {/* STAFF */}
                   <span>
                     {sale.createdBy?.name || "Unknown"}
@@ -366,6 +394,19 @@ const Sales = () => {
                     >
                       View Receipt
                     </button>
+                    {isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentTarget(sale);
+                          setPaymentMethod(sale.paymentMethod || "cash");
+                          setPaymentReference(sale.paymentReference || "");
+                        }}
+                        className="text-amber-700 font-medium"
+                      >
+                        Edit payment
+                      </button>
+                    )}
                     {user?.role === "owner" && (
                       <button
                         type="button"
@@ -445,6 +486,31 @@ const Sales = () => {
               <button type="button" onClick={handleDelete} disabled={deleting} className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
                 {deleting ? "Archiving..." : "Archive Receipt"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {paymentTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
+          <div className="w-full max-w-md rounded-[2rem] border border-white/40 bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-black text-slate-900">Correct payment method</h3>
+            <p className="mt-1 text-sm text-slate-500">Receipt #{paymentTarget.receiptId}</p>
+            <div className="mt-5 space-y-3">
+              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="bank_transfer">Bank transfer</option>
+                <option value="credit">Credit / debt</option>
+                <option value="other">Other</option>
+              </select>
+              {paymentMethod !== "cash" && paymentMethod !== "credit" && (
+                <input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder="Reference (optional)" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              )}
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setPaymentTarget(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button>
+              <button type="button" onClick={handlePaymentUpdate} disabled={updatingPayment} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{updatingPayment ? "Saving..." : "Save correction"}</button>
             </div>
           </div>
         </div>

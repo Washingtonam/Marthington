@@ -74,6 +74,28 @@ const saleSchema = new mongoose.Schema(
       default: 0
     },
 
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "card", "bank_transfer", "credit", "other"],
+      default: "cash"
+    },
+
+    paymentReference: {
+      type: String,
+      default: ""
+    },
+
+    paymentUpdatedAt: {
+      type: Date,
+      default: null
+    },
+
+    paymentUpdatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+
     business: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Business",

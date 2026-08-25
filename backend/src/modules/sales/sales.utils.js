@@ -5,6 +5,17 @@ export const canDeleteSale = (user = {}) => {
 
 export const canRestoreSale = (user = {}) => canDeleteSale(user);
 
+export const PAYMENT_METHODS = Object.freeze(["cash", "card", "bank_transfer", "credit", "other"]);
+
+export const normalizePaymentMethod = (value = "cash") => {
+  const normalized = String(value).trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (normalized === "transfer" || normalized === "banktransfer") return "bank_transfer";
+  if (normalized === "debt" || normalized === "credit_sale") return "credit";
+  return PAYMENT_METHODS.includes(normalized) ? normalized : "other";
+};
+
+export const isCreditPayment = (value) => normalizePaymentMethod(value) === "credit";
+
 export const buildProductCompensationEntries = (sale = {}, { businessId, branchId = null, createdBy = null, type = 'return', notePrefix = 'Sale reversal' } = {}) => {
   if (!sale || !Array.isArray(sale.items)) {
     return [];
@@ -88,11 +99,11 @@ export const buildSalesQuery = ({ businessId, isSuperAdmin = false, includeDelet
 export const getCustomerSaleImpact = ({ paymentMethod = 'cash', totalAmount = 0, action = 'delete' } = {}) => {
   const amount = Number(totalAmount || 0);
   const isDelete = action === 'delete';
-  const isCash = String(paymentMethod).toLowerCase() === 'cash';
+  const isCredit = isCreditPayment(paymentMethod);
 
   return {
     totalSpentDelta: isDelete ? -amount : amount,
     totalOrdersDelta: isDelete ? -1 : 1,
-    outstandingBalanceDelta: isCash ? 0 : (isDelete ? -amount : amount)
+    outstandingBalanceDelta: isCredit ? (isDelete ? -amount : amount) : 0
   };
 };

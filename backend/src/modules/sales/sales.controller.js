@@ -13,7 +13,9 @@ import {
   buildSalesQuery,
   buildProductCompensationEntries,
   buildSaleLedgerEntry,
-  getCustomerSaleImpact
+  getCustomerSaleImpact,
+  normalizePaymentMethod,
+  isCreditPayment
 } from "./sales.utils.js";
 import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
 
@@ -95,7 +97,8 @@ const createSale = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { items, autoSend, customerName, customerPhone, notes, paymentMethod, branch } = req.body;
+    const { items, autoSend, customerName, customerPhone, notes, paymentMethod, paymentReference, branch } = req.body;
+    const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
     const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
     if (branchId === undefined) {
       throw new Error("You can only create sales for your assigned branch unless cross-branch management is enabled.");
@@ -220,7 +223,8 @@ const createSale = async (req, res) => {
     const sale = await Sale.create([{
       items: saleItems,
       totalAmount,
-      paymentMethod: paymentMethod || "Cash",
+      paymentMethod: normalizedPaymentMethod,
+      paymentReference: paymentReference || "",
       business: businessId,
       branch: branchId || null,
       createdBy: req.user.id,
@@ -288,12 +292,12 @@ const createSale = async (req, res) => {
         tax: 0,
         discount: 0,
         totalAmount: totalAmount,
-        amountPaid: paymentMethod === "Cash" || paymentMethod === "cash" ? totalAmount : 0,
-        balance: paymentMethod === "Cash" || paymentMethod === "cash" ? 0 : totalAmount,
-        balanceDue: paymentMethod === "Cash" || paymentMethod === "cash" ? 0 : totalAmount,
+        amountPaid: isCreditPayment(normalizedPaymentMethod) ? 0 : totalAmount,
+        balance: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
+        balanceDue: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
         returnedAmount: 0,
-        paymentStatus: paymentMethod === "Cash" || paymentMethod === "cash" ? "Fully Paid" : "Unpaid",
-        status: paymentMethod === "Cash" || paymentMethod === "cash" ? "paid" : "pending",
+        paymentStatus: isCreditPayment(normalizedPaymentMethod) ? "Unpaid" : "Fully Paid",
+        status: isCreditPayment(normalizedPaymentMethod) ? "draft" : "paid",
         invoiceType: "invoice",
         invoiceNumber
       }], { session }).then(res => res[0]);
@@ -303,7 +307,7 @@ const createSale = async (req, res) => {
       await sale[0].save({ session });
 
       // Update customer outstanding balance if not cash payment
-      if (customer && paymentMethod !== "Cash" && paymentMethod !== "cash") {
+      if (customer && isCreditPayment(normalizedPaymentMethod)) {
         customer.outstandingBalance = (customer.outstandingBalance || 0) + totalAmount;
         await customer.save({ session });
       }
@@ -321,6 +325,67 @@ const createSale = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     res.status(500).json({ message: error.message });
+  }
+};
+
+const updatePaymentMethod = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    if (!canDeleteSale(req.user)) {
+      await session.abortTransaction();
+      return res.status(403).json({ message: "Only owners can correct payment methods" });
+    }
+
+    const sale = await Sale.findById(req.params.id).session(session);
+    if (!sale || sale.isDeleted) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Sale not found" });
+    }
+    if (req.user.role !== "super_admin" && sale.business.toString() !== req.user.businessId) {
+      await session.abortTransaction();
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    const nextPaymentMethod = normalizePaymentMethod(req.body.paymentMethod);
+    const previousCredit = isCreditPayment(sale.paymentMethod);
+    const nextCredit = isCreditPayment(nextPaymentMethod);
+
+    if (sale.customer && previousCredit !== nextCredit) {
+      const customer = await Customer.findById(sale.customer).session(session);
+      if (customer) {
+        const balanceDelta = nextCredit ? sale.totalAmount : -sale.totalAmount;
+        customer.outstandingBalance = Math.max(0, Number(customer.outstandingBalance || 0) + balanceDelta);
+        await customer.save({ session });
+      }
+    }
+
+    sale.paymentMethod = nextPaymentMethod;
+    sale.paymentReference = req.body.paymentReference || "";
+    sale.paymentUpdatedAt = new Date();
+    sale.paymentUpdatedBy = req.user.id;
+    await sale.save({ session });
+
+    if (sale.invoice) {
+      const invoice = await Invoice.findById(sale.invoice).session(session);
+      if (invoice) {
+        invoice.amountPaid = nextCredit ? 0 : sale.totalAmount;
+        invoice.balance = nextCredit ? sale.totalAmount : 0;
+        invoice.balanceDue = nextCredit ? sale.totalAmount : 0;
+        invoice.paymentStatus = nextCredit ? "Unpaid" : "Fully Paid";
+        invoice.status = nextCredit ? "draft" : "paid";
+        await invoice.save({ session });
+      }
+    }
+
+    await session.commitTransaction();
+    res.json({ message: "Payment method updated", sale });
+  } catch (error) {
+    await session.abortTransaction();
+    res.status(500).json({ message: error.message });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -695,4 +760,4 @@ const getPublicSale = async (req, res) => {
   }
 };
 
-export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale };
+export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updatePaymentMethod };

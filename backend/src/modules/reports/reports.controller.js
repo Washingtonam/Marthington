@@ -158,6 +158,37 @@ export const buildReportSnapshot = ({ sales = [], products = [], inventory = [],
   };
 };
 
+export const buildDailyAnalysisSnapshot = ({ sales = [], transactions = [], date }) => {
+  const day = String(date || new Date().toISOString().slice(0, 10));
+  const dailySales = sales.filter((sale) => new Date(sale.createdAt).toISOString().slice(0, 10) === day);
+  const dailyExpenses = transactions.filter((transaction) => new Date(transaction.occurredAt || transaction.createdAt).toISOString().slice(0, 10) === day);
+  const paymentMethods = {};
+
+  dailySales.forEach((sale) => {
+    const method = sale.paymentMethod || "cash";
+    if (!paymentMethods[method]) paymentMethods[method] = { method, count: 0, amount: 0 };
+    paymentMethods[method].count += 1;
+    paymentMethods[method].amount += Number(sale.totalAmount || 0);
+  });
+
+  const revenue = dailySales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0);
+  const cogs = dailySales.reduce((sum, sale) => sum + (sale.items || []).reduce((itemSum, item) => itemSum + Number(item.costPrice || 0) * Number(item.quantity || 0), 0), 0);
+  const expenses = dailyExpenses.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+
+  return {
+    date: day,
+    summary: { salesCount: dailySales.length, revenue, cogs, grossProfit: revenue - cogs, expenses, netProfit: revenue - cogs - expenses },
+    paymentMethods: Object.values(paymentMethods).sort((a, b) => b.amount - a.amount),
+    expensesByCategory: dailyExpenses.reduce((categories, transaction) => {
+      const category = transaction.category || "general";
+      categories[category] = (categories[category] || 0) + Number(transaction.amount || 0);
+      return categories;
+    }, {}),
+    sales: dailySales,
+    expensesList: dailyExpenses,
+  };
+};
+
 const getReports = async (req, res) => {
   try {
     const businessId = req.user.businessId;
@@ -414,6 +445,22 @@ const getSalesReport = async (req, res) => {
   }
 };
 
+const getDailyAnalysisReport = async (req, res) => {
+  try {
+    const businessId = req.user.businessId;
+    const branchQuery = getScopedBranchQuery(req.user, businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
+
+    const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } }).populate("createdBy", "name").sort({ createdAt: -1 });
+    const transactions = await Transaction.find({ businessId, ...(branchQuery.branch ? { branchId: branchQuery.branch } : {}), transactionType: "expense", $or: [{ postingType: "debit" }, { postingType: { $exists: false } }], status: "posted", isDeleted: { $ne: true } }).lean();
+
+    res.json(buildDailyAnalysisSnapshot({ sales, transactions, date: req.query.date }));
+  } catch (err) {
+    console.error("Daily Analysis Report Error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+};
+
 const getStaffReport = async (req, res) => {
   try {
     const businessId = req.user.businessId;
@@ -479,6 +526,7 @@ export default {
   getReports,
   getOverviewReport,
   getSalesReport,
+  getDailyAnalysisReport,
   getStaffReport,
   getInventoryReport,
   getFinancialReport,
@@ -487,4 +535,5 @@ export default {
   buildStaffReportSnapshot,
   buildInventoryReportSnapshot,
   buildFinancialReportSnapshot,
+  buildDailyAnalysisSnapshot,
 };
