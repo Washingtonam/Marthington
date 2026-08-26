@@ -21,6 +21,8 @@ const retailSalesFilter = (businessId) => ({
   ]
 });
 
+const reportSaleProjection = "items totalAmount paymentMethod paymentReference branch createdBy createdAt receiptId customerName";
+
 const getPeriodBoundary = (period) => {
   const now = new Date();
 
@@ -200,6 +202,7 @@ const getReports = async (req, res) => {
     if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
 
     const sales = await Sale.find({ ...retailSalesFilter(businessId), ...branchQuery.branch ? { branch: branchQuery.branch } : {}, isDeleted: { $ne: true } })
+      .select(reportSaleProjection)
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
@@ -408,6 +411,7 @@ const getOverviewReport = async (req, res) => {
     if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
 
     const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } })
+      .select(reportSaleProjection)
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
@@ -437,6 +441,7 @@ const getSalesReport = async (req, res) => {
     if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
 
     const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } })
+      .select(reportSaleProjection)
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
@@ -471,6 +476,7 @@ const getStaffReport = async (req, res) => {
     if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
 
     const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } })
+      .select(reportSaleProjection)
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
@@ -505,6 +511,7 @@ const getFinancialReport = async (req, res) => {
     if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
 
     const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } })
+      .select(reportSaleProjection)
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Area,
@@ -82,6 +82,7 @@ const Reports = () => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("all");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [timelineSearch, setTimelineSearch] = useState("");
+  const deferredTimelineSearch = useDeferredValue(timelineSearch);
   const [timelinePage, setTimelinePage] = useState(1);
   const [dailyDate, setDailyDate] = useState(new Date().toISOString().slice(0, 10));
   const [dailyAnalysis, setDailyAnalysis] = useState(null);
@@ -100,12 +101,12 @@ const Reports = () => {
     newRecipient: "",
   });
 
-  const loadReports = async () => {
+  const loadReports = async (signal) => {
     try {
-      const data = await getReport(REPORT_TYPES.overview, { period });
+      const data = await getReport(REPORT_TYPES.overview, { period, signal });
       setReports(data);
     } catch (err) {
-      setError(err.message || "Failed to load reports");
+      if (err.name !== "AbortError") setError(err.message || "Failed to load reports");
     } finally {
       setLoading(false);
     }
@@ -324,19 +325,27 @@ const Reports = () => {
   };
 
   useEffect(() => {
-    loadReports();
+    const controller = new AbortController();
+    loadReports(controller.signal);
 
     const unsubscribe = subscribeToSalesUpdates(() => {
-      loadReports();
+      loadReports(controller.signal);
     });
 
-    return unsubscribe;
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
   }, [period]);
 
   useEffect(() => {
-    getReport(REPORT_TYPES.dailyAnalysis, { date: dailyDate })
+    const controller = new AbortController();
+    getReport(REPORT_TYPES.dailyAnalysis, { date: dailyDate, signal: controller.signal })
       .then(setDailyAnalysis)
-      .catch((err) => setError(err.message || "Failed to load daily analysis"));
+      .catch((err) => {
+        if (err.name !== "AbortError") setError(err.message || "Failed to load daily analysis");
+      });
+    return () => controller.abort();
   }, [dailyDate]);
 
   const overview = reports?.overview || {};
@@ -415,7 +424,7 @@ const Reports = () => {
     }
 
     if (selectedPaymentMethod !== "all") {
-      filtered = filtered.filter(t => (t.paymentMethod || "cash").toLowerCase() === selectedPaymentMethod);
+      filtered = filtered.filter(t => t.type === "expense" || (t.paymentMethod || "cash").toLowerCase() === selectedPaymentMethod);
     }
 
     return filtered;
@@ -590,8 +599,8 @@ const Reports = () => {
       transactions = transactions.filter(t => t.type === "expense");
     }
 
-    if (timelineSearch.trim()) {
-      const query = timelineSearch.trim().toLowerCase();
+    if (deferredTimelineSearch.trim()) {
+      const query = deferredTimelineSearch.trim().toLowerCase();
       transactions = transactions.filter((transaction) => [
         transaction.receiptId,
         transaction.createdBy?.name,
@@ -601,7 +610,7 @@ const Reports = () => {
     }
 
     return transactions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [multiDimensionalFiltered, transactionFilter, timelineSearch]);
+  }, [multiDimensionalFiltered, transactionFilter, deferredTimelineSearch]);
 
   const timelinePageSize = 20;
   const paginatedTimelineTransactions = useMemo(
@@ -611,7 +620,7 @@ const Reports = () => {
 
   useEffect(() => {
     setTimelinePage(1);
-  }, [timelineSearch, transactionFilter, selectedBranch, selectedStaff, selectedCategory, selectedPaymentMethod, startDate, endDate]);
+  }, [deferredTimelineSearch, transactionFilter, selectedBranch, selectedStaff, selectedCategory, selectedPaymentMethod, startDate, endDate]);
 
   // Staff performance leaderboard
   const staffLeaderboard = useMemo(() => {

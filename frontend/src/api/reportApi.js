@@ -89,7 +89,7 @@ export const buildReportUrl = (type, params = {}) => {
 
 export const getReport = async (type, params = {}) => {
   const url = buildReportUrl(type, params);
-  const data = await request(url);
+  const data = await request(url, params.signal ? { signal: params.signal } : {});
   return normalizeReportPayload(type, data);
 };
 
