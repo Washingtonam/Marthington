@@ -342,10 +342,20 @@ const Reports = () => {
   const overview = reports?.overview || {};
   const recentSales = reports?.recentSales || [];
   const allTransactions = reports?.raw?.transactions || [];
+  const reportSales = reports?.raw?.sales || recentSales;
+  const reportTransactions = allTransactions.map((transaction) => ({
+    ...transaction,
+    type: "expense",
+    createdAt: transaction.occurredAt || transaction.createdAt,
+  }));
+  const reportActivity = [
+    ...reportSales.map((sale) => ({ ...sale, type: "sale" })),
+    ...reportTransactions,
+  ];
 
   // Filter transactions by date range
   const transactionsByDateRange = useMemo(() => {
-    const sales = reports?.recentSales || [];
+    const sales = reportActivity;
     const startCheck = startDate || new Date(new Date().setDate(new Date().getDate() - 30));
     const endCheck = endDate || new Date();
 
@@ -356,7 +366,7 @@ const Reports = () => {
   }, [reports, startDate, endDate]);
 
   const filteredSales = useMemo(() => {
-    const sales = reports?.recentSales || [];
+    const sales = reportSales;
     if (period === "all") return sales;
 
     const days = Number(period) || 30;
@@ -368,19 +378,19 @@ const Reports = () => {
 
   // Extract available filter options
   const availableBranches = useMemo(() => {
-    const sales = reports?.recentSales || [];
+    const sales = reportSales;
     const branches = [...new Set(sales.map(s => s.branch || "Main Branch"))];
     return branches.filter(b => b);
   }, [reports]);
 
   const availableStaff = useMemo(() => {
-    const sales = reports?.recentSales || [];
+    const sales = reportSales;
     const staff = [...new Set(sales.map(s => s.createdBy?.name).filter(n => n))];
     return staff;
   }, [reports]);
 
   const availableCategories = useMemo(() => {
-    const sales = reports?.recentSales || [];
+    const sales = reportSales;
     const categories = [...new Set(sales.flatMap(s => (s.items || []).map(i => i.category || "General")))];
     return categories.filter(c => c);
   }, [reports]);
@@ -390,7 +400,7 @@ const Reports = () => {
     let filtered = transactionsByDateRange;
 
     if (selectedBranch !== "all") {
-      filtered = filtered.filter(t => (t.branch || "Main Branch") === selectedBranch);
+      filtered = filtered.filter(t => (t.branch || t.branchId || "Main Branch") === selectedBranch);
     }
 
     if (selectedStaff !== "all") {
@@ -399,8 +409,8 @@ const Reports = () => {
 
     if (selectedCategory !== "all") {
       filtered = filtered.filter(t => {
-        const hasCategory = (t.items || []).some(item => (item.category || "General") === selectedCategory);
-        return hasCategory;
+        if (t.type === "expense") return (t.category || "general") === selectedCategory;
+        return (t.items || []).some(item => (item.category || "General") === selectedCategory);
       });
     }
 
@@ -413,7 +423,7 @@ const Reports = () => {
 
   // 7-day moving average calculation
   const movingAverageData = useMemo(() => {
-    const sales = filteredSales.length ? filteredSales : reports?.recentSales || [];
+    const sales = filteredSales.length ? filteredSales : reportSales;
     const dailyData = new Map();
 
     sales.forEach(sale => {
@@ -435,7 +445,7 @@ const Reports = () => {
     }
 
     return movingAvg;
-  }, [filteredSales, reports]);
+  }, [filteredSales, reportSales]);
 
   // 30-day predictive forecast
   const forecastData = useMemo(() => {
@@ -450,11 +460,11 @@ const Reports = () => {
     for (let i = 1; i <= 30; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() + i);
-      const randomVariance = lastAvg * (0.85 + Math.random() * 0.3);
+      const trendAdjustment = 0.92 + ((i % 7) * 0.02);
       forecast.push({
         date: date.toISOString().slice(0, 10),
         dateLabel: `Day ${i}`,
-        projected: randomVariance,
+        projected: lastAvg * trendAdjustment,
         trend: lastAvg,
       });
     }
@@ -473,11 +483,13 @@ const Reports = () => {
       return sum + itemsCost;
     }, 0);
     const grossProfit = grossRevenue - cogs;
-    const operatingExpenses = sales.reduce((sum, s) => sum + (Number(s.expense) || 0), 0);
+    const operatingExpenses = reportTransactions
+      .filter((transaction) => new Date(transaction.createdAt) >= (startDate || new Date(new Date().setDate(new Date().getDate() - 30))) && new Date(transaction.createdAt) <= (endDate || new Date()))
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
     const netProfit = grossProfit - operatingExpenses;
 
     return { grossRevenue, cogs, grossProfit, operatingExpenses, netProfit };
-  }, [multiDimensionalFiltered]);
+  }, [multiDimensionalFiltered, reportTransactions, startDate, endDate]);
 
   // Payment methods breakdown
   const paymentMethodsBreakdown = useMemo(() => {
@@ -485,8 +497,9 @@ const Reports = () => {
     const breakdown = {
       cash: 0,
       card: 0,
-      transfer: 0,
-      debt: 0,
+      bank_transfer: 0,
+      credit: 0,
+      other: 0,
     };
 
     sales.forEach((sale) => {
@@ -519,11 +532,13 @@ const Reports = () => {
       return sum + itemsCost;
     }, 0);
     const grossProfit = grossRevenue - cogs;
-    const operatingExpenses = sales.reduce((sum, s) => sum + (Number(s.expense) || 0), 0);
+    const operatingExpenses = reportTransactions
+      .filter((transaction) => new Date(transaction.createdAt) >= prevStart && new Date(transaction.createdAt) < prevEnd)
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
     const netProfit = grossProfit - operatingExpenses;
 
     return { grossRevenue, cogs, grossProfit, operatingExpenses, netProfit };
-  }, [compareToLastPeriod, startDate, endDate, reports]);
+  }, [compareToLastPeriod, startDate, endDate, reportSales, reportTransactions]);
 
   // Calculate variance percentages
   const varianceMetrics = useMemo(() => {
@@ -648,7 +663,7 @@ const Reports = () => {
           categoryMap.set(category, { name: category, value: 0, count: 0 });
         }
         const cat = categoryMap.get(category);
-        cat.value += Number(item.price || 0) * (Number(item.quantity) || 1);
+        cat.value += Number(item.sellingPrice || 0) * (Number(item.quantity) || 1);
         cat.count += Number(item.quantity) || 1;
 
         // Product aggregation
@@ -664,7 +679,7 @@ const Reports = () => {
         const prod = productMap.get(productKey);
         prod.isService = prod.isService && item.itemType === "service";
         prod.unitsSold += Number(item.quantity) || 1;
-        prod.totalRevenue += Number(item.price || 0) * (Number(item.quantity) || 1);
+        prod.totalRevenue += Number(item.sellingPrice || 0) * (Number(item.quantity) || 1);
       });
     });
 
@@ -692,7 +707,7 @@ const Reports = () => {
       const label = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(d);
 
       if (!bucketMap.has(key)) {
-        bucketMap.set(key, { label, revenue: 0, profit: 0 });
+        bucketMap.set(key, { key, label, revenue: 0, profit: 0 });
       }
 
       const bucket = bucketMap.get(key);
@@ -738,14 +753,21 @@ const Reports = () => {
   );
 
   const financialChartData = useMemo(
-    () =>
-      salesChartData.map((item) => ({
+    () => {
+      const expenseByDate = reportTransactions.reduce((totals, transaction) => {
+        const key = new Date(transaction.createdAt).toISOString().slice(0, 10);
+        totals[key] = (totals[key] || 0) + Number(transaction.amount || 0);
+        return totals;
+      }, {});
+
+      return salesChartData.map((item) => ({
         label: item.label,
         revenue: Number(item.revenue || 0),
-        expenses: Number(item.revenue || 0) * 0.42,
+        expenses: Number(expenseByDate[item.key] || 0),
         profit: Number(item.profit || 0),
-      })),
-    [salesChartData]
+      }));
+    },
+    [salesChartData, reportTransactions]
   );
 
   const summaryCards = useMemo(() => {
@@ -890,7 +912,7 @@ const Reports = () => {
   if (loading) return <div className="p-6">Loading reports...</div>;
 
   return (
-    <section className="page-stack dark:text-slate-100">
+    <section className="page-stack reports-hub dark:text-slate-100">
       <div className="page-heading dark:border-slate-700 dark:bg-slate-900/80">
         <div className="flex items-center justify-between">
           <div>
@@ -1286,15 +1308,15 @@ const Reports = () => {
               {item.method.replace("_", " ")} · {formatCurrency(item.amount)} {item.count !== "" && `(${item.count})`}
             </span>
           ))}
-          <span className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold dark:bg-slate-800 dark:text-slate-300">{dailyAnalysis?.summary?.salesCount || 0} sales</span>
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold dark:bg-slate-800 dark:text-slate-300">{summaryMode === "daily" ? dailyAnalysis?.summary?.salesCount || 0 : filteredSales.length} sales</span>
         </div>
       </div>
 
       {/* DAILY AUDIT METRICS SUMMARY */}
-      {false && (startDate || endDate) && widgetVisibility.executiveCards && (
-        <div>
+      {widgetVisibility.executiveCards && (
+        <div className="reports-detail-grid">
           <div className="mb-4">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Daily Audit Summary</span>
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Detailed analytics</span>
           </div>
           
           <div className="grid gap-4 mb-6 lg:grid-cols-5 dark:text-slate-100">
@@ -1459,7 +1481,7 @@ const Reports = () => {
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
                 <div className="text-xs font-bold text-slate-600 dark:text-slate-400">Target vs Projection</div>
-                <div className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-400">{((forecastData.monthlyProjection / (forecastData.currentAvg * 30)) * 100).toFixed(1)}%</div>
+                <div className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-400">{forecastData.currentAvg > 0 ? ((forecastData.monthlyProjection / (forecastData.currentAvg * 30)) * 100).toFixed(1) : "0.0"}%</div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">Achievement rate</div>
               </div>
             </div>
@@ -1739,82 +1761,9 @@ const Reports = () => {
         </div>
       )}
 
-      {false && <div className="mb-6 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-        <span className="mr-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Historical Period</span>
-        {PERIOD_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => {
-              setPeriod(option.value);
-              setStartDate(null);
-              setEndDate(null);
-            }}
-            className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
-              period === option.value && !startDate
-                ? "bg-slate-900 text-white shadow-sm dark:bg-emerald-500 dark:text-slate-900"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>}
-
-      {false && <div className="metrics-grid dark:text-slate-100">
-        <div className="tool-panel metric-card revenue">
-          <div className="metric-icon">↗</div>
-          <div>
-            <span className="metric-label">Today’s Revenue</span>
-            {renderMetricValue(overview.todayRevenue)}
-            <span className="metric-caption">Live performance snapshot</span>
-          </div>
-        </div>
-        <div className="tool-panel metric-card success">
-          <div className="metric-icon">◔</div>
-          <div>
-            <span className="metric-label">Monthly Revenue</span>
-            {renderMetricValue(overview.monthlyRevenue)}
-            <span className="metric-caption">Rolling monthly trend</span>
-          </div>
-        </div>
-        <div className="tool-panel metric-card success">
-          <div className="metric-icon">◔</div>
-          <div>
-            <span className="metric-label">Gross Profit</span>
-            {renderMetricValue(overview.monthlyGrossProfit)}
-            <span className="metric-caption">Revenue minus COGS</span>
-          </div>
-        </div>
-        <div className="tool-panel metric-card warning">
-          <div className="metric-icon">⚠</div>
-          <div>
-            <span className="metric-label">Operating Expenses</span>
-            {renderMetricValue(overview.monthlyOperatingExpenses)}
-            <span className="metric-caption">Total business costs</span>
-          </div>
-        </div>
-        <div className="tool-panel metric-card warning">
-          <div className="metric-icon">◎</div>
-          <div>
-            <span className="metric-label">Monthly Profit</span>
-            {renderMetricValue(overview.monthlyProfit)}
-            <span className="metric-caption">Net profit (Gross - Expenses)</span>
-          </div>
-        </div>
-        <div className="tool-panel metric-card">
-          <div className="metric-icon">▣</div>
-          <div>
-            <span className="metric-label">Inventory Value</span>
-            {renderMetricValue(overview.inventoryValue)}
-            <span className="metric-caption">Current stock position</span>
-          </div>
-        </div>
-      </div>}
-
-      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4 dark:text-slate-100">
+      <div className="reports-core-grid dark:text-slate-100">
         {reportCards.map((card) => (
-          <div key={card.title} className="tool-panel dark:border-slate-700 dark:bg-slate-900">
+          <div key={card.title} className={`tool-panel report-card-${card.title.toLowerCase().split(" ")[0]} dark:border-slate-700 dark:bg-slate-900`}>
             <div className="panel-heading">
               <div>
                 <h2 className="dark:text-slate-100">{card.title}</h2>
@@ -1843,7 +1792,7 @@ const Reports = () => {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3 dark:text-slate-100">
+      <div className="reports-secondary-grid dark:text-slate-100">
         <div className="tool-panel dark:border-slate-700 dark:bg-slate-900">
           <div className="panel-heading">
             <div>
@@ -1867,14 +1816,14 @@ const Reports = () => {
           </button>
         </div>
 
-        <div className="tool-panel dark:border-slate-700 dark:bg-slate-900">
+        <div className="tool-panel recent-sales-wrapper dark:border-slate-700 dark:bg-slate-900">
           <div className="panel-heading">
             <div>
               <h2 className="dark:text-slate-100">Low stock alerts</h2>
               <p className="dark:text-slate-400">Monitor items running low</p>
             </div>
           </div>
-          <div className="compact-list">
+          <div className="compact-list recent-sales-body">
             {lowStock.map((product) => (
               <div key={product._id} className="compact-row dark:border-slate-700 dark:bg-slate-800">
                 <div>

@@ -154,6 +154,8 @@ export const buildReportSnapshot = ({ sales = [], products = [], inventory = [],
       .map((item) => item.product
         ? { ...item.product, stock: Number(item.quantity || 0), branchPrice: item.branchPrice }
         : item),
+    transactions: periodTransactions,
+    sales: filteredSales,
     recentSales: filteredSales.slice(0, 20),
   };
 };
