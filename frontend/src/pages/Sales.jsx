@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 
 import {
@@ -31,6 +31,10 @@ const Sales = () => {
 
   const [search, setSearch] =
     useState(staffFilter);
+  const deferredSearch = useDeferredValue(search);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
+  const [openActionId, setOpenActionId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
@@ -42,27 +46,36 @@ const Sales = () => {
   const [paymentReference, setPaymentReference] = useState("");
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const { user } = useAuth();
-  const isOwner = user?.role === "owner";
+  const isOwner = user?.role === "owner" || user?.role === "super_admin";
 
   // =====================================
   // LOAD SALES
   // =====================================
 
-  const loadSales = async () => {
+  const loadSales = async (signal) => {
     try {
       setLoading(true);
-      const data = await request("/sales");
-      setSales(data);
+      const query = new URLSearchParams({ page: String(page), limit: "25" });
+      if (deferredSearch.trim()) query.set("search", deferredSearch.trim());
+      const data = await request(`/sales?${query.toString()}`, { signal });
+      setSales(Array.isArray(data) ? data : data?.sales || []);
+      if (data?.pagination) setPagination(data.pagination);
     } catch (err) {
-      console.error(err);
+      if (err.name !== "AbortError") console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadSales();
-  }, []);
+    const controller = new AbortController();
+    loadSales(controller.signal);
+    return () => controller.abort();
+  }, [page, deferredSearch]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [deferredSearch]);
 
   useEffect(() => {
     if (isOwner && viewMode === "archived") {
@@ -115,6 +128,7 @@ const Sales = () => {
       });
       setPaymentTarget(null);
       setStatusMessage("Payment method updated");
+      notifySalesUpdated();
       await loadSales();
     } catch (err) {
       setStatusMessage(err.message || "Unable to update payment method");
@@ -127,41 +141,7 @@ const Sales = () => {
   // FILTERED SALES
   // =====================================
 
-  const filteredSales = useMemo(() => {
-
-    return sales.filter((sale) => {
-
-      const term =
-        search.toLowerCase();
-
-      const receipt =
-        sale.receiptId
-          ?.toLowerCase() || "";
-
-      const customer =
-        sale.customerName
-          ?.toLowerCase() || "";
-
-      const staff =
-        sale.createdBy?.name
-          ?.toLowerCase() || "";
-
-      const items =
-        sale.items
-          ?.map((item) =>
-            item.name?.toLowerCase()
-          )
-          .join(" ");
-
-      return (
-        receipt.includes(term) ||
-        customer.includes(term) ||
-        staff.includes(term) ||
-        items.includes(term)
-      );
-    });
-
-  }, [sales, search]);
+  const filteredSales = sales;
 
   // =====================================
   // LOADING
@@ -204,7 +184,7 @@ const Sales = () => {
 
       {/* SEARCH */}
 
-      <div className="tool-panel dark:border-slate-700 dark:bg-slate-900">
+      <div className="tool-panel sales-search-panel dark:border-slate-700 dark:bg-slate-900">
 
         <div className="panel-heading justify-between">
 
@@ -386,38 +366,23 @@ const Sales = () => {
                   </span>
 
                   {/* ACTION */}
-                  <span className="flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/app/sales/${sale._id}`)}
-                      className="text-blue-600 font-medium"
-                    >
-                      View Receipt
-                    </button>
-                    {isOwner && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPaymentTarget(sale);
-                          setPaymentMethod(sale.paymentMethod || "cash");
-                          setPaymentReference(sale.paymentReference || "");
-                        }}
-                        className="text-amber-700 font-medium"
-                      >
-                        Edit payment
-                      </button>
-                    )}
-                    {user?.role === "owner" && (
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(sale)}
-                        className="rounded-full border border-rose-200 p-2 text-sm font-semibold text-rose-600 hover:bg-rose-50"
-                        aria-label={`Delete transaction ${sale.receiptId}`}
-                      >
-                        🗑️
-                      </button>
-                    )}
-                  </span>
+                        <span className="relative flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setOpenActionId(openActionId === sale._id ? null : sale._id)}
+                            className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                            aria-expanded={openActionId === sale._id}
+                          >
+                            Actions <span aria-hidden="true">⌄</span>
+                          </button>
+                          {openActionId === sale._id && (
+                            <div className="absolute right-0 top-full z-20 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-1 text-left shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                              <button type="button" onClick={() => navigate(`/app/sales/${sale._id}`)} className="block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">View receipt</button>
+                              {isOwner && <button type="button" onClick={() => { setPaymentTarget(sale); setPaymentMethod(sale.paymentMethod || "cash"); setPaymentReference(sale.paymentReference || ""); setOpenActionId(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30">Edit payment</button>}
+                              {isOwner && <button type="button" onClick={() => { setDeleteTarget(sale); setOpenActionId(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30">Archive sale</button>}
+                            </div>
+                          )}
+                        </span>
                 </div>
               ))}
             </>
@@ -462,6 +427,16 @@ const Sales = () => {
           )}
 
         </div>
+
+        {viewMode === "active" && pagination.totalPages > 1 && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-700">
+            <span className="text-sm text-slate-500 dark:text-slate-400">Showing {((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</span>
+            <div className="flex gap-2">
+              <button type="button" disabled={page === 1} onClick={() => setPage((current) => current - 1)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300">Previous</button>
+              <button type="button" disabled={page >= pagination.totalPages} onClick={() => setPage((current) => current + 1)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300">Next</button>
+            </div>
+          </div>
+        )}
 
       </div>
 

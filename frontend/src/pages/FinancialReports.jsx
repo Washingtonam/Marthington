@@ -47,36 +47,9 @@ const FinancialReports = () => {
   const overview = reports?.overview || {};
 
   const chartData = useMemo(() => {
-    const source = reports?.recentSales || [];
-    if (!source.length) return [{ label: "No data", revenue: 0, expenses: 0, profit: 0 }];
-
-    const days = period === "all" ? Infinity : Number(period) || 30;
-    const cutoff = period === "all" ? null : new Date();
-    if (cutoff) cutoff.setDate(cutoff.getDate() - days);
-
-    const filtered = source.filter((sale) => {
-      if (!cutoff) return true;
-      return new Date(sale.createdAt) >= cutoff;
-    });
-
-    const bucketMap = new Map();
-
-    filtered.forEach((sale) => {
-      const d = new Date(sale.createdAt);
-      const key = d.toISOString().slice(0, 10);
-      const label = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(d);
-
-      if (!bucketMap.has(key)) {
-        bucketMap.set(key, { label, revenue: 0, expenses: 0, profit: 0 });
-      }
-
-      const bucket = bucketMap.get(key);
-      bucket.revenue += Number(sale.totalAmount || 0);
-      bucket.profit += Number(sale.totalProfit || 0);
-      bucket.expenses += Number(sale.totalAmount || 0) * 0.42;
-    });
-
-    return [...bucketMap.values()].slice(-14);
+    return reports?.chartData?.length
+      ? reports.chartData
+      : [{ label: "No data", revenue: 0, expenses: 0, profit: 0 }];
   }, [reports, period]);
 
   const summaryCards = [

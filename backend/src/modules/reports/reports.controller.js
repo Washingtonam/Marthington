@@ -237,7 +237,13 @@ export const buildSalesReportSnapshot = ({ sales = [], period = "30" }) => {
     ? sales.filter((sale) => new Date(sale.createdAt) >= getPeriodBoundary(period))
     : sales;
 
-  const chartData = [...filteredSales].reverse().slice(0, 14).reduce((acc, sale) => {
+  const expenseByDate = relevantTransactions.reduce((totals, transaction) => {
+    const key = new Date(transaction.occurredAt || transaction.createdAt).toISOString().slice(0, 10);
+    totals[key] = (totals[key] || 0) + Number(transaction.amount || 0);
+    return totals;
+  }, {});
+
+  const chartData = [...filteredSales].reverse().reduce((acc, sale) => {
     const date = new Date(sale.createdAt);
     const key = date.toISOString().slice(0, 10);
     const label = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
@@ -375,7 +381,7 @@ export const buildFinancialReportSnapshot = ({ sales = [], transactions = [], pe
     if (existing) {
       existing.revenue += Number(sale.totalAmount || 0);
       existing.profit += Number(sale.totalProfit || 0);
-      existing.expenses += Number(sale.totalAmount || 0) * 0.42;
+      existing.expenses = expenseByDate[key] || 0;
       return acc;
     }
 
@@ -384,11 +390,11 @@ export const buildFinancialReportSnapshot = ({ sales = [], transactions = [], pe
       label,
       revenue: Number(sale.totalAmount || 0),
       profit: Number(sale.totalProfit || 0),
-      expenses: Number(sale.totalAmount || 0) * 0.42,
+      expenses: expenseByDate[key] || 0,
     });
 
     return acc;
-  }, []);
+  }, []).slice(-14);
 
   return {
     overview: {
@@ -458,7 +464,7 @@ const getDailyAnalysisReport = async (req, res) => {
     const branchQuery = getScopedBranchQuery(req.user, businessId, req.query.branchId);
     if (!branchQuery) return res.status(403).json({ message: "You do not have access to these reports" });
 
-    const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } }).populate("createdBy", "name").sort({ createdAt: -1 });
+    const sales = await Sale.find({ ...retailSalesFilter(businessId), ...(branchQuery.branch ? { branch: branchQuery.branch } : {}), isDeleted: { $ne: true } }).select(reportSaleProjection).populate("createdBy", "name").sort({ createdAt: -1 });
     const transactions = await Transaction.find({ businessId, ...(branchQuery.branch ? { branchId: branchQuery.branch } : {}), transactionType: "expense", $or: [{ postingType: "debit" }, { postingType: { $exists: false } }], status: "posted", isDeleted: { $ne: true } }).lean();
 
     res.json(buildDailyAnalysisSnapshot({ sales, transactions, date: req.query.date }));

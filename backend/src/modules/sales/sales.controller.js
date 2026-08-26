@@ -7,6 +7,7 @@ import BranchInventory from "../branches/branchInventory.model.js";
 import Invoice from "../invoices/invoice.model.js";
 import InvoiceCounter from "../invoices/invoiceCounter.model.js";
 import Transaction from "../transactions/transaction.model.js";
+import User from "../users/user.model.js";
 import mongoose from "mongoose";
 import {
   canDeleteSale,
@@ -392,6 +393,9 @@ const updatePaymentMethod = async (req, res) => {
 // 🔥 GET ALL SALES
 const getSales = async (req, res) => {
   try {
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(10, Number.parseInt(req.query.limit, 10) || 25));
+    const search = String(req.query.search || "").trim();
     const query = buildSalesQuery({
       businessId: req.user.businessId,
       isSuperAdmin: req.user.role === "super_admin"
@@ -400,14 +404,32 @@ const getSales = async (req, res) => {
     if (!branchQuery) return res.status(403).json({ message: "You do not have access to these sales" });
     Object.assign(query, branchQuery);
 
-    const sales = await Sale.find(query)
+    if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const matchingUsers = await User.find({
+        ...(req.user.role === "super_admin" ? {} : { business: req.user.businessId }),
+        name: { $regex: escapedSearch, $options: "i" },
+      }).select("_id").lean();
+      query.$or = [
+        { receiptId: { $regex: escapedSearch, $options: "i" } },
+        { customerName: { $regex: escapedSearch, $options: "i" } },
+        { "items.name": { $regex: escapedSearch, $options: "i" } },
+        { createdBy: { $in: matchingUsers.map((user) => user._id) } },
+      ];
+    }
+
+    const [sales, total] = await Promise.all([
+      Sale.find(query)
       .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
       .populate("createdBy", "name")
       .populate("branch", "name")
-      .populate("items.product", "name price")
-      .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
+      .populate("items.product", "name price"),
+      Sale.countDocuments(query)
+    ]);
 
-    res.json(sales);
+    res.json({ sales, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

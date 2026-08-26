@@ -4,6 +4,7 @@ import request from "../api/client.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getBranches } from "../api/branches.js";
+import { notifySalesUpdated } from "../utils/salesEvents.js";
 
 const EXPENSE_CATEGORIES = [
   { value: "inventory", label: "Inventory/Stock Procurement" },
@@ -366,6 +367,7 @@ const Expenses = () => {
         setInventoryForm({ productId: "", productName: "", category: "", quantity: "", unitCost: "", currentStock: 0 });
         setIsFormOpen(false);
         setStatusMsg({ type: "success", text: "Expense added successfully!" });
+        notifySalesUpdated();
         
         // 🔥 REFRESH INVENTORY DATA IF THIS WAS AN INVENTORY EXPENSE
         if (formData.category === "inventory") {
@@ -473,6 +475,7 @@ const Expenses = () => {
       if (res?.expense) {
         setExpenses(expenses.map(e => e._id === id ? res.expense : e));
         setStatusMsg({ type: "success", text: "Expense approved successfully!" });
+        notifySalesUpdated();
         
         // 🔥 REFRESH INVENTORY DATA IF THIS WAS AN INVENTORY EXPENSE
         if (expenseBeingApproved?.category === "inventory") {
@@ -496,6 +499,7 @@ const Expenses = () => {
       if (res?.expense) {
         setExpenses(expenses.map(e => e._id === id ? res.expense : e));
         setStatusMsg({ type: "success", text: "Expense rejected successfully!" });
+        notifySalesUpdated();
         setTimeout(() => setStatusMsg({ type: "", text: "" }), 3000);
       }
     } catch (err) {

@@ -82,6 +82,12 @@ export const buildReportUrl = (type, params = {}) => {
   if (params.period !== undefined && params.period !== null && params.period !== "") {
     query.set("period", String(params.period));
   }
+  if (params.date !== undefined && params.date !== null && params.date !== "") {
+    query.set("date", String(params.date));
+  }
+  if (params.branchId !== undefined && params.branchId !== null && params.branchId !== "") {
+    query.set("branchId", String(params.branchId));
+  }
 
   const queryString = query.toString();
   return queryString ? `${endpoint}?${queryString}` : endpoint;
