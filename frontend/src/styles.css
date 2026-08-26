@@ -1024,6 +1024,17 @@ a {
   text-transform: uppercase;
 }
 
+.reports-table-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #ffffff;
+}
+
+.dark .reports-table-head {
+  background: #0f172a;
+}
+
 .table-header span {
   text-transform: uppercase;
   font-size: 0.78rem;

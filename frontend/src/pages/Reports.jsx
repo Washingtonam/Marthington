@@ -80,8 +80,12 @@ const Reports = () => {
   const [selectedStaff, setSelectedStaff] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("all");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [timelineSearch, setTimelineSearch] = useState("");
+  const [timelinePage, setTimelinePage] = useState(1);
   const [dailyDate, setDailyDate] = useState(new Date().toISOString().slice(0, 10));
   const [dailyAnalysis, setDailyAnalysis] = useState(null);
+  const [summaryMode, setSummaryMode] = useState("daily");
   const [showCustomizationMenu, setShowCustomizationMenu] = useState(false);
   const [widgetVisibility, setWidgetVisibility] = useState(() => {
     const stored = localStorage.getItem(WIDGET_CONFIG_KEY);
@@ -556,7 +560,9 @@ const Reports = () => {
       }
     });
 
-    return Object.values(hourlyMap).sort((a, b) => parseInt(a.hour) - parseInt(b.hour));
+    return Object.entries(hourlyMap)
+      .sort(([hourA], [hourB]) => Number(hourA) - Number(hourB))
+      .map(([, value]) => value);
   }, [multiDimensionalFiltered]);
 
   // Filtered transactions for timeline
@@ -569,8 +575,28 @@ const Reports = () => {
       transactions = transactions.filter(t => t.type === "expense");
     }
 
+    if (timelineSearch.trim()) {
+      const query = timelineSearch.trim().toLowerCase();
+      transactions = transactions.filter((transaction) => [
+        transaction.receiptId,
+        transaction.createdBy?.name,
+        transaction.category,
+        transaction.paymentMethod,
+      ].some((value) => String(value || "").toLowerCase().includes(query)));
+    }
+
     return transactions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [transactionsByDateRange, transactionFilter]);
+  }, [multiDimensionalFiltered, transactionFilter, timelineSearch]);
+
+  const timelinePageSize = 20;
+  const paginatedTimelineTransactions = useMemo(
+    () => timelineTransactions.slice((timelinePage - 1) * timelinePageSize, timelinePage * timelinePageSize),
+    [timelineTransactions, timelinePage]
+  );
+
+  useEffect(() => {
+    setTimelinePage(1);
+  }, [timelineSearch, transactionFilter, selectedBranch, selectedStaff, selectedCategory, selectedPaymentMethod, startDate, endDate]);
 
   // Staff performance leaderboard
   const staffLeaderboard = useMemo(() => {
@@ -631,10 +657,12 @@ const Reports = () => {
             name: productKey,
             unitsSold: 0,
             totalRevenue: 0,
+            isService: item.itemType === "service",
             stock: item.stock || 0,
           });
         }
         const prod = productMap.get(productKey);
+        prod.isService = prod.isService && item.itemType === "service";
         prod.unitsSold += Number(item.quantity) || 1;
         prod.totalRevenue += Number(item.price || 0) * (Number(item.quantity) || 1);
       });
@@ -719,6 +747,27 @@ const Reports = () => {
       })),
     [salesChartData]
   );
+
+  const summaryCards = useMemo(() => {
+    if (summaryMode === "daily") {
+      return [
+        ["Sales", dailyAnalysis?.summary?.revenue],
+        ["COGS", dailyAnalysis?.summary?.cogs],
+        ["Gross profit", dailyAnalysis?.summary?.grossProfit],
+        ["Expenses", dailyAnalysis?.summary?.expenses],
+        ["Net result", dailyAnalysis?.summary?.netProfit],
+      ];
+    }
+
+    const isMonthly = summaryMode === "monthly";
+    return [
+      ["Sales", isMonthly ? overview.monthlyRevenue : overview.periodRevenue],
+      ["Gross profit", isMonthly ? overview.monthlyGrossProfit : overview.periodGrossProfit],
+      ["Expenses", isMonthly ? overview.monthlyOperatingExpenses : overview.periodOperatingExpenses],
+      ["Net result", isMonthly ? overview.monthlyProfit : overview.periodProfit],
+      ["Sales count", filteredSales.length],
+    ];
+  }, [summaryMode, dailyAnalysis, overview, filteredSales]);
 
   const renderMetricValue = (value) => {
     const numericValue = Number(value || 0);
@@ -1101,10 +1150,20 @@ const Reports = () => {
 
       {/* MULTI-DIMENSION FILTER TOOLBAR */}
       <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-        <div className="mb-3">
-          <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Advanced Filters</span>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Report filters</span>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{[selectedBranch !== "all", selectedStaff !== "all", selectedCategory !== "all", selectedPaymentMethod !== "all"].filter(Boolean).length || "No"} filters active</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAdvancedFilters((visible) => !visible)}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            {showAdvancedFilters ? "Hide filters" : "Show filters"}
+          </button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {showAdvancedFilters && <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {/* Branch Filter */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Branch</label>
@@ -1165,7 +1224,7 @@ const Reports = () => {
               <option value="other">Other</option>
             </select>
           </div>
-        </div>
+        </div>}
         {(selectedBranch !== "all" || selectedStaff !== "all" || selectedCategory !== "all" || selectedPaymentMethod !== "all") && (
           <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
             Filters active: {[selectedBranch !== "all" && `Branch: ${selectedBranch}`, selectedStaff !== "all" && `Staff: ${selectedStaff}`, selectedCategory !== "all" && `Category: ${selectedCategory}`, selectedPaymentMethod !== "all" && `Payment: ${selectedPaymentMethod}`].filter(Boolean).join(" • ")}
@@ -1186,24 +1245,45 @@ const Reports = () => {
             className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           />
         </div>
+        <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-100 pb-3 dark:border-slate-700">
+          {["daily", "monthly", "period"].map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setSummaryMode(mode)}
+              className={`rounded-lg px-3 py-2 text-xs font-bold capitalize ${summaryMode === mode ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-900" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}
+            >
+              {mode === "period" ? "Selected period" : mode}
+            </button>
+          ))}
+          <div className="ml-auto flex flex-wrap gap-1">
+            {PERIOD_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => { setPeriod(option.value); setStartDate(null); setEndDate(null); }}
+                className={`rounded-lg px-2 py-1 text-[11px] font-bold ${period === option.value && !startDate ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" : "text-slate-500 dark:text-slate-400"}`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {[
-            ["Sales", dailyAnalysis?.summary?.revenue, "text-slate-900 dark:text-slate-100"],
-            ["COGS", dailyAnalysis?.summary?.cogs, "text-slate-600 dark:text-slate-300"],
-            ["Gross profit", dailyAnalysis?.summary?.grossProfit, "text-emerald-600 dark:text-emerald-400"],
-            ["Expenses", dailyAnalysis?.summary?.expenses, "text-amber-600 dark:text-amber-400"],
-            ["Net result", dailyAnalysis?.summary?.netProfit, "text-blue-600 dark:text-blue-400"],
-          ].map(([label, value, color]) => (
+          {summaryCards.map(([label, value], index) => (
             <div key={label} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
               <div className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
-              <div className={`mt-2 text-lg font-black ${color}`}>{formatCurrency(value || 0)}</div>
+              <div className={`mt-2 text-lg font-black ${index === summaryCards.length - 1 ? "text-blue-600 dark:text-blue-400" : index === 2 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-slate-100"}`}>{label === "Sales count" ? value || 0 : formatCurrency(value || 0)}</div>
             </div>
           ))}
         </div>
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-          {(dailyAnalysis?.paymentMethods || []).map((item) => (
+          {(summaryMode === "daily"
+            ? dailyAnalysis?.paymentMethods || []
+            : Object.entries(paymentMethodsBreakdown).map(([method, amount]) => ({ method, amount, count: "" }))
+          ).map((item) => (
             <span key={item.method} className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold dark:bg-slate-800 dark:text-slate-300">
-              {item.method.replace("_", " ")} · {formatCurrency(item.amount)} ({item.count})
+              {item.method.replace("_", " ")} · {formatCurrency(item.amount)} {item.count !== "" && `(${item.count})`}
             </span>
           ))}
           <span className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold dark:bg-slate-800 dark:text-slate-300">{dailyAnalysis?.summary?.salesCount || 0} sales</span>
@@ -1211,7 +1291,7 @@ const Reports = () => {
       </div>
 
       {/* DAILY AUDIT METRICS SUMMARY */}
-      {(startDate || endDate) && widgetVisibility.executiveCards && (
+      {false && (startDate || endDate) && widgetVisibility.executiveCards && (
         <div>
           <div className="mb-4">
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Daily Audit Summary</span>
@@ -1548,9 +1628,9 @@ const Reports = () => {
                           <p className="font-bold text-emerald-600 dark:text-emerald-400">
                             {formatCurrency(product.totalRevenue)}
                           </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {product.stock > 5 ? "✓ Good Stock" : product.stock > 0 ? "⚠️ Low Stock" : "❌ Out"}
-                          </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {product.isService ? "Service performance" : product.stock > 5 ? "Good stock" : product.stock > 0 ? "Low stock" : "Out of stock"}
+                              </p>
                         </div>
                       </div>
                     ))}
@@ -1571,7 +1651,13 @@ const Reports = () => {
                 <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Transaction Timeline</span>
                 <p className="text-sm text-slate-500 dark:text-slate-400">All activities for selected period</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
+                <input
+                  value={timelineSearch}
+                  onChange={(e) => setTimelineSearch(e.target.value)}
+                  placeholder="Search transactions"
+                  className="w-44 rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
+                />
                 {["all", "sales", "expenses"].map((filter) => (
                   <button
                     key={filter}
@@ -1591,7 +1677,7 @@ const Reports = () => {
             {timelineTransactions.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead>
+                  <thead className="reports-table-head">
                     <tr className="border-b border-slate-200 dark:border-slate-700">
                       <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-400">Time</th>
                       <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-400">Reference</th>
@@ -1602,7 +1688,7 @@ const Reports = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {timelineTransactions.slice(0, 20).map((transaction, idx) => (
+                    {paginatedTimelineTransactions.map((transaction, idx) => (
                       <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/50">
                         <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
                           {new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(transaction.createdAt))}
@@ -1639,9 +1725,13 @@ const Reports = () => {
               </div>
             )}
 
-            {timelineTransactions.length > 20 && (
-              <div className="mt-3 text-center">
-                <span className="text-xs text-slate-500 dark:text-slate-400">Showing 20 of {timelineTransactions.length} transactions</span>
+            {timelineTransactions.length > timelinePageSize && (
+              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-700">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Showing {(timelinePage - 1) * timelinePageSize + 1}-{Math.min(timelinePage * timelinePageSize, timelineTransactions.length)} of {timelineTransactions.length}</span>
+                <div className="flex gap-2">
+                  <button type="button" disabled={timelinePage === 1} onClick={() => setTimelinePage((page) => page - 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300">Previous</button>
+                  <button type="button" disabled={timelinePage * timelinePageSize >= timelineTransactions.length} onClick={() => setTimelinePage((page) => page + 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300">Next</button>
+                </div>
               </div>
             )}
           </div>
@@ -1649,7 +1739,7 @@ const Reports = () => {
         </div>
       )}
 
-      <div className="mb-6 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+      {false && <div className="mb-6 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
         <span className="mr-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Historical Period</span>
         {PERIOD_OPTIONS.map((option) => (
           <button
@@ -1669,9 +1759,9 @@ const Reports = () => {
             {option.label}
           </button>
         ))}
-      </div>
+      </div>}
 
-      <div className="metrics-grid dark:text-slate-100">
+      {false && <div className="metrics-grid dark:text-slate-100">
         <div className="tool-panel metric-card revenue">
           <div className="metric-icon">↗</div>
           <div>
@@ -1720,7 +1810,7 @@ const Reports = () => {
             <span className="metric-caption">Current stock position</span>
           </div>
         </div>
-      </div>
+      </div>}
 
       <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4 dark:text-slate-100">
         {reportCards.map((card) => (
