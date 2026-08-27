@@ -28,6 +28,7 @@ const Sales = () => {
 
   const [loading, setLoading] =
     useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [search, setSearch] =
     useState(staffFilter);
@@ -54,7 +55,11 @@ const Sales = () => {
 
   const loadSales = async (signal) => {
     try {
-      setLoading(true);
+      setLoading((currentLoading) => {
+        if (currentLoading) return true;
+        setRefreshing(true);
+        return false;
+      });
       const query = new URLSearchParams({ page: String(page), limit: "25" });
       if (deferredSearch.trim()) query.set("search", deferredSearch.trim());
       const data = await request(`/sales?${query.toString()}`, { signal });
@@ -64,6 +69,7 @@ const Sales = () => {
       if (err.name !== "AbortError") console.error(err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -259,12 +265,14 @@ const Sales = () => {
           <div className="text-sm text-gray-500">
             {viewMode === "archived"
               ? `${deletedRecords.length} archived records`
-              : `${filteredSales.length} transactions`}
+              : `${pagination.total || filteredSales.length} transactions`}
           </div>
 
         </div>
 
-        <div className="product-table">
+          {refreshing && <div className="mb-3 text-xs font-semibold text-slate-500 dark:text-slate-400">Updating transactions...</div>}
+
+          <div className="product-table">
 
           {/* HEADER */}
 
