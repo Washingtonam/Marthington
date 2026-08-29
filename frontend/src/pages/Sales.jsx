@@ -390,7 +390,7 @@ const Sales = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 p-6 text-sm text-slate-600">
+      <div className="min-h-screen bg-slate-50 p-6 text-sm text-slate-600 dark:bg-slate-950 dark:text-slate-300">
         Loading sales center...
       </div>
     );
@@ -664,16 +664,16 @@ const Sales = () => {
             {viewMode === "active" ? (
               <>
                 {!filteredSales.length && (
-                  <div className="p-8 text-center text-sm text-slate-500">
+                  <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                     {sales.length === 0 ? (
                       <>
-                        <p className="mb-4 text-base font-semibold text-slate-700">No sales recorded yet.</p>
+                        <p className="mb-4 text-base font-semibold text-slate-700 dark:text-slate-200">No sales recorded yet.</p>
                         <button onClick={() => navigate("/app/pos")} className="rounded-full bg-emerald-500 px-4 py-2 font-semibold text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600">
                           Open POS
                         </button>
                       </>
                     ) : (
-                      <p>No transactions match your current search.</p>
+                      <p className="dark:text-slate-300">No transactions match your current search.</p>
                     )}
                   </div>
                 )}
@@ -762,11 +762,11 @@ const Sales = () => {
           </div>
 
           {viewMode === "active" && pagination.totalPages > 1 && (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-              <span className="text-sm text-slate-500">Showing {((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</span>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-700">
+              <span className="text-sm text-slate-500 dark:text-slate-400">Showing {((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</span>
               <div className="flex gap-2">
-                <button type="button" disabled={page === 1} onClick={() => setPage((current) => current - 1)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-                <button type="button" disabled={page >= pagination.totalPages} onClick={() => setPage((current) => current + 1)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+                <button type="button" disabled={page === 1} onClick={() => setPage((current) => current - 1)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">Previous</button>
+                <button type="button" disabled={page >= pagination.totalPages} onClick={() => setPage((current) => current + 1)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">Next</button>
               </div>
             </div>
           )}
@@ -775,20 +775,20 @@ const Sales = () => {
 
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
-          <div className="w-full max-w-md rounded-[2rem] border border-white/40 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-rose-100 text-xl">🗑️</div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-rose-100 text-xl dark:bg-rose-500/10">🗑️</div>
               <div>
-                <h3 className="text-lg font-black text-slate-900">Archive this receipt?</h3>
-                <p className="text-sm text-slate-500">This action is owner-only and can be undone later from the archive.</p>
+                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">Archive this receipt?</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">This action is owner-only and can be undone later from the archive.</p>
               </div>
             </div>
-            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-              <p className="font-semibold text-slate-900">Receipt #{deleteTarget.receiptId}</p>
+            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800/80 dark:text-slate-300">
+              <p className="font-semibold text-slate-900 dark:text-slate-100">Receipt #{deleteTarget.receiptId}</p>
               <p>{formatCurrency(deleteTarget.totalAmount)} • {new Date(deleteTarget.createdAt).toLocaleString()}</p>
             </div>
             <div className="mt-6 flex justify-end gap-3">
-              <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">
+              <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 dark:border-slate-600 dark:text-slate-300">
                 Cancel
               </button>
               <button type="button" onClick={handleDelete} disabled={deleting} className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
@@ -801,11 +801,11 @@ const Sales = () => {
 
       {paymentTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
-          <div className="w-full max-w-md rounded-[2rem] border border-white/40 bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-black text-slate-900">Correct payment method</h3>
-            <p className="mt-1 text-sm text-slate-500">Receipt #{paymentTarget.receiptId}</p>
+          <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">Correct payment method</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Receipt #{paymentTarget.receiptId}</p>
             <div className="mt-5 space-y-3">
-              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
                 <option value="cash">Cash</option>
                 <option value="card">Card</option>
                 <option value="bank_transfer">Bank transfer</option>
@@ -813,12 +813,12 @@ const Sales = () => {
                 <option value="other">Other</option>
               </select>
               {paymentMethod !== "cash" && paymentMethod !== "credit" && (
-                <input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder="Reference (optional)" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                <input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder="Reference (optional)" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-400" />
               )}
             </div>
             <div className="mt-6 flex justify-end gap-3">
-              <button type="button" onClick={() => setPaymentTarget(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button>
-              <button type="button" onClick={handlePaymentUpdate} disabled={updatingPayment} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{updatingPayment ? "Saving..." : "Save correction"}</button>
+              <button type="button" onClick={() => setPaymentTarget(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 dark:border-slate-600 dark:text-slate-300">Cancel</button>
+              <button type="button" onClick={handlePaymentUpdate} disabled={updatingPayment} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 dark:bg-emerald-500 dark:text-slate-950">{updatingPayment ? "Saving..." : "Save correction"}</button>
             </div>
           </div>
         </div>

@@ -1841,7 +1841,7 @@ const Reports = () => {
                   value={timelineSearch}
                   onChange={(e) => setTimelineSearch(e.target.value)}
                   placeholder="Search transactions"
-                  className="w-44 rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
+                  className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/20"
                 />
                 {[
                   { value: "all", label: "All" },

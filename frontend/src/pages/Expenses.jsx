@@ -696,7 +696,7 @@ const Expenses = () => {
   );
 
   return (
-    <section className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe_0%,_#f8fafc_35%,_#eef2ff_100%)] py-8 px-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <section className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe_0%,_#f8fafc_35%,_#eef2ff_100%)] py-8 px-4 text-slate-900 dark:bg-[radial-gradient(circle_at_top,_#020817_0%,_#0f172a_38%,_#111827_100%)] dark:text-slate-100">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-slate-950 text-white shadow-[0_25px_80px_rgba(15,23,42,0.18)]">
           <div className="flex flex-col gap-5 border-b border-white/10 bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950 px-6 py-6 md:flex-row md:items-center md:justify-between md:px-8">
@@ -732,43 +732,43 @@ const Expenses = () => {
         )}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Month spend</p>
-                <p className="mt-3 text-3xl font-black text-slate-900">{formatCurrency(metrics.totalCurrentMonth)}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">Month spend</p>
+                <p className="mt-3 text-3xl font-black text-slate-900 dark:text-slate-100">{formatCurrency(metrics.totalCurrentMonth)}</p>
               </div>
               <div className="rounded-2xl bg-sky-100 p-2.5 text-sky-700 ring-1 ring-inset ring-sky-200">↗</div>
             </div>
-            <p className="mt-4 text-xs font-medium text-slate-500">This month</p>
+            <p className="mt-4 text-xs font-medium text-slate-500 dark:text-slate-400">This month</p>
           </div>
 
-          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Pending</p>
-                <p className="mt-3 text-3xl font-black text-slate-900">{metrics.pendingCount}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">Pending</p>
+                <p className="mt-3 text-3xl font-black text-slate-900 dark:text-slate-100">{metrics.pendingCount}</p>
               </div>
               <div className="rounded-2xl bg-amber-100 p-2.5 text-amber-700 ring-1 ring-inset ring-amber-200">⏳</div>
             </div>
-            <p className="mt-4 text-xs font-medium text-slate-500">Awaiting approval</p>
+            <p className="mt-4 text-xs font-medium text-slate-500 dark:text-slate-400">Awaiting approval</p>
           </div>
 
-          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Approved</p>
-                <p className="mt-3 text-3xl font-black text-slate-900">{metrics.approvedCount}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">Approved</p>
+                <p className="mt-3 text-3xl font-black text-slate-900 dark:text-slate-100">{metrics.approvedCount}</p>
               </div>
               <div className="rounded-2xl bg-emerald-100 p-2.5 text-emerald-700 ring-1 ring-inset ring-emerald-200">✓</div>
             </div>
-            <p className="mt-4 text-xs font-medium text-slate-500">Cleared for posting</p>
+            <p className="mt-4 text-xs font-medium text-slate-500 dark:text-slate-400">Cleared for posting</p>
           </div>
 
-          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">MoM change</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">MoM change</p>
                 <div className="mt-3 flex items-baseline gap-2">
                   <p className={`text-3xl font-black ${metrics.momChange >= 0 ? "text-rose-500" : "text-emerald-600"}`}>
                     {Math.abs(metrics.momChange).toFixed(1)}%
@@ -782,53 +782,53 @@ const Expenses = () => {
                 {metrics.momChange >= 0 ? "↗" : "↘"}
               </div>
             </div>
-            <p className="mt-4 text-xs font-medium text-slate-500">vs. last month</p>
+            <p className="mt-4 text-xs font-medium text-slate-500 dark:text-slate-400">vs. last month</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Daily burn</p>
-                <p className="mt-3 text-2xl font-black text-slate-900">{formatCurrency(trendSummary.dailyBurn)}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">Daily burn</p>
+                <p className="mt-3 text-2xl font-black text-slate-900 dark:text-slate-100">{formatCurrency(trendSummary.dailyBurn)}</p>
               </div>
               <div className="rounded-2xl bg-sky-100 p-2.5 text-sky-700 ring-1 ring-inset ring-sky-200">◔</div>
             </div>
-            <p className="mt-4 text-xs font-medium text-slate-500">7-day operating average</p>
+            <p className="mt-4 text-xs font-medium text-slate-500 dark:text-slate-400">7-day operating average</p>
           </div>
 
-          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Peak day</p>
-                <p className="mt-3 text-2xl font-black text-slate-900">{trendSummary.topDay.label}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">Peak day</p>
+                <p className="mt-3 text-2xl font-black text-slate-900 dark:text-slate-100">{trendSummary.topDay.label}</p>
               </div>
               <div className="rounded-2xl bg-violet-100 p-2.5 text-violet-700 ring-1 ring-inset ring-violet-200">✦</div>
             </div>
-            <p className="mt-4 text-xs font-medium text-slate-500">{formatCurrency(trendSummary.topDay.value)} highest spend day</p>
+            <p className="mt-4 text-xs font-medium text-slate-500 dark:text-slate-400">{formatCurrency(trendSummary.topDay.value)} highest spend day</p>
           </div>
 
-          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+          <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Active flow</p>
-                <p className="mt-3 text-2xl font-black text-slate-900">{trendSummary.activeDays}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">Active flow</p>
+                <p className="mt-3 text-2xl font-black text-slate-900 dark:text-slate-100">{trendSummary.activeDays}</p>
               </div>
               <div className="rounded-2xl bg-emerald-100 p-2.5 text-emerald-700 ring-1 ring-inset ring-emerald-200">✓</div>
             </div>
-            <p className="mt-4 text-xs font-medium text-slate-500">Expense events in the month</p>
+            <p className="mt-4 text-xs font-medium text-slate-500 dark:text-slate-400">Expense events in the month</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_0.9fr_0.9fr]">
-          <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+          <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Category mix</p>
-                <h3 className="mt-2 text-lg font-black text-slate-900">Spend composition</h3>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">Category mix</p>
+                <h3 className="mt-2 text-lg font-black text-slate-900 dark:text-slate-100">Spend composition</h3>
               </div>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">This month</span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:bg-slate-800 dark:text-slate-200">This month</span>
             </div>
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
@@ -843,12 +843,12 @@ const Expenses = () => {
             </div>
           </div>
 
-          <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
-            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Budget vs actual</p>
+          <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">Budget vs actual</p>
             <div className="mt-4 flex items-end justify-between gap-3">
               <div>
-                <p className="text-3xl font-black text-slate-900">{formatCurrency(metrics.totalCurrentMonth)}</p>
-                <p className="mt-1 text-xs text-slate-500">Actual spend</p>
+                <p className="text-3xl font-black text-slate-900 dark:text-slate-100">{formatCurrency(metrics.totalCurrentMonth)}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Actual spend</p>
               </div>
               <div className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">+{Math.max(0, ((metrics.totalCurrentMonth - expenseAnalytics.benchmark) / expenseAnalytics.benchmark) * 100 || 0).toFixed(1)}%</div>
             </div>
@@ -865,8 +865,8 @@ const Expenses = () => {
             </div>
           </div>
 
-          <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
-            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Approvals queue</p>
+          <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">Approvals queue</p>
             <div className="mt-4 space-y-3">
               {expenseAnalytics.pendingQueue.length ? expenseAnalytics.pendingQueue.map((item) => (
                 <div key={item.id} className="rounded-2xl border border-amber-100 bg-amber-50/70 p-3">
@@ -1224,8 +1224,8 @@ const Expenses = () => {
         )}
 
         {/* FILTERS & CONTROLS */}
-        <div className="rounded-[28px] border border-slate-200/80 bg-white/90 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm">
-          <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+        <div className="rounded-[28px] border border-slate-200/80 bg-white/90 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
+          <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4 dark:border-slate-700">
             <button
               onClick={() => setViewMode("list")}
               className={`rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${viewMode === "list" ? "bg-slate-900 text-white shadow-lg shadow-slate-900/10" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
@@ -1274,7 +1274,7 @@ const Expenses = () => {
                   placeholder="Search expenses..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:placeholder:text-slate-400 dark:focus:bg-slate-900"
                 />
                 <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">⌕</span>
               </div>
@@ -1282,7 +1282,7 @@ const Expenses = () => {
               <select
                 value={selectedCategory}
                 onChange={e => setSelectedCategory(e.target.value)}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:focus:bg-slate-900"
               >
                 <option value="">All categories</option>
                 {EXPENSE_CATEGORIES.map(cat => (
@@ -1293,7 +1293,7 @@ const Expenses = () => {
               <select
                 value={selectedBranch}
                 onChange={e => setSelectedBranch(e.target.value)}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:focus:bg-slate-900"
               >
                 <option value="">All branches</option>
                 {branches.map(branch => (
@@ -1304,7 +1304,7 @@ const Expenses = () => {
               <select
                 value={dateRange}
                 onChange={e => setDateRange(e.target.value)}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:focus:bg-slate-900"
               >
                 <option value="today">Today</option>
                 <option value="week">This week</option>
@@ -1333,12 +1333,12 @@ const Expenses = () => {
         </div>
 
         {viewMode === "ledger" && (
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)] space-y-6">
+          <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)] space-y-6 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Finance</p>
-                <h2 className="mt-2 text-2xl font-black text-slate-900">General Ledger</h2>
-                <p className="text-sm text-slate-500">Approved expense postings and accounting movement</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-400">Finance</p>
+                <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">General Ledger</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Approved expense postings and accounting movement</p>
               </div>
               <div className="flex flex-wrap gap-2 text-sm font-bold">
                 <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{ledgerSummary.count} entries</span>
@@ -1349,34 +1349,34 @@ const Expenses = () => {
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="border-b border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/80">
                   <tr>
-                    <th className="px-4 py-3 text-left font-bold text-gray-700">Date</th>
-                    <th className="px-4 py-3 text-left font-bold text-gray-700">Description</th>
-                    <th className="px-4 py-3 text-left font-bold text-gray-700">Account</th>
-                    <th className="px-4 py-3 text-left font-bold text-gray-700">Type</th>
-                    <th className="px-4 py-3 text-right font-bold text-gray-700">Amount</th>
-                    <th className="px-4 py-3 text-left font-bold text-gray-700">Category</th>
+                    <th className="px-4 py-3 text-left font-bold text-gray-700 dark:text-slate-200">Date</th>
+                    <th className="px-4 py-3 text-left font-bold text-gray-700 dark:text-slate-200">Description</th>
+                    <th className="px-4 py-3 text-left font-bold text-gray-700 dark:text-slate-200">Account</th>
+                    <th className="px-4 py-3 text-left font-bold text-gray-700 dark:text-slate-200">Type</th>
+                    <th className="px-4 py-3 text-right font-bold text-gray-700 dark:text-slate-200">Amount</th>
+                    <th className="px-4 py-3 text-left font-bold text-gray-700 dark:text-slate-200">Category</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
                   {ledgerEntries.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-10 text-center text-gray-500">No ledger entries yet</td>
+                      <td colSpan={6} className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">No ledger entries yet</td>
                     </tr>
                   ) : (
                     ledgerEntries.map(entry => (
-                      <tr key={entry._id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-gray-700">{new Date(entry.occurredAt || entry.createdAt).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">{entry.description}</td>
-                        <td className="px-4 py-3 text-gray-700">{entry.accountName || "General Expenses"}</td>
+                      <tr key={entry._id} className="transition-colors hover:bg-gray-50 dark:hover:bg-slate-800/60">
+                        <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{new Date(entry.occurredAt || entry.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900 dark:text-slate-100">{entry.description}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{entry.accountName || "General Expenses"}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${entry.postingType === "debit" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
                             {entry.postingType || "debit"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right font-black text-gray-900">{formatCurrency(entry.amount)}</td>
-                        <td className="px-4 py-3 text-gray-700">{entry.category || "miscellaneous"}</td>
+                        <td className="px-4 py-3 text-right font-black text-gray-900 dark:text-slate-100">{formatCurrency(entry.amount)}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{entry.category || "miscellaneous"}</td>
                       </tr>
                     ))
                   )}
@@ -1387,18 +1387,18 @@ const Expenses = () => {
         )}
 
         {viewMode !== "ledger" && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
           {filteredExpenses.length === 0 ? (
             <div className="p-12 text-center">
-              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-500">📊</div>
-              <p className="text-lg font-black text-slate-700">No expenses found</p>
-              <p className="mt-1 text-sm text-slate-500">Try adjusting the filters or add a new expense.</p>
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-500 dark:bg-slate-800 dark:text-slate-300">📊</div>
+              <p className="text-lg font-black text-slate-700 dark:text-slate-200">No expenses found</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Try adjusting the filters or add a new expense.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left">
-                  <tr className="border-b border-slate-200">
+                <thead className="bg-slate-50 text-left dark:bg-slate-800/80">
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
                     <th className="px-5 py-3.5">
                       <input
                         type="checkbox"
@@ -1407,20 +1407,20 @@ const Expenses = () => {
                         className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                       />
                     </th>
-                    <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Date</th>
-                    <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Description</th>
-                    <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Category</th>
-                    <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Supplier</th>
-                    <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Payment</th>
-                    <th className="px-5 py-3.5 text-right text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Amount</th>
-                    <th className="px-5 py-3.5 text-center text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Status</th>
-                    <th className="px-5 py-3.5 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Created by</th>
-                    <th className="px-5 py-3.5 text-center text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Actions</th>
+                    <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">Date</th>
+                    <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">Description</th>
+                    <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">Category</th>
+                    <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">Supplier</th>
+                    <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">Payment</th>
+                    <th className="px-5 py-3.5 text-right text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">Amount</th>
+                    <th className="px-5 py-3.5 text-center text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">Status</th>
+                    <th className="px-5 py-3.5 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">Created by</th>
+                    <th className="px-5 py-3.5 text-center text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                   {filteredExpenses.map(expense => (
-                    <tr key={expense._id} className="bg-white transition-colors hover:bg-slate-50/80">
+                    <tr key={expense._id} className="bg-white transition-colors hover:bg-slate-50/80 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800/80">
                       <td className="px-5 py-4">
                         <input
                           type="checkbox"
@@ -1429,37 +1429,37 @@ const Expenses = () => {
                           className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                         />
                       </td>
-                      <td className="px-5 py-4 font-bold text-slate-900">{new Date(expense.date).toLocaleDateString()}</td>
-                      <td className="px-5 py-4 text-slate-700">
-                        <p className="font-semibold text-slate-800">{expense.description}</p>
-                        {expense.notes && <p className="mt-1 text-xs text-slate-500">{expense.notes}</p>}
+                      <td className="px-5 py-4 font-bold text-slate-900 dark:text-slate-100">{new Date(expense.date).toLocaleDateString()}</td>
+                      <td className="px-5 py-4 text-slate-700 dark:text-slate-200">
+                        <p className="font-semibold text-slate-800 dark:text-slate-100">{expense.description}</p>
+                        {expense.notes && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{expense.notes}</p>}
                       </td>
                       <td className="px-5 py-4">
                         <span className="inline-flex rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-sky-700 ring-1 ring-inset ring-sky-200">
                           {EXPENSE_CATEGORIES.find(c => c.value === expense.category)?.label || expense.category}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-slate-700">
+                      <td className="px-5 py-4 text-slate-700 dark:text-slate-200">
                         {expense.supplier?.name ? (
                           <div>
-                            <p className="font-semibold text-sm text-slate-800">{expense.supplier.name}</p>
-                            {expense.supplier.phone && <p className="text-xs text-slate-500">{expense.supplier.phone}</p>}
+                            <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">{expense.supplier.name}</p>
+                            {expense.supplier.phone && <p className="text-xs text-slate-500 dark:text-slate-400">{expense.supplier.phone}</p>}
                           </div>
                         ) : (
-                          <span className="text-sm text-slate-400">—</span>
+                          <span className="text-sm text-slate-400 dark:text-slate-500">—</span>
                         )}
                       </td>
-                      <td className="px-5 py-4 font-semibold text-slate-700">
+                      <td className="px-5 py-4 font-semibold text-slate-700 dark:text-slate-200">
                         {PAYMENT_METHODS.find(m => m.value === expense.paymentMethod)?.label || expense.paymentMethod}
                       </td>
-                      <td className="px-5 py-4 text-right font-black text-slate-900">{formatCurrency(expense.amount)}</td>
+                      <td className="px-5 py-4 text-right font-black text-slate-900 dark:text-slate-100">{formatCurrency(expense.amount)}</td>
                       <td className="px-5 py-4 text-center">
                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${getStatusBadgeColor(expense.status)}`}>
                           {getStatusIcon(expense.status)} {EXPENSE_STATUS_META[(expense.status || "pending").toLowerCase()]?.label || "Pending"}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-sm text-slate-700">
-                        <p className="font-semibold text-slate-800">{expense.createdBy?.name || "Unknown"}</p>
+                      <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">
+                        <p className="font-semibold text-slate-800 dark:text-slate-100">{expense.createdBy?.name || "Unknown"}</p>
                         {expense.approvedBy && <p className="text-xs text-emerald-600">Approved by: {expense.approvedBy.name}</p>}
                       </td>
                       <td className="px-5 py-4 text-center">
@@ -1501,8 +1501,8 @@ const Expenses = () => {
         {viewMode === "trends" && trends && (
           <div className="space-y-6">
             {/* Monthly Trend Line Chart */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Monthly Expense Trend (Last 6 Months)</h2>
+            <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-slate-100">Monthly Expense Trend (Last 6 Months)</h2>
               <ResponsiveContainer width="100%" height={350}>
                 <LineChart data={trends.trend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -1528,29 +1528,29 @@ const Expenses = () => {
                   />
                 </LineChart>
               </ResponsiveContainer>
-              <div className="grid grid-cols-3 gap-4 mt-6">
-                <div className="p-4 bg-blue-50 rounded-xl">
-                  <p className="text-xs text-gray-600">Highest Month</p>
-                  <p className="font-black text-lg text-blue-600">{trends.highestMonth?.month}</p>
-                  <p className="text-sm font-bold text-gray-900">{formatCurrency(trends.highestMonth?.total)}</p>
+              <div className="mt-6 grid grid-cols-3 gap-4">
+                <div className="rounded-xl bg-blue-50 p-4 dark:bg-blue-950/30">
+                  <p className="text-xs text-gray-600 dark:text-slate-300">Highest Month</p>
+                  <p className="text-lg font-black text-blue-600">{trends.highestMonth?.month}</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-slate-100">{formatCurrency(trends.highestMonth?.total)}</p>
                 </div>
-                <div className="p-4 bg-amber-50 rounded-xl">
-                  <p className="text-xs text-gray-600">Lowest Month</p>
-                  <p className="font-black text-lg text-amber-600">{trends.lowestMonth?.month}</p>
-                  <p className="text-sm font-bold text-gray-900">{formatCurrency(trends.lowestMonth?.total)}</p>
+                <div className="rounded-xl bg-amber-50 p-4 dark:bg-amber-950/30">
+                  <p className="text-xs text-gray-600 dark:text-slate-300">Lowest Month</p>
+                  <p className="text-lg font-black text-amber-600">{trends.lowestMonth?.month}</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-slate-100">{formatCurrency(trends.lowestMonth?.total)}</p>
                 </div>
-                <div className="p-4 bg-emerald-50 rounded-xl">
-                  <p className="text-xs text-gray-600">Average Monthly</p>
-                  <p className="font-black text-lg text-emerald-600">-</p>
-                  <p className="text-sm font-bold text-gray-900">{formatCurrency(trends.averageMonthly)}</p>
+                <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
+                  <p className="text-xs text-gray-600 dark:text-slate-300">Average Monthly</p>
+                  <p className="text-lg font-black text-emerald-600">-</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-slate-100">{formatCurrency(trends.averageMonthly)}</p>
                 </div>
               </div>
             </div>
 
             {/* Category Breakdown Pie Chart */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Spending by Category</h2>
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-slate-100">Spending by Category</h2>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -1571,8 +1571,8 @@ const Expenses = () => {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Top Spending Categories</h2>
+              <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-slate-100">Top Spending Categories</h2>
                 <div className="space-y-3">
                   {trends.categoryBreakdown?.sort((a, b) => b.total - a.total).map((item, idx) => (
                     <div key={idx} className="space-y-1">
@@ -1625,8 +1625,8 @@ const Expenses = () => {
             </div>
 
             {/* Reconciliation Chart */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Reconciliation Status Overview</h2>
+            <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-slate-100">Reconciliation Status Overview</h2>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart
                   data={[
@@ -1649,9 +1649,9 @@ const Expenses = () => {
             </div>
 
             {/* Matched & Unmatched Lists */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-green-200">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">✓ Matched Expenses ({reconciliation.matched.length})</h2>
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="rounded-2xl border border-green-200 bg-white p-6 shadow-sm dark:border-green-900/60 dark:bg-slate-900">
+                <h2 className="mb-4 text-lg font-bold text-gray-900 dark:text-slate-100">✓ Matched Expenses ({reconciliation.matched.length})</h2>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {reconciliation.matched.length > 0 ? reconciliation.matched.map(expense => (
                     <div key={expense._id} className="p-3 bg-green-50 rounded-lg border border-green-200 hover:bg-green-100 transition-colors">
@@ -1667,8 +1667,8 @@ const Expenses = () => {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-amber-200">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">⚠ Unmatched Expenses ({reconciliation.unmatched.length})</h2>
+              <div className="rounded-2xl border border-amber-200 bg-white p-6 shadow-sm dark:border-amber-900/60 dark:bg-slate-900">
+                <h2 className="mb-4 text-lg font-bold text-gray-900 dark:text-slate-100">⚠ Unmatched Expenses ({reconciliation.unmatched.length})</h2>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {reconciliation.unmatched.length > 0 ? reconciliation.unmatched.map(expense => (
                     <div key={expense._id} className="p-3 bg-amber-50 rounded-lg border border-amber-200 hover:bg-amber-100 transition-colors">
@@ -1718,8 +1718,8 @@ const Expenses = () => {
             </div>
 
             {/* Budget vs Actual Comparison Chart */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Budget vs Actual by Category</h2>
+            <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-slate-100">Budget vs Actual by Category</h2>
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart data={Object.entries(budgetAnalysis.byCategory).map(([cat, data]) => ({
                   category: EXPENSE_CATEGORIES.find(c => c.value === cat)?.label?.split('/')[0],
@@ -1803,16 +1803,16 @@ const Expenses = () => {
             )}
 
             {/* Pending Procurement Expenses List */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-6 border-b border-gray-100">
-                <h2 className="text-xl font-bold text-gray-900">📦 Pending Procurement Expenses</h2>
-                <p className="text-sm text-gray-600 mt-1">Goods received but awaiting manager approval</p>
+            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <div className="border-b border-gray-100 p-6 dark:border-slate-700">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">📦 Pending Procurement Expenses</h2>
+                <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">Goods received but awaiting manager approval</p>
               </div>
 
               {pendingProcurements.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
+                <div className="p-8 text-center text-gray-500 dark:text-slate-400">
                   <p className="text-lg font-bold">✓ All procurement expenses approved!</p>
-                  <p className="text-sm mt-1">No pending approvals at this time</p>
+                  <p className="mt-1 text-sm">No pending approvals at this time</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
