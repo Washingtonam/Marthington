@@ -59,6 +59,13 @@ router.get(
 );
 
 router.patch(
+  "/:id/status",
+  protect,
+  checkPermission("canManagePayments"),
+  salesController.updateSaleStatus
+);
+
+router.patch(
   "/:id/payment",
   protect,
   salesController.updatePaymentMethod

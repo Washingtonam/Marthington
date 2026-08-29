@@ -9,14 +9,17 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('recharts')) return 'recharts-vendor';
-            if (id.includes('react-router')) return 'router-vendor';
-            return 'vendor'; // everything else goes here
-          }
+          if (!id.includes('node_modules')) return;
+
+          if (id.includes('recharts')) return 'recharts-vendor';
+          if (id.includes('react-router')) return 'router-vendor';
+          if (id.includes('pdf') || id.includes('html2pdf') || id.includes('jspdf') || id.includes('html2canvas')) return 'pdf-vendor';
+          if (id.includes('react-dom') || id.includes('react') || id.includes('@vite') || id.includes('scheduler')) return 'react-vendor';
+
+          return 'vendor';
         }
       }
     },
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 800,
   }
 });

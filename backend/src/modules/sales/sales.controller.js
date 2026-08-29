@@ -329,6 +329,50 @@ const createSale = async (req, res) => {
   }
 };
 
+const updateSaleStatus = async (req, res) => {
+  try {
+    const isAuthorized = req.user.role === "owner" || req.user.role === "super_admin" || req.user.permissions?.canManagePayments === true;
+    if (!isAuthorized) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const sale = await Sale.findOne({ _id: req.params.id, business: req.user.businessId, isDeleted: { $ne: true } });
+    if (!sale) {
+      return res.status(404).json({ message: "Sale not found" });
+    }
+
+    const status = String(req.body?.status || "").trim().toLowerCase();
+    if (!['pending', 'posted', 'reversed'].includes(status)) {
+      return res.status(400).json({ message: "Invalid sale status" });
+    }
+
+    const ledgerEntry = await Transaction.findOne({
+      businessId: req.user.businessId,
+      sourceModel: "Sale",
+      sourceId: sale._id
+    });
+
+    if (ledgerEntry) {
+      ledgerEntry.status = status;
+      await ledgerEntry.save();
+    } else {
+      await Transaction.create({
+        ...buildSaleLedgerEntry({
+          sale,
+          businessId: req.user.businessId,
+          createdBy: req.user.id,
+          status,
+          notePrefix: "Sale status update"
+        })
+      });
+    }
+
+    res.json({ message: "Sale status updated", sale: { ...sale.toObject(), status } });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const updatePaymentMethod = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -782,4 +826,4 @@ const getPublicSale = async (req, res) => {
   }
 };
 
-export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updatePaymentMethod };
+export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updateSaleStatus, updatePaymentMethod };

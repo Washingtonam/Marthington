@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { getReport, REPORT_TYPES } from "../api/reportApi.js";
 import { updateTransactionStatus } from "../api/transactions.js";
+import { updateSaleStatus } from "../api/sales.js";
 import StatusToast from "../components/StatusToast.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated, subscribeToSalesUpdates } from "../utils/salesEvents.js";
@@ -210,8 +211,68 @@ const Reports = () => {
     });
   };
 
+  const isLedgerTransaction = (transaction = {}) => Boolean(
+    transaction.businessId ||
+    transaction.sourceModel ||
+    transaction.sourceId ||
+    transaction.transactionType ||
+    transaction.postingType ||
+    transaction.accountName ||
+    transaction.type === "expense"
+  );
+
   const handleTransactionStatusChange = async (transaction, nextStatus) => {
-    if (!transaction?._id || !nextStatus || nextStatus === transaction.status) return;
+    if (!transaction?._id || !nextStatus) return;
+
+    if (!isLedgerTransaction(transaction)) {
+      try {
+        const isSaleRecord = Boolean(transaction?.items || transaction?.totalAmount || transaction?.receiptId || transaction?.paymentMethod);
+        if (!isSaleRecord) {
+          setTransactionStatusNotice({
+            type: "info",
+            text: "This entry is not updateable from the ledger status selector."
+          });
+          return;
+        }
+
+        const normalizedNextStatus = nextStatus === "completed" || nextStatus === "paid" ? "posted" : nextStatus;
+        if (!normalizedNextStatus) return;
+
+        setUpdatingTransactionId(transaction._id);
+        setTransactionStatusNotice({ type: "info", text: `Updating sale to ${normalizedNextStatus}...` });
+
+        const response = await updateSaleStatus(transaction._id, normalizedNextStatus);
+        const savedStatus = response?.sale?.status || normalizedNextStatus;
+
+        setReports((prev) => {
+          if (!prev?.raw) return prev;
+          const nextRaw = { ...prev.raw };
+          if (Array.isArray(nextRaw.sales)) {
+            nextRaw.sales = nextRaw.sales.map((sale) => sale._id === transaction._id ? { ...sale, status: savedStatus } : sale);
+          }
+          return { ...prev, raw: nextRaw };
+        });
+
+        notifySalesUpdated();
+        setTransactionStatusNotice({
+          type: "success",
+          text: `Sale status saved as ${savedStatus.charAt(0).toUpperCase() + savedStatus.slice(1)}.`
+        });
+      } catch (err) {
+        setTransactionStatusNotice({
+          type: "error",
+          text: err.message || "Failed to update sale status."
+        });
+      } finally {
+        setUpdatingTransactionId(null);
+        window.setTimeout(() => {
+          setTransactionStatusNotice((current) => current && current.type === "success" ? null : current);
+        }, 3000);
+      }
+      return;
+    }
+
+    if (nextStatus === transaction.status) return;
 
     const normalizedNextStatus = nextStatus === "completed" || nextStatus === "paid" ? "posted" : nextStatus;
     const previousStatus = transaction.status === "completed" || transaction.status === "paid" ? "posted" : (transaction.status || "pending");
@@ -1872,7 +1933,7 @@ const Reports = () => {
                             }`}>
                               {transaction.status === "completed" || transaction.status === "paid" ? "Posted" : transaction.status === "reversed" ? "Reversed" : transaction.status === "posted" ? "Posted" : "Pending"}
                             </span>
-                            {canManageTransactionStatus && (
+                            {canManageTransactionStatus && isLedgerTransaction(transaction) && (
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[9px] uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500" title="Finance-only ledger status control">Ledger</span>
                                 <select

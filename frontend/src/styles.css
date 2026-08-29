@@ -1546,13 +1546,13 @@ label input:focus {
 
 .auth-switch {
   text-align: center;
+}
 
 /* Allow the auth form to expand on large viewports so industry cards can show in 3 columns */
 @media (min-width: 1100px) {
   .auth-form {
     max-width: 720px;
   }
-}
 }
 
 .auth-switch a {
