@@ -341,10 +341,13 @@ const updateSaleStatus = async (req, res) => {
       return res.status(404).json({ message: "Sale not found" });
     }
 
-    const status = String(req.body?.status || "").trim().toLowerCase();
-    if (!['pending', 'posted', 'reversed'].includes(status)) {
+    const nextStatus = String(req.body?.status || "").trim().toLowerCase();
+    if (!["pending", "posted", "reversed"].includes(nextStatus)) {
       return res.status(400).json({ message: "Invalid sale status" });
     }
+
+    sale.status = nextStatus;
+    await sale.save();
 
     const ledgerEntry = await Transaction.findOne({
       businessId: req.user.businessId,
@@ -353,7 +356,7 @@ const updateSaleStatus = async (req, res) => {
     });
 
     if (ledgerEntry) {
-      ledgerEntry.status = status;
+      ledgerEntry.status = nextStatus;
       await ledgerEntry.save();
     } else {
       await Transaction.create({
@@ -361,13 +364,13 @@ const updateSaleStatus = async (req, res) => {
           sale,
           businessId: req.user.businessId,
           createdBy: req.user.id,
-          status,
+          status: nextStatus,
           notePrefix: "Sale status update"
         })
       });
     }
 
-    res.json({ message: "Sale status updated", sale: { ...sale.toObject(), status } });
+    res.json({ message: "Sale status updated", sale: { ...sale.toObject(), status: nextStatus } });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

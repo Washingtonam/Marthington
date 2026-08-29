@@ -148,6 +148,13 @@ const saleSchema = new mongoose.Schema(
       index: true
     },
 
+    status: {
+      type: String,
+      enum: ["pending", "posted", "reversed"],
+      default: "pending",
+      index: true
+    },
+
     clientOperationId: {
       type: String
     },
