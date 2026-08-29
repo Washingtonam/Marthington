@@ -905,8 +905,8 @@ const Reports = () => {
   const renderMiniChart = (type, data, height = 104) => {
     if (type === "area") {
       return (
-        <div style={{ width: "100%", height }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ width: "100%", height, minHeight: height }}>
+          <ResponsiveContainer width="100%" height="100%" minHeight={height}>
             <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="miniRevenue" x1="0" y1="0" x2="0" y2="1">
@@ -927,8 +927,8 @@ const Reports = () => {
 
     if (type === "bar") {
       return (
-        <div style={{ width: "100%", height }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ width: "100%", height, minHeight: height }}>
+          <ResponsiveContainer width="100%" height="100%" minHeight={height}>
             <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.15)" />
               <XAxis dataKey="name" hide />
@@ -942,8 +942,8 @@ const Reports = () => {
     }
 
     return (
-      <div style={{ width: "100%", height }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <div style={{ width: "100%", height, minHeight: height }}>
+        <ResponsiveContainer width="100%" height="100%" minHeight={height}>
           <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.15)" />
             <XAxis dataKey="name" hide />
@@ -1525,8 +1525,8 @@ const Reports = () => {
               <p className="text-sm text-slate-500 dark:text-slate-400">Transaction volume & revenue by business hour (8 AM - 8 PM)</p>
             </div>
 
-            <div style={{ width: "100%", height: 240 }}>
-              <ResponsiveContainer width="100%" height="100%">
+            <div style={{ width: "100%", height: 240, minHeight: 240 }}>
+              <ResponsiveContainer width="100%" height="100%" minHeight={240}>
                 <BarChart data={hourlyPeakData} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="peakRevenue" x1="0" y1="0" x2="0" y2="1">
@@ -1588,8 +1588,8 @@ const Reports = () => {
               </div>
             </div>
 
-            <div style={{ width: "100%", height: 240 }}>
-              <ResponsiveContainer width="100%" height="100%">
+            <div style={{ width: "100%", height: 240, minHeight: 240 }}>
+              <ResponsiveContainer width="100%" height="100%" minHeight={240}>
                 <AreaChart data={forecastData.forecast} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="forecastGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1701,8 +1701,8 @@ const Reports = () => {
               <div>
                 <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">Category Revenue Distribution</h3>
                 {categoryTrends.categories.length > 0 ? (
-                  <div style={{ width: "100%", height: 250 }}>
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div style={{ width: "100%", height: 250, minHeight: 250 }}>
+                    <ResponsiveContainer width="100%" height="100%" minHeight={250}>
                       <PieChart>
                         <Pie
                           data={categoryTrends.categories}
