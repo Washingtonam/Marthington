@@ -16,6 +16,7 @@ import {
   Legend,
 } from "recharts";
 import { getReport, REPORT_TYPES } from "../api/reportApi.js";
+import { updateTransactionStatus } from "../api/transactions.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { subscribeToSalesUpdates } from "../utils/salesEvents.js";
 
@@ -75,6 +76,7 @@ const Reports = () => {
   const [endDate, setEndDate] = useState(null);
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [transactionFilter, setTransactionFilter] = useState("all");
+  const [transactionStatusFilter, setTransactionStatusFilter] = useState("all");
   const [compareToLastPeriod, setCompareToLastPeriod] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState("all");
   const [selectedStaff, setSelectedStaff] = useState("all");
@@ -84,7 +86,20 @@ const Reports = () => {
   const [timelineSearch, setTimelineSearch] = useState("");
   const deferredTimelineSearch = useDeferredValue(timelineSearch);
   const [timelinePage, setTimelinePage] = useState(1);
+  const [updatingTransactionId, setUpdatingTransactionId] = useState(null);
   const [dailyDate, setDailyDate] = useState(new Date().toISOString().slice(0, 10));
+  const currentUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("bms_user") || "null");
+    } catch {
+      return null;
+    }
+  }, []);
+  const canManageTransactionStatus = Boolean(
+    currentUser?.role === "owner" ||
+    currentUser?.role === "super_admin" ||
+    currentUser?.permissions?.canManagePayments
+  );
   const [dailyAnalysis, setDailyAnalysis] = useState(null);
   const [summaryMode, setSummaryMode] = useState("daily");
   const [showCustomizationMenu, setShowCustomizationMenu] = useState(false);
@@ -175,6 +190,47 @@ const Reports = () => {
     const start = fmt.format(startDate);
     const end = endDate ? fmt.format(endDate) : start;
     return startDate.toDateString() === endDate?.toDateString() ? start : `${start} - ${end}`;
+  };
+
+  const updateLocalTransactionStatus = (transactionId, nextStatus) => {
+    setReports((prev) => {
+      if (!prev?.raw) return prev;
+
+      const nextRaw = { ...prev.raw };
+      if (Array.isArray(nextRaw.transactions)) {
+        nextRaw.transactions = nextRaw.transactions.map((tx) => tx._id === transactionId ? { ...tx, status: nextStatus } : tx);
+      }
+      if (Array.isArray(nextRaw.sales)) {
+        nextRaw.sales = nextRaw.sales.map((tx) => tx._id === transactionId ? { ...tx, status: nextStatus } : tx);
+      }
+
+      return { ...prev, raw: nextRaw };
+    });
+  };
+
+  const handleTransactionStatusChange = async (transaction, nextStatus) => {
+    if (!transaction?._id || !nextStatus || nextStatus === transaction.status) return;
+
+    setUpdatingTransactionId(transaction._id);
+
+    try {
+      await updateTransactionStatus(transaction._id, nextStatus);
+      updateLocalTransactionStatus(transaction._id, nextStatus);
+    } catch (err) {
+      alert(err.message || "Failed to update transaction status");
+    } finally {
+      setUpdatingTransactionId(null);
+    }
+  };
+
+  const getProductStatusLabel = (product) => {
+    if (product?.isService || product?.itemType === "service") {
+      return "Service performance";
+    }
+
+    if (product?.stock > 5) return "Good stock";
+    if (product?.stock > 0) return "Low stock";
+    return "Out of stock";
   };
 
   // Export to CSV
@@ -599,6 +655,13 @@ const Reports = () => {
       transactions = transactions.filter(t => t.type === "expense");
     }
 
+    if (transactionStatusFilter !== "all") {
+      transactions = transactions.filter((transaction) => {
+        const normalizedStatus = transaction.status === "completed" || transaction.status === "paid" ? "posted" : (transaction.status || "pending");
+        return normalizedStatus === transactionStatusFilter;
+      });
+    }
+
     if (deferredTimelineSearch.trim()) {
       const query = deferredTimelineSearch.trim().toLowerCase();
       transactions = transactions.filter((transaction) => [
@@ -610,7 +673,7 @@ const Reports = () => {
     }
 
     return transactions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [multiDimensionalFiltered, transactionFilter, deferredTimelineSearch]);
+  }, [multiDimensionalFiltered, transactionFilter, transactionStatusFilter, deferredTimelineSearch]);
 
   const timelinePageSize = 20;
   const paginatedTimelineTransactions = useMemo(
@@ -620,7 +683,7 @@ const Reports = () => {
 
   useEffect(() => {
     setTimelinePage(1);
-  }, [deferredTimelineSearch, transactionFilter, selectedBranch, selectedStaff, selectedCategory, selectedPaymentMethod, startDate, endDate]);
+  }, [deferredTimelineSearch, transactionFilter, transactionStatusFilter, selectedBranch, selectedStaff, selectedCategory, selectedPaymentMethod, startDate, endDate]);
 
   // Staff performance leaderboard
   const staffLeaderboard = useMemo(() => {
@@ -1180,23 +1243,24 @@ const Reports = () => {
       </div>
 
       {/* MULTI-DIMENSION FILTER TOOLBAR */}
-      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+      <div className="reports-filter-shell mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Report filters</span>
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Filter drawer</span>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{[selectedBranch !== "all", selectedStaff !== "all", selectedCategory !== "all", selectedPaymentMethod !== "all"].filter(Boolean).length || "No"} filters active</p>
           </div>
           <button
             type="button"
             onClick={() => setShowAdvancedFilters((visible) => !visible)}
+            aria-expanded={showAdvancedFilters}
             className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             {showAdvancedFilters ? "Hide filters" : "Show filters"}
           </button>
         </div>
-        {showAdvancedFilters && <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {showAdvancedFilters && <div className="reports-filter-grid mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {/* Branch Filter */}
-          <div>
+          <div className="reports-filter-field">
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Branch</label>
             <select
               value={selectedBranch}
@@ -1211,7 +1275,7 @@ const Reports = () => {
           </div>
 
           {/* Staff Filter */}
-          <div>
+          <div className="reports-filter-field">
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Staff / Cashier</label>
             <select
               value={selectedStaff}
@@ -1226,7 +1290,7 @@ const Reports = () => {
           </div>
 
           {/* Category Filter */}
-          <div>
+          <div className="reports-filter-field">
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Product Category</label>
             <select
               value={selectedCategory}
@@ -1240,7 +1304,7 @@ const Reports = () => {
             </select>
           </div>
 
-          <div>
+          <div className="reports-filter-field">
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Payment method</label>
             <select
               value={selectedPaymentMethod}
@@ -1660,7 +1724,7 @@ const Reports = () => {
                             {formatCurrency(product.totalRevenue)}
                           </p>
                               <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {product.isService ? "Service performance" : product.stock > 5 ? "Good stock" : product.stock > 0 ? "Low stock" : "Out of stock"}
+                                {getProductStatusLabel(product)}
                               </p>
                         </div>
                       </div>
@@ -1689,20 +1753,52 @@ const Reports = () => {
                   placeholder="Search transactions"
                   className="w-44 rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
                 />
-                {["all", "sales", "expenses"].map((filter) => (
+                {[
+                  { value: "all", label: "All" },
+                  { value: "sales", label: "Sales Only" },
+                  { value: "expenses", label: "Expenses Only" }
+                ].map((filter) => (
                   <button
-                    key={filter}
-                    onClick={() => setTransactionFilter(filter)}
+                    key={filter.value}
+                    onClick={() => setTransactionFilter(filter.value)}
                     className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                      transactionFilter === filter
+                      transactionFilter === filter.value
                         ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-900"
                         : "border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
                     }`}
                   >
-                    {filter === "all" ? "All" : filter === "sales" ? "Sales Only" : "Expenses Only"}
+                    {filter.label}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setTransactionStatusFilter("pending")}
+                  className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                    transactionStatusFilter === "pending"
+                      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
+                      : "border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  Pending Only
+                </button>
+                <select
+                  value={transactionStatusFilter}
+                  onChange={(e) => setTransactionStatusFilter(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                  aria-label="Filter transaction timeline by ledger status"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="posted">Posted</option>
+                  <option value="reversed">Reversed</option>
+                </select>
               </div>
+            </div>
+
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-yellow-400"></span>Pending</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>Posted</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-red-500"></span>Reversed</span>
             </div>
 
             {timelineTransactions.length > 0 ? (
@@ -1737,13 +1833,34 @@ const Reports = () => {
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{transaction.createdBy?.name || "System"}</td>
                         <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-slate-100">{formatCurrency(transaction.totalAmount || transaction.amount)}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${
-                            transaction.status === "completed" || transaction.status === "posted"
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                              : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                          }`}>
-                            {transaction.status === "completed" ? "Completed" : transaction.status === "posted" ? "Posted" : "Pending"}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${
+                              ["completed", "posted"].includes(transaction.status) || transaction.status === "paid"
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                : transaction.status === "reversed"
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                  : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            }`}>
+                              {transaction.status === "completed" || transaction.status === "paid" ? "Posted" : transaction.status === "reversed" ? "Reversed" : transaction.status === "posted" ? "Posted" : "Pending"}
+                            </span>
+                            {canManageTransactionStatus && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500" title="Finance-only ledger status control">Ledger</span>
+                                <select
+                                  value={transaction.status === "completed" || transaction.status === "paid" ? "posted" : transaction.status || "pending"}
+                                  onChange={(event) => handleTransactionStatusChange(transaction, event.target.value)}
+                                  disabled={updatingTransactionId === transaction._id}
+                                  className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                                  aria-label={`Update status for transaction ${transaction.receiptId || transaction._id}`}
+                                  title="Update the financial ledger status for this transaction"
+                                >
+                                  <option value="pending">Pending</option>
+                                  <option value="posted">Posted</option>
+                                  <option value="reversed">Reversed</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

@@ -13,5 +13,10 @@ export const getLedgerEntries = async (query = {}) => {
   return request(`/transactions/ledger${suffix}`);
 };
 
+export const updateTransactionStatus = async (id, status) => request(`/transactions/${id}/status`, {
+  method: "PATCH",
+  body: JSON.stringify({ status }),
+});
+
 export const getRevenueStats = async () => request("/transactions/revenue-stats");
 export const getProfitReports = async () => request("/transactions/profit-reports");

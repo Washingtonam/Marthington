@@ -551,6 +551,22 @@ a {
   gap: 20px;
 }
 
+.reports-filter-shell {
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.reports-filter-grid {
+  padding-top: 4px;
+}
+
+.reports-filter-field {
+  min-width: 0;
+}
+
+.reports-kpi-tabs {
+  gap: 8px;
+}
+
 .reports-detail-grid > div:nth-child(-n + 3) {
   grid-column: span 12;
 }

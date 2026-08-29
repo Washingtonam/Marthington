@@ -1,5 +1,24 @@
 import Transaction from "./transaction.model.js";
 
+export const VALID_TRANSACTION_STATUSES = ["pending", "posted", "reversed"];
+
+export const normalizeTransactionStatus = (value) => {
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const aliases = {
+    completed: "posted",
+    success: "posted",
+    settled: "posted",
+    paid: "posted"
+  };
+
+  const mapped = aliases[normalized] || normalized;
+  return VALID_TRANSACTION_STATUSES.includes(mapped) ? mapped : null;
+};
+
 const assertOwner = (req, res) => {
   if (req.user.role !== "owner") {
     res.status(403).json({ message: "Forbidden" });
@@ -128,6 +147,36 @@ const getDeletedRecords = async (req, res) => {
   }
 };
 
+const updateTransactionStatus = async (req, res) => {
+  try {
+    const canManagePayments = req.user.role === "owner" || req.user.role === "super_admin" || req.user.permissions?.canManagePayments === true;
+    if (!canManagePayments) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const nextStatus = normalizeTransactionStatus(req.body?.status);
+    if (!nextStatus) {
+      return res.status(400).json({ message: "Invalid transaction status" });
+    }
+
+    const transaction = await Transaction.findOne({
+      _id: req.params.id,
+      businessId: req.user.businessId
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ message: "Transaction not found" });
+    }
+
+    transaction.status = nextStatus;
+    await transaction.save();
+
+    res.json({ message: "Transaction status updated", transaction });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const getLedgerEntries = async (req, res) => {
   try {
     const { startDate, endDate, type } = req.query;
@@ -183,5 +232,6 @@ export default {
   getProfitReports,
   deleteTransaction,
   getDeletedRecords,
+  updateTransactionStatus,
   getLedgerEntries
 };

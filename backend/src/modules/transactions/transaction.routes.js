@@ -47,6 +47,13 @@ router.get(
   transactionController.getDeletedRecords
 );
 
+router.patch(
+  "/:id/status",
+  protect,
+  checkPermission("canManagePayments"),
+  transactionController.updateTransactionStatus
+);
+
 router.delete(
   "/:id",
   protect,
