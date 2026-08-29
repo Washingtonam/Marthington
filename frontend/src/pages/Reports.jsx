@@ -17,8 +17,9 @@ import {
 } from "recharts";
 import { getReport, REPORT_TYPES } from "../api/reportApi.js";
 import { updateTransactionStatus } from "../api/transactions.js";
+import StatusToast from "../components/StatusToast.jsx";
 import { formatCurrency } from "../utils/formatters.js";
-import { subscribeToSalesUpdates } from "../utils/salesEvents.js";
+import { notifySalesUpdated, subscribeToSalesUpdates } from "../utils/salesEvents.js";
 
 const PERIOD_OPTIONS = [
   { value: "7", label: "7D" },
@@ -87,6 +88,7 @@ const Reports = () => {
   const deferredTimelineSearch = useDeferredValue(timelineSearch);
   const [timelinePage, setTimelinePage] = useState(1);
   const [updatingTransactionId, setUpdatingTransactionId] = useState(null);
+  const [transactionStatusNotice, setTransactionStatusNotice] = useState(null);
   const [dailyDate, setDailyDate] = useState(new Date().toISOString().slice(0, 10));
   const currentUser = useMemo(() => {
     try {
@@ -211,17 +213,37 @@ const Reports = () => {
   const handleTransactionStatusChange = async (transaction, nextStatus) => {
     if (!transaction?._id || !nextStatus || nextStatus === transaction.status) return;
 
+    const normalizedNextStatus = nextStatus === "completed" || nextStatus === "paid" ? "posted" : nextStatus;
+    const previousStatus = transaction.status === "completed" || transaction.status === "paid" ? "posted" : (transaction.status || "pending");
+
+    if (normalizedNextStatus === previousStatus) return;
+
     setUpdatingTransactionId(transaction._id);
+    setTransactionStatusNotice({ type: "info", text: `Updating transaction to ${normalizedNextStatus}...` });
 
     try {
-      await updateTransactionStatus(transaction._id, nextStatus);
-      updateLocalTransactionStatus(transaction._id, nextStatus);
+      const response = await updateTransactionStatus(transaction._id, normalizedNextStatus);
+      const savedStatus = response?.transaction?.status || normalizedNextStatus;
+      updateLocalTransactionStatus(transaction._id, savedStatus);
+      notifySalesUpdated();
+      setTransactionStatusNotice({
+        type: "success",
+        text: `Transaction status saved as ${savedStatus.charAt(0).toUpperCase() + savedStatus.slice(1)}.`
+      });
     } catch (err) {
-      alert(err.message || "Failed to update transaction status");
+      setTransactionStatusNotice({
+        type: "error",
+        text: err.message || "Failed to update transaction status."
+      });
     } finally {
       setUpdatingTransactionId(null);
+      window.setTimeout(() => {
+        setTransactionStatusNotice((current) => current && current.type === "success" ? null : current);
+      }, 3000);
     }
   };
+
+  const hideTransactionStatusNotice = () => setTransactionStatusNotice(null);
 
   const getProductStatusLabel = (product) => {
     if (product?.isService || product?.itemType === "service") {
@@ -1057,6 +1079,13 @@ const Reports = () => {
       </div>
 
       {error && <div className="form-error dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50">{error}</div>}
+
+      <StatusToast
+        message={transactionStatusNotice?.text}
+        type={transactionStatusNotice?.type || "success"}
+        visible={Boolean(transactionStatusNotice)}
+        onClose={hideTransactionStatusNotice}
+      />
 
       {/* EMAIL SCHEDULER MODAL */}
       {showEmailScheduler && (
