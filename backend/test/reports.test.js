@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import reportsController from '../src/modules/reports/reports.controller.js';
+import Sale from '../src/modules/sales/sale.model.js';
+import Product from '../src/modules/products/product.model.js';
+import Transaction from '../src/modules/transactions/transaction.model.js';
 import { buildReportSnapshot, buildDailyAnalysisSnapshot } from '../src/modules/reports/reports.controller.js';
 
 test('Reports: 30-day snapshot filters sales and costs to the selected period', () => {
@@ -100,4 +104,55 @@ test('Reports: daily analysis separates payment methods and subtracts expenses',
     { method: 'cash', count: 1, amount: 500 },
     { method: 'bank_transfer', count: 1, amount: 300 },
   ]);
+});
+
+test('Reports: sales query includes the sale status in the projection', async () => {
+  const originalSaleFind = Sale.find;
+  const originalProductFind = Product.find;
+  const originalTransactionFind = Transaction.find;
+
+  const sale = {
+    _id: 'sale-123',
+    totalAmount: 300,
+    createdAt: new Date(),
+    status: 'posted',
+    items: [],
+    paymentMethod: 'cash',
+    createdBy: { _id: 'staff-1', name: 'Alice' },
+  };
+
+  try {
+    Sale.find = () => ({
+      select: (projection) => {
+        assert.match(projection, /status/);
+        return {
+          populate: () => ({
+            sort: () => [sale],
+          }),
+        };
+      },
+    });
+
+    Product.find = () => [];
+    Transaction.find = () => ({ lean: () => [] });
+
+    const req = {
+      user: { businessId: 'biz-1', role: 'owner' },
+      query: {},
+    };
+
+    const res = {
+      json: (payload) => {
+        assert.ok(Array.isArray(payload.sales));
+        assert.equal(payload.sales[0].status, 'posted');
+      },
+      status: () => res,
+    };
+
+    await reportsController.getReports(req, res);
+  } finally {
+    Sale.find = originalSaleFind;
+    Product.find = originalProductFind;
+    Transaction.find = originalTransactionFind;
+  }
 });

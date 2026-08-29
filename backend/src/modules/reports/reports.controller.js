@@ -21,7 +21,7 @@ const retailSalesFilter = (businessId) => ({
   ]
 });
 
-const reportSaleProjection = "items totalAmount paymentMethod paymentReference branch createdBy createdAt receiptId customerName";
+const reportSaleProjection = "items totalAmount paymentMethod paymentReference branch createdBy createdAt receiptId customerName status";
 
 const getPeriodBoundary = (period) => {
   const now = new Date();
