@@ -329,6 +329,74 @@ const createSale = async (req, res) => {
   }
 };
 
+const bulkUpdateSaleStatus = async (req, res) => {
+  try {
+    const isAuthorized = req.user.role === "owner" || req.user.role === "super_admin" || req.user.permissions?.canManagePayments === true;
+    if (!isAuthorized) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const nextStatus = String(req.body?.status || "").trim().toLowerCase();
+    if (!["pending", "posted", "reversed"].includes(nextStatus)) {
+      return res.status(400).json({ message: "Invalid sale status" });
+    }
+
+    const saleIds = Array.isArray(req.body?.saleIds) ? req.body.saleIds.filter(Boolean) : [];
+    if (!saleIds.length) {
+      return res.status(400).json({ message: "No sales selected" });
+    }
+
+    const sales = await Sale.find({
+      _id: { $in: saleIds },
+      business: req.user.businessId,
+      isDeleted: { $ne: true }
+    });
+
+    if (!sales.length) {
+      return res.status(404).json({ message: "No matching sales found" });
+    }
+
+    const updatedSales = [];
+
+    for (const sale of sales) {
+      sale.status = nextStatus;
+      await sale.save();
+
+      const ledgerEntry = await Transaction.findOne({
+        businessId: req.user.businessId,
+        sourceModel: "Sale",
+        sourceId: sale._id
+      });
+
+      if (ledgerEntry) {
+        ledgerEntry.status = nextStatus;
+        await ledgerEntry.save();
+      } else {
+        await Transaction.create({
+          ...buildSaleLedgerEntry({
+            sale,
+            businessId: req.user.businessId,
+            createdBy: req.user.id,
+            status: nextStatus,
+            notePrefix: "Bulk sale status update"
+          })
+        });
+      }
+
+      updatedSales.push({ ...sale.toObject(), status: nextStatus });
+    }
+
+    res.json({
+      message: "Sale statuses updated",
+      status: nextStatus,
+      updatedCount: updatedSales.length,
+      sales: updatedSales
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const updateSaleStatus = async (req, res) => {
   try {
     const isAuthorized = req.user.role === "owner" || req.user.role === "super_admin" || req.user.permissions?.canManagePayments === true;
@@ -829,4 +897,4 @@ const getPublicSale = async (req, res) => {
   }
 };
 
-export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updateSaleStatus, updatePaymentMethod };
+export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updateSaleStatus, bulkUpdateSaleStatus, updatePaymentMethod };

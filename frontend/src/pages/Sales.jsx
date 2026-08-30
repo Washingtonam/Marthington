@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLocation, useNavigate } from "react-router-dom";
 import request from "../api/client.js";
-import { updateSaleStatus } from "../api/sales.js";
+import { bulkUpdateSaleStatus, updateSaleStatus } from "../api/sales.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated } from "../utils/salesEvents.js";
 
@@ -46,6 +46,8 @@ const Sales = () => {
   const [paymentReference, setPaymentReference] = useState("");
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [updatingSaleStatusId, setUpdatingSaleStatusId] = useState(null);
+  const [selectedSaleIds, setSelectedSaleIds] = useState(new Set());
+  const [bulkUpdating, setBulkUpdating] = useState(false);
   const { user } = useAuth();
   const isOwner = user?.role === "owner" || user?.role === "super_admin";
   const canManageSaleStatus = Boolean(
@@ -386,6 +388,68 @@ const Sales = () => {
     }
   };
 
+  const toggleSaleSelection = (saleId) => {
+    setSelectedSaleIds((current) => {
+      const next = new Set(current);
+      if (next.has(saleId)) {
+        next.delete(saleId);
+      } else {
+        next.add(saleId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisibleSales = () => {
+    const visibleIds = filteredSales.map((sale) => sale._id);
+
+    setSelectedSaleIds((current) => {
+      const next = new Set(current);
+      const allSelected = visibleIds.length > 0 && visibleIds.every((id) => next.has(id));
+
+      if (allSelected) {
+        visibleIds.forEach((id) => next.delete(id));
+      } else {
+        visibleIds.forEach((id) => next.add(id));
+      }
+
+      return next;
+    });
+  };
+
+  const handleBulkSaleStatusUpdate = async (nextStatus) => {
+    if (!nextStatus || selectedSaleIds.size === 0) return;
+
+    const selectedCount = selectedSaleIds.size;
+    const confirmText = nextStatus === "posted"
+      ? `Post ${selectedCount} selected sale${selectedCount > 1 ? "s" : ""}?`
+      : `Reverse ${selectedCount} selected sale${selectedCount > 1 ? "s" : ""}?`;
+
+    if (!window.confirm(confirmText)) return;
+
+    try {
+      setBulkUpdating(true);
+      const response = await bulkUpdateSaleStatus(Array.from(selectedSaleIds), nextStatus);
+      const normalizedStatus = normalizeSaleStatus(response?.status || nextStatus);
+
+      setSales((currentSales) =>
+        currentSales.map((sale) =>
+          selectedSaleIds.has(sale._id)
+            ? { ...sale, status: normalizedStatus }
+            : sale
+        )
+      );
+
+      setStatusMessage(`Updated ${response?.updatedCount || selectedSaleIds.size} sales to ${STATUS_META[normalizedStatus].label}.`);
+      setSelectedSaleIds(new Set());
+      notifySalesUpdated();
+    } catch (err) {
+      setStatusMessage(err.message || "Unable to update selected sale statuses");
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
   const filteredSales = sales;
 
   if (loading) {
@@ -641,6 +705,33 @@ const Sales = () => {
             </div>
           </div>
 
+          {canManageSaleStatus && viewMode === "active" && selectedSaleIds.size > 0 && (
+            <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-950/60 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                {selectedSaleIds.size} selected
+              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleBulkSaleStatusUpdate("posted")}
+                  disabled={bulkUpdating}
+                  className="rounded-full bg-emerald-600 px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {bulkUpdating ? "Updating..." : "Post selected"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBulkSaleStatusUpdate("reversed")}
+                  disabled={bulkUpdating}
+                  className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+                >
+                  Reverse selected
+                </button>
+              </div>
+            </div>
+          )}
+
           {statusMessage && (
             <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
               {statusMessage}
@@ -652,7 +743,16 @@ const Sales = () => {
           )}
 
           <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-950/60">
-            <div className="hidden grid-cols-[1.25fr_1.5fr_0.9fr_1fr_1fr_1.1fr] gap-0 border-b border-slate-200 bg-slate-100/80 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400 md:grid">
+            <div className="hidden grid-cols-[44px_1.25fr_1.5fr_0.9fr_1fr_1fr_1.1fr] gap-0 border-b border-slate-200 bg-slate-100/80 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400 md:grid">
+              <div className="flex items-center justify-center px-2 py-3">
+                <input
+                  type="checkbox"
+                  checked={filteredSales.length > 0 && filteredSales.every((sale) => selectedSaleIds.has(sale._id))}
+                  onChange={toggleSelectAllVisibleSales}
+                  className="h-4 w-4 rounded border-slate-300 accent-emerald-600 dark:border-slate-600"
+                  aria-label="Select all visible sales"
+                />
+              </div>
               <div className="px-4 py-3">Receipt</div>
               <div className="px-4 py-3">Items sold</div>
               <div className="px-4 py-3">Total</div>
@@ -685,8 +785,18 @@ const Sales = () => {
                   return (
                     <div
                       key={sale._id}
-                      className="group grid gap-3 border-b border-slate-200 bg-white px-4 py-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_12px_24px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800/80 md:grid-cols-[1.25fr_1.5fr_0.9fr_1fr_1fr_1.1fr] md:items-center md:px-0 md:py-0"
+                      className="group grid gap-3 border-b border-slate-200 bg-white px-4 py-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_12px_24px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800/80 md:grid-cols-[44px_1.25fr_1.5fr_0.9fr_1fr_1fr_1.1fr] md:items-center md:px-0 md:py-0"
                     >
+                      <div className="flex items-center justify-center px-2 py-3 md:py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedSaleIds.has(sale._id)}
+                          onChange={() => toggleSaleSelection(sale._id)}
+                          className="h-4 w-4 rounded border-slate-300 accent-emerald-600 dark:border-slate-600"
+                          aria-label={`Select sale ${sale.receiptId}`}
+                        />
+                      </div>
+
                       <button type="button" onClick={() => navigate(`/app/sales/${sale._id}`)} className="px-4 py-3 text-left md:py-4">
                         <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">#{sale.receiptId}</div>
                         <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{new Date(sale.createdAt).toLocaleString()}</div>

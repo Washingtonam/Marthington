@@ -59,6 +59,13 @@ router.get(
 );
 
 router.patch(
+  "/bulk-status",
+  protect,
+  checkPermission("canManagePayments"),
+  salesController.bulkUpdateSaleStatus
+);
+
+router.patch(
   "/:id/status",
   protect,
   checkPermission("canManagePayments"),

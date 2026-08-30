@@ -17,3 +17,7 @@ test('Transaction status normalizer accepts valid states and maps legacy aliases
 test('Sales controller exposes a dedicated status update handler for sale records', () => {
   assert.equal(typeof salesController.updateSaleStatus, 'function');
 });
+
+test('Sales controller exposes a bulk status update handler for multiple sale records', () => {
+  assert.equal(typeof salesController.bulkUpdateSaleStatus, 'function');
+});
