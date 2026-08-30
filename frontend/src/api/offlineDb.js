@@ -100,6 +100,20 @@ export const getOfflineSnapshotCollection = async (key) => {
   return snapshot?.data ?? null;
 };
 
+export const clearQueuedOperations = async () => {
+  try {
+    await db.pendingOperations.clear();
+  } catch (error) {
+    console.warn("Failed to clear pendingOperations:", error);
+  }
+
+  try {
+    await db.pendingSales.clear();
+  } catch (error) {
+    console.warn("Failed to clear pendingSales:", error);
+  }
+};
+
 export const getOfflineSnapshotMeta = async () => {
   const snapshot = await db.offlineSnapshot.get("business");
   return snapshot?.syncedAt || null;

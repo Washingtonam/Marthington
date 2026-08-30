@@ -229,10 +229,10 @@ const request = async (path, options = {}) => {
     if (err.status >= 500) {
       console.error(`Server request failed for ${path}: ${err.message}`);
     } else if (isOfflineFailure) {
-      console.warn(`Network unavailable for ${path}, checking offline database...`);
+      console.warn(`Network unavailable for ${path}; offline queue disabled for online-only POS sales.`);
     }
 
-    // OFFLINE FALLBACK: return the last successful response for any GET.
+    // Keep read fallback for non-mutating screens, but do NOT queue writes.
     if (!options.method || options.method === "GET") {
       const cached = await getCachedCollection(path);
       if (cached !== null) return cached;
@@ -241,18 +241,9 @@ const request = async (path, options = {}) => {
       if (snapshotFallback !== null) return snapshotFallback;
     }
 
-    const canQueue = isMutation && !path.startsWith("/auth/") && isOfflineFailure;
-
-    if (canQueue) {
-      const operationId = await queueOperation({
-        path,
-        options,
-        entity: path.split("/")[1] || "unknown",
-        action: method.toLowerCase(),
-        operationId,
-        businessId: localStorage.getItem("bms_impersonation") || localStorage.getItem("bms_business_id") || null
-      });
-      return { success: true, offline: true, pending: true, operationId };
+    // Force online-only behavior for POS and all mutations.
+    if (isMutation && !path.startsWith("/auth/")) {
+      console.error("Mutation rejected because offline queueing is disabled.", { path, isOfflineFailure, method });
     }
 
     throw err;
