@@ -5,7 +5,8 @@ const invoiceCounterSchema = new mongoose.Schema(
     business: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Business",
-      required: true
+      required: true,
+      unique: true
     },
 
     lastNumber: {

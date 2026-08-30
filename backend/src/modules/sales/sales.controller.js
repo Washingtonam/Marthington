@@ -32,7 +32,10 @@ const generateInvoiceNumber = async ({ businessId, session }) => {
 
   const counter = await InvoiceCounter.findOneAndUpdate(
     { business: businessId },
-    { $setOnInsert: { business: businessId, lastNumber: 0, prefix: "INV" } },
+    {
+      $setOnInsert: { business: businessId, lastNumber: 0, prefix: "INV" },
+      $inc: { lastNumber: 1 }
+    },
     {
       new: true,
       upsert: true,
@@ -41,11 +44,8 @@ const generateInvoiceNumber = async ({ businessId, session }) => {
     }
   );
 
-  const nextNumber = (Number(counter.lastNumber || 0) + 1);
-  counter.lastNumber = nextNumber;
-  await counter.save({ session });
-
-  return `${counter.prefix}-${year}-${month}-${String(nextNumber).padStart(6, "0")}`;
+  const nextNumber = Number(counter.lastNumber || 1);
+  return `${counter.prefix || "INV"}-${year}-${month}-${String(nextNumber).padStart(6, "0")}`;
 };
 
 const reserveStockAtomically = async ({ businessId, branchId, productId, quantity, userId, session }) => {
@@ -118,9 +118,11 @@ const createSale = async (req, res) => {
   }
 
   const session = await mongoose.startSession();
-  session.startTransaction();
+  let transactionStarted = false;
 
   try {
+    session.startTransaction();
+    transactionStarted = true;
     const { items, autoSend, customerName, customerPhone, notes, paymentMethod, paymentReference, branch } = req.body;
     const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
     const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
@@ -339,16 +341,21 @@ const createSale = async (req, res) => {
       // Don't fail the sale if invoice creation fails.
     }
 
-    await session.commitTransaction();
+    if (transactionStarted && session.inTransaction()) {
+      await session.commitTransaction();
+      transactionStarted = false;
+    }
     res.json({ message: "Sale completed", sale: sale[0] });
 
   } catch (error) {
     try {
-      if (session && session.inTransaction()) {
+      if (transactionStarted && session && session.inTransaction()) {
         await session.abortTransaction();
       }
     } catch (abortErr) {
       console.error("Failed to abort transaction:", abortErr);
+    } finally {
+      transactionStarted = false;
     }
     res.status(500).json({ message: error.message });
   } finally {

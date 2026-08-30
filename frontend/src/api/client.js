@@ -241,9 +241,22 @@ const request = async (path, options = {}) => {
       if (snapshotFallback !== null) return snapshotFallback;
     }
 
-    // Force online-only behavior for POS and all mutations.
-    if (isMutation && !path.startsWith("/auth/")) {
-      console.error("Mutation rejected because offline queueing is disabled.", { path, isOfflineFailure, method });
+    // Sale posts must always go online. Other writes may still queue if the network drops.
+    if (isMutation && path.startsWith("/sales") && !path.startsWith("/auth/")) {
+      console.error("POS sale was rejected because the server failed while processing a live sale.", { path, isOfflineFailure, method });
+    }
+
+    const canQueue = isMutation && !path.startsWith("/auth/") && !path.startsWith("/sales") && isOfflineFailure;
+    if (canQueue) {
+      const operationId = await queueOperation({
+        path,
+        options,
+        entity: path.split("/")[1] || "unknown",
+        action: method.toLowerCase(),
+        operationId,
+        businessId: localStorage.getItem("bms_impersonation") || localStorage.getItem("bms_business_id") || null
+      });
+      return { success: true, offline: true, pending: true, operationId };
     }
 
     throw err;
