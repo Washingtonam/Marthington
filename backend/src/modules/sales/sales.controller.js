@@ -25,6 +25,29 @@ const generateReceiptId = () => {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
 };
 
+const generateInvoiceNumber = async ({ businessId, session }) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+
+  const counter = await InvoiceCounter.findOneAndUpdate(
+    { business: businessId },
+    { $setOnInsert: { business: businessId, lastNumber: 0, prefix: "INV" } },
+    {
+      new: true,
+      upsert: true,
+      session,
+      setDefaultsOnInsert: true
+    }
+  );
+
+  const nextNumber = (Number(counter.lastNumber || 0) + 1);
+  counter.lastNumber = nextNumber;
+  await counter.save({ session });
+
+  return `${counter.prefix}-${year}-${month}-${String(nextNumber).padStart(6, "0")}`;
+};
+
 const reserveStockAtomically = async ({ businessId, branchId, productId, quantity, userId, session }) => {
   if (branchId) {
     const branchInventory = await BranchInventory.findOneAndUpdate(
@@ -247,24 +270,6 @@ const createSale = async (req, res) => {
 
     // 🔥 6. AUTO-CREATE INVOICE FROM SALE
     try {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-
-      let counter = await InvoiceCounter.findOne({ business: businessId }).session(session);
-      if (!counter) {
-        counter = await InvoiceCounter.create([{
-          business: businessId,
-          lastNumber: 0,
-          prefix: "INV"
-        }], { session }).then(res => res[0]);
-      }
-
-      counter.lastNumber += 1;
-      await counter.save({ session });
-      const invoiceNumber = `${counter.prefix}-${year}-${month}-${String(counter.lastNumber).padStart(6, "0")}`;
-
-      // Map sale items to invoice items
       const invoiceItems = items.map(item => ({
         product: item.product || null,
         name: item.name,
@@ -280,52 +285,76 @@ const createSale = async (req, res) => {
         supplierBatchLabel: ""
       }));
 
-      const invoice = await Invoice.create([{
-        business: businessId,
-        branch: branchId,
-        createdBy: req.user.id,
-        transactionType: "outgoing",
-        customer: customer?._id || null,
-        customerName: customerName || customer?.name || "Walk-in",
-        customerPhone: customerPhone || "",
-        items: invoiceItems,
-        subtotal: totalAmount,
-        tax: 0,
-        discount: 0,
-        totalAmount: totalAmount,
-        amountPaid: isCreditPayment(normalizedPaymentMethod) ? 0 : totalAmount,
-        balance: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
-        balanceDue: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
-        returnedAmount: 0,
-        paymentStatus: isCreditPayment(normalizedPaymentMethod) ? "Unpaid" : "Fully Paid",
-        status: isCreditPayment(normalizedPaymentMethod) ? "draft" : "paid",
-        invoiceType: "invoice",
-        invoiceNumber
-      }], { session }).then(res => res[0]);
+      let invoiceNumber = null;
+      let lastInvoiceError = null;
 
-      // Link sale to invoice
-      sale[0].invoice = invoice._id;
-      await sale[0].save({ session });
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          invoiceNumber = await generateInvoiceNumber({ businessId, session });
+          const invoice = await Invoice.create([{
+            business: businessId,
+            branch: branchId,
+            createdBy: req.user.id,
+            transactionType: "outgoing",
+            customer: customer?._id || null,
+            customerName: customerName || customer?.name || "Walk-in",
+            customerPhone: customerPhone || "",
+            items: invoiceItems,
+            subtotal: totalAmount,
+            tax: 0,
+            discount: 0,
+            totalAmount: totalAmount,
+            amountPaid: isCreditPayment(normalizedPaymentMethod) ? 0 : totalAmount,
+            balance: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
+            balanceDue: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
+            returnedAmount: 0,
+            paymentStatus: isCreditPayment(normalizedPaymentMethod) ? "Unpaid" : "Fully Paid",
+            status: isCreditPayment(normalizedPaymentMethod) ? "draft" : "paid",
+            invoiceType: "invoice",
+            invoiceNumber
+          }], { session }).then(res => res[0]);
 
-      // Update customer outstanding balance if not cash payment
-      if (customer && isCreditPayment(normalizedPaymentMethod)) {
-        customer.outstandingBalance = (customer.outstandingBalance || 0) + totalAmount;
-        await customer.save({ session });
+          sale[0].invoice = invoice._id;
+          await sale[0].save({ session });
+
+          if (customer && isCreditPayment(normalizedPaymentMethod)) {
+            customer.outstandingBalance = (customer.outstandingBalance || 0) + totalAmount;
+            await customer.save({ session });
+          }
+
+          break;
+        } catch (invoiceErr) {
+          lastInvoiceError = invoiceErr;
+          if (invoiceErr?.code !== 11000) {
+            throw invoiceErr;
+          }
+        }
+      }
+
+      if (!invoiceNumber && lastInvoiceError) {
+        throw lastInvoiceError;
       }
     } catch (invoiceErr) {
       console.error("Failed to create linked invoice:", invoiceErr);
-      // Don't fail the sale if invoice creation fails
+      // Don't fail the sale if invoice creation fails.
     }
 
     await session.commitTransaction();
-    session.endSession();
-
     res.json({ message: "Sale completed", sale: sale[0] });
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
+    try {
+      if (session && session.inTransaction()) {
+        await session.abortTransaction();
+      }
+    } catch (abortErr) {
+      console.error("Failed to abort transaction:", abortErr);
+    }
     res.status(500).json({ message: error.message });
+  } finally {
+    if (session) {
+      session.endSession();
+    }
   }
 };
 
