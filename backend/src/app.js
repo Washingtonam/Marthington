@@ -38,7 +38,40 @@ import syncRoutes from "./modules/sync/sync.routes.js";
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = [
+  "https://bms.marthington.com.ng",
+  "https://www.bms.marthington.com.ng",
+  "https://marthington.onrender.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:3000"
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-business-id",
+    "X-Operation-Id",
+    "Accept",
+    "Origin",
+    "Cookie"
+  ]
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json({
   verify: (req, res, buf, encoding) => {
     if (req.originalUrl && req.originalUrl.startsWith("/api/payments/paystack/webhook")) {
