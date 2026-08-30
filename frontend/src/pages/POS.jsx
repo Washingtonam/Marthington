@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import request from "../api/client.js";
 import { getServices } from "../api/services.js";
@@ -375,6 +375,8 @@ useEffect(() => {
         body: JSON.stringify(payload)
       });
 
+      const salePayload = res?.sale || res?.data?.sale || res?.result || null;
+
       if (res?.offline) {
         if (bc.current) bc.current.postMessage({ type: "SALE_COMPLETE", receiptId: `PENDING-${res.operationId}` });
         setCart([]);
@@ -382,22 +384,38 @@ useEffect(() => {
         setPaymentMethod("cash");
         setPaymentReference("");
         setUpgradeMsg("Sale saved on this device and will sync automatically when you are online.");
-      } else if (res?.sale) {
-        if (bc.current) bc.current.postMessage({ type: "SALE_COMPLETE", receiptId: res.sale.receiptId });
+        return;
+      }
+
+      if (salePayload) {
+        const saleId = salePayload._id || salePayload.id;
+        const receiptId = salePayload.receiptId || salePayload.receipt_id;
+
+        if (bc.current) bc.current.postMessage({ type: "SALE_COMPLETE", receiptId: receiptId || `PENDING-${saleId}` });
 
         if (autoSend && customer.phone && isPro) {
           const cleanPhone = customer.phone.replace(/\D/g, "").replace(/^0/, "234");
-          const receiptLink = `${window.location.origin}/r/${res.sale.receiptId}`;
+          const receiptLink = `${window.location.origin}/r/${receiptId || saleId}`;
           const msg = `🧾 *${business?.name}*\n\nHello ${customer.name || "Customer"},\n\nTotal: ${formatCurrency(total)}\nView Receipt: ${receiptLink}`;
           window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, "_blank");
         }
-        
+
         setCart([]);
         setCustomer({ name: "", phone: "", notes: "" });
         setPaymentMethod("cash");
         setPaymentReference("");
-        navigate(`/app/sales/${res.sale._id}`);
+
+        navigate(`/app/sales/${saleId}`, {
+          state: {
+            autoPrint: true,
+            autoSend: Boolean(autoSend && customer.phone && isPro),
+            phone: customer.phone || ""
+          }
+        });
+        return;
       }
+
+      setUpgradeMsg("Sale completed but receipt data was missing.");
     } catch (err) {
       setUpgradeMsg(err.message || "Transaction failed.");
     } finally {

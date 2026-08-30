@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import html2canvas from "html2canvas";
 import request from "../api/client.js";
@@ -27,6 +27,12 @@ const SaleDetails = () => {
         setLoading(true);
         const data = await request(`/sales/${id}`);
         setSale(data);
+
+        if (location.state?.autoPrint) {
+          setTimeout(() => {
+            handlePrint();
+          }, 700);
+        }
 
         // Auto-trigger WhatsApp if coming from a fresh sale
         if (location.state?.autoSend && location.state?.phone) {
