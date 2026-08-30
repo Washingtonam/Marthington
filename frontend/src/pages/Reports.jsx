@@ -1077,10 +1077,10 @@ const Reports = () => {
             </span>
             <h1 className="dark:text-slate-100">Reports Hub</h1>
           </div>
-          <div className="flex gap-2 relative">
+          <div className="reports-toolbar-group relative">
             <button
               onClick={() => setShowCustomizationMenu(!showCustomizationMenu)}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              className="toolbar-button toolbar-button--ghost"
             >
               ⚙️ Customize View
             </button>
@@ -1118,20 +1118,20 @@ const Reports = () => {
             <button
               onClick={handleExportCSV}
               disabled={!startDate || timelineTransactions.length === 0}
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              className="toolbar-button toolbar-button--ghost"
             >
               📥 Export CSV
             </button>
             <button
               onClick={() => setShowEmailScheduler(!showEmailScheduler)}
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              className="toolbar-button toolbar-button--ghost"
             >
               ✉️ Scheduled Reports
             </button>
             <button
               onClick={handlePrintReport}
               disabled={!startDate || timelineTransactions.length === 0}
-              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+              className="toolbar-button toolbar-button--primary disabled:opacity-50"
             >
               🖨️ Print
             </button>
@@ -1267,7 +1267,7 @@ const Reports = () => {
       )}
 
       {/* DATE RANGE & CALENDAR BAR */}
-      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+      <div className="reports-datebar mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
         <div className="mb-4 flex items-center justify-between">
           <span className="text-sm font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Date Range Selection</span>
           <div className="flex items-center gap-4">
@@ -1333,7 +1333,7 @@ const Reports = () => {
       </div>
 
       {/* MULTI-DIMENSION FILTER TOOLBAR */}
-      <div className="reports-filter-shell mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+      <div className="reports-filter-shell reports-filter-shell--premium mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
         <div className="flex items-center justify-between gap-3">
           <div>
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Filter drawer</span>
@@ -1534,12 +1534,12 @@ const Reports = () => {
             </div>
 
             {/* Net Operating Profit */}
-            <div className="tool-panel rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+            <div className={`tool-panel rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 ${auditMetrics.netProfit < 0 ? "is-negative" : "is-positive"}`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-green-600 dark:text-green-400">NET PROFIT</span>
                 <span className="text-lg">✓</span>
               </div>
-              <h2 className="text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(auditMetrics.netProfit)}</h2>
+              <h2 className={`text-xl font-bold ${auditMetrics.netProfit < 0 ? "text-rose-600 dark:text-rose-400" : "text-green-600 dark:text-green-400"}`}>{formatCurrency(auditMetrics.netProfit)}</h2>
               {compareToLastPeriod && varianceMetrics && (
                 <div className={`mt-2 inline-block rounded-full px-2 py-1 text-xs font-bold ${varianceMetrics.profit >= 0 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
                   {varianceMetrics.profit >= 0 ? "+" : ""}{varianceMetrics.profit.toFixed(1)}% vs prev

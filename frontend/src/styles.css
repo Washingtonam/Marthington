@@ -30,6 +30,91 @@ button {
   cursor: pointer;
 }
 
+.reports-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  padding: 0 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.toolbar-button:hover {
+  transform: translateY(-1px);
+}
+
+.toolbar-button--ghost {
+  color: #334155;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04);
+}
+
+.toolbar-button--primary {
+  color: #fff;
+  border-color: rgba(5, 150, 105, 0.2);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 12px 28px rgba(16, 185, 129, 0.24);
+}
+
+.toolbar-button--primary:hover {
+  box-shadow: 0 16px 32px rgba(16, 185, 129, 0.32);
+}
+
+.reports-datebar,
+.reports-filter-shell,
+.tool-panel,
+.report-card-sales,
+.report-card-staff,
+.report-card-inventory,
+.report-card-financial {
+  border-color: rgba(148, 163, 184, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.reports-datebar {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.reports-filter-shell--premium {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.tool-panel {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.93);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.tool-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.06);
+}
+
+.tool-panel.is-negative {
+  background: linear-gradient(135deg, rgba(254, 242, 242, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  border-color: rgba(251, 113, 133, 0.2);
+}
+
+.tool-panel.is-positive {
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
@@ -621,6 +706,50 @@ a {
   .reports-secondary-grid > *,
   .reports-detail-grid > div:nth-child(n) {
     grid-column: span 12;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-heading > .flex.items-center.justify-between {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .reports-toolbar-group {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .toolbar-button {
+    flex: 1 1 calc(50% - 10px);
+    min-width: 0;
+  }
+
+  .reports-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card {
+    min-height: 120px;
+    padding: 18px;
+  }
+
+  .metric-card .metric-value {
+    font-size: 1.6rem;
   }
 }
 
