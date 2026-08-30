@@ -224,9 +224,17 @@ const request = async (path, options = {}) => {
     return data;
 
   } catch (err) {
+    const isTransientFailure =
+      err.isNetworkError ||
+      navigator.onLine === false ||
+      err.status >= 500 ||
+      err.name === "TypeError" ||
+      err.message === "Failed to fetch" ||
+      err.message === "NetworkError";
+
     if (err.status >= 500) {
       console.error(`Server request failed for ${path}: ${err.message}`);
-    } else if (err.isNetworkError || navigator.onLine === false) {
+    } else if (isTransientFailure) {
       console.warn(`Network unavailable for ${path}, checking offline database...`);
     }
 
@@ -239,9 +247,9 @@ const request = async (path, options = {}) => {
       if (snapshotFallback !== null) return snapshotFallback;
     }
 
-    const canQueue = isMutation && (err.isNetworkError || navigator.onLine === false);
+    const canQueue = isMutation && !path.startsWith("/auth/") && isTransientFailure;
 
-    if (canQueue && !path.startsWith("/auth/")) {
+    if (canQueue) {
       const operationId = await queueOperation({
         path,
         options,
