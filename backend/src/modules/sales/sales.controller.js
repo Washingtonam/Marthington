@@ -16,7 +16,9 @@ import {
   buildSaleLedgerEntry,
   getCustomerSaleImpact,
   normalizePaymentMethod,
-  isCreditPayment
+  isCreditPayment,
+  isTransactionAbortedError,
+  normalizeSaleErrorMessage
 } from "./sales.utils.js";
 import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
 
@@ -110,259 +112,269 @@ const createSale = async (req, res) => {
   const clientOperationId = req.get("X-Operation-Id");
   const businessId = req.user.businessId;
 
-  if (clientOperationId) {
-    const existingSale = await Sale.findOne({ business: businessId, clientOperationId });
-    if (existingSale) {
-      return res.json({ message: "Sale already completed", sale: existingSale, duplicate: true });
-    }
-  }
-
-  const session = await mongoose.startSession();
-  let transactionStarted = false;
-
-  try {
-    session.startTransaction();
-    transactionStarted = true;
-    const { items, autoSend, customerName, customerPhone, notes, paymentMethod, paymentReference, branch } = req.body;
-    const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
-    const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
-    if (branchId === undefined) {
-      throw new Error("You can only create sales for your assigned branch unless cross-branch management is enabled.");
-    }
-
-    // 1. Fetch Business & Check Subscription
-    const business = await Business.findById(businessId).session(session);
-    if (!business) throw new Error("Business not found");
-
-    const isPro = business?.subscription?.status === "active";
-    const isTrial = business?.subscription?.status === "trial" && new Date() <= new Date(business.trialEndsAt);
-
-    if (!isPro && !isTrial) {
-      throw new Error("Subscription inactive. Please renew to process sales.");
-    }
-
-    if (autoSend && !isPro) {
-      return res.status(403).json({ message: "Auto WhatsApp is a Pro feature" });
-    }
-
-    // 2. Handle Customer Logic
-    let customer = null;
-    if (customerPhone) {
-      const normalizedPhone = Customer.normalizePhoneNumber(customerPhone);
-      customer = await Customer.findOne({
-        business: businessId,
-        ...(branchId ? { branch: branchId } : {}),
-        phoneNormalized: normalizedPhone
-      }).session(session);
-
-      if (!customer) {
-        customer = await Customer.create([{
-          business: businessId,
-          name: customerName || "Walk-in Customer",
-          phone: normalizedPhone,
-          phoneNormalized: normalizedPhone,
-          branch: branchId
-        }], { session }).then(res => res[0]);
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    if (clientOperationId) {
+      const existingSale = await Sale.findOne({ business: businessId, clientOperationId });
+      if (existingSale) {
+        return res.json({ message: "Sale already completed", sale: existingSale, duplicate: true });
       }
     }
 
-    let totalAmount = 0;
-    const saleItems = [];
+    const session = await mongoose.startSession();
+    let transactionStarted = false;
 
-    // 3. Process Items (Products & Services)
-    for (const item of items) {
-      if (item.itemType === "product" || !item.itemType) {
-        const product = await Product.findById(item.product).session(session);
+    try {
+      session.startTransaction();
+      transactionStarted = true;
+      const { items, autoSend, customerName, customerPhone, notes, paymentMethod, paymentReference, branch } = req.body;
+      const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
+      const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
+      if (branchId === undefined) {
+        throw new Error("You can only create sales for your assigned branch unless cross-branch management is enabled.");
+      }
 
-        if (!product) throw new Error(`Product ${item.name || 'not found'} missing.`);
-        
-        // Security Check
-        if (req.user.role !== "super_admin" && product.business.toString() !== businessId) {
-          throw new Error("Unauthorized product access");
-        }
+      // 1. Fetch Business & Check Subscription
+      const business = await Business.findById(businessId).session(session);
+      if (!business) throw new Error("Business not found");
 
-        const basePrice = Math.round(Number(product.price));
-        const incomingPrice = Math.round(Number(item.sellingPrice ?? product.price));
-        
-        // Price Override Permission Check
-        const canOverride = req.user.role === "owner" || 
-                            req.user.role === "super_admin" || 
-                            req.user.permissions?.canOverridePrice;
+      const isPro = business?.subscription?.status === "active";
+      const isTrial = business?.subscription?.status === "trial" && new Date() <= new Date(business.trialEndsAt);
 
-        if (incomingPrice !== basePrice && !canOverride) {
-          throw new Error(`Unauthorized price override for ${product.name}`);
-        }
+      if (!isPro && !isTrial) {
+        throw new Error("Subscription inactive. Please renew to process sales.");
+      }
 
-        const finalPrice = incomingPrice;
-        const quantity = Math.round(Number(item.quantity));
-        const itemTotal = finalPrice * quantity;
-        totalAmount += itemTotal;
+      if (autoSend && !isPro) {
+        return res.status(403).json({ message: "Auto WhatsApp is a Pro feature" });
+      }
 
-        const stockState = await reserveStockAtomically({
-          businessId,
-          branchId,
-          productId: product._id,
-          quantity,
-          userId: req.user.id,
-          session
-        });
-
-        await InventoryMovement.create([{
+      // 2. Handle Customer Logic
+      let customer = null;
+      if (customerPhone) {
+        const normalizedPhone = Customer.normalizePhoneNumber(customerPhone);
+        customer = await Customer.findOne({
           business: businessId,
           ...(branchId ? { branch: branchId } : {}),
-          product: product._id,
-          type: "sale",
-          quantity,
-          previousStock: stockState.previousStock,
-          newStock: stockState.newStock,
-          createdBy: req.user.id
-        }], { session });
+          phoneNormalized: normalizedPhone
+        }).session(session);
 
-        saleItems.push({
-          itemType: "product",
-          product: product._id,
-          name: product.name,
-          quantity,
-          costPrice: Number(product.costPrice) || 0,
-          sellingPrice: finalPrice,
-          total: itemTotal
-        });
-
-      } else if (item.itemType === "service") {
-        const quantity = Math.round(Number(item.quantity || 1));
-        const sellingPrice = Math.round(Number(item.sellingPrice || 0));
-        const itemTotal = quantity * sellingPrice;
-        totalAmount += itemTotal;
-
-        saleItems.push({
-          itemType: "service",
-          name: item.name || "Service",
-          quantity,
-          costPrice: 0,
-          sellingPrice,
-          total: itemTotal
-        });
-      }
-    }
-
-    // 4. Create Sale Record
-    const sale = await Sale.create([{
-      items: saleItems,
-      totalAmount,
-      paymentMethod: normalizedPaymentMethod,
-      paymentReference: paymentReference || "",
-      business: businessId,
-      branch: branchId || null,
-      createdBy: req.user.id,
-      ...(clientOperationId ? { clientOperationId } : {}),
-      customer: customer?._id || null,
-      customerName: customerName || customer?.name || "Walk-in",
-      customerPhone: customerPhone || "",
-      receiptId: generateReceiptId()
-    }], { session });
-
-    // 5. Update Customer Loyalty/History
-    if (customer) {
-      customer.totalSpent += totalAmount;
-      customer.totalOrders += 1;
-      customer.lastPurchaseAt = new Date();
-      customer.loyaltyPoints += Math.floor(totalAmount / 1000);
-      await customer.save({ session });
-    }
-
-    // 🔥 6. AUTO-CREATE INVOICE FROM SALE
-    try {
-      const invoiceItems = items.map(item => ({
-        product: item.product || null,
-        name: item.name,
-        quantity: Number(item.quantity || 0),
-        price: Number(item.sellingPrice || 0),
-        total: Number(item.total || 0),
-        returned: false,
-        returnQuantity: 0,
-        returnAmount: 0,
-        receivedQuantity: 0,
-        soldQuantity: Number(item.quantity || 0),
-        supplierCreditStatus: null,
-        supplierBatchLabel: ""
-      }));
-
-      let invoiceNumber = null;
-      let lastInvoiceError = null;
-
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-          invoiceNumber = await generateInvoiceNumber({ businessId, session });
-          const invoice = await Invoice.create([{
+        if (!customer) {
+          customer = await Customer.create([{
             business: businessId,
-            branch: branchId,
-            createdBy: req.user.id,
-            transactionType: "outgoing",
-            customer: customer?._id || null,
-            customerName: customerName || customer?.name || "Walk-in",
-            customerPhone: customerPhone || "",
-            items: invoiceItems,
-            subtotal: totalAmount,
-            tax: 0,
-            discount: 0,
-            totalAmount: totalAmount,
-            amountPaid: isCreditPayment(normalizedPaymentMethod) ? 0 : totalAmount,
-            balance: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
-            balanceDue: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
-            returnedAmount: 0,
-            paymentStatus: isCreditPayment(normalizedPaymentMethod) ? "Unpaid" : "Fully Paid",
-            status: isCreditPayment(normalizedPaymentMethod) ? "draft" : "paid",
-            invoiceType: "invoice",
-            invoiceNumber
+            name: customerName || "Walk-in Customer",
+            phone: normalizedPhone,
+            phoneNormalized: normalizedPhone,
+            branch: branchId
           }], { session }).then(res => res[0]);
-
-          sale[0].invoice = invoice._id;
-          await sale[0].save({ session });
-
-          if (customer && isCreditPayment(normalizedPaymentMethod)) {
-            customer.outstandingBalance = (customer.outstandingBalance || 0) + totalAmount;
-            await customer.save({ session });
-          }
-
-          break;
-        } catch (invoiceErr) {
-          lastInvoiceError = invoiceErr;
-          if (invoiceErr?.code !== 11000) {
-            throw invoiceErr;
-          }
         }
       }
 
-      if (!invoiceNumber && lastInvoiceError) {
-        throw lastInvoiceError;
-      }
-    } catch (invoiceErr) {
-      console.error("Failed to create linked invoice:", invoiceErr);
-      // Don't fail the sale if invoice creation fails.
-    }
+      let totalAmount = 0;
+      const saleItems = [];
 
-    if (transactionStarted && session.inTransaction()) {
-      await session.commitTransaction();
-      transactionStarted = false;
-    }
-    res.json({ message: "Sale completed", sale: sale[0] });
+      // 3. Process Items (Products & Services)
+      for (const item of items) {
+        if (item.itemType === "product" || !item.itemType) {
+          const product = await Product.findById(item.product).session(session);
 
-  } catch (error) {
-    try {
-      if (transactionStarted && session && session.inTransaction()) {
-        await session.abortTransaction();
+          if (!product) throw new Error(`Product ${item.name || 'not found'} missing.`);
+          
+          // Security Check
+          if (req.user.role !== "super_admin" && product.business.toString() !== businessId) {
+            throw new Error("Unauthorized product access");
+          }
+
+          const basePrice = Math.round(Number(product.price));
+          const incomingPrice = Math.round(Number(item.sellingPrice ?? product.price));
+          
+          // Price Override Permission Check
+          const canOverride = req.user.role === "owner" || 
+                              req.user.role === "super_admin" || 
+                              req.user.permissions?.canOverridePrice;
+
+          if (incomingPrice !== basePrice && !canOverride) {
+            throw new Error(`Unauthorized price override for ${product.name}`);
+          }
+
+          const finalPrice = incomingPrice;
+          const quantity = Math.round(Number(item.quantity));
+          const itemTotal = finalPrice * quantity;
+          totalAmount += itemTotal;
+
+          const stockState = await reserveStockAtomically({
+            businessId,
+            branchId,
+            productId: product._id,
+            quantity,
+            userId: req.user.id,
+            session
+          });
+
+          await InventoryMovement.create([{
+            business: businessId,
+            ...(branchId ? { branch: branchId } : {}),
+            product: product._id,
+            type: "sale",
+            quantity,
+            previousStock: stockState.previousStock,
+            newStock: stockState.newStock,
+            createdBy: req.user.id
+          }], { session });
+
+          saleItems.push({
+            itemType: "product",
+            product: product._id,
+            name: product.name,
+            quantity,
+            costPrice: Number(product.costPrice) || 0,
+            sellingPrice: finalPrice,
+            total: itemTotal
+          });
+
+        } else if (item.itemType === "service") {
+          const quantity = Math.round(Number(item.quantity || 1));
+          const sellingPrice = Math.round(Number(item.sellingPrice || 0));
+          const itemTotal = quantity * sellingPrice;
+          totalAmount += itemTotal;
+
+          saleItems.push({
+            itemType: "service",
+            name: item.name || "Service",
+            quantity,
+            costPrice: 0,
+            sellingPrice,
+            total: itemTotal
+          });
+        }
       }
-    } catch (abortErr) {
-      console.error("Failed to abort transaction:", abortErr);
+
+      // 4. Create Sale Record
+      const sale = await Sale.create([{
+        items: saleItems,
+        totalAmount,
+        paymentMethod: normalizedPaymentMethod,
+        paymentReference: paymentReference || "",
+        business: businessId,
+        branch: branchId || null,
+        createdBy: req.user.id,
+        ...(clientOperationId ? { clientOperationId } : {}),
+        customer: customer?._id || null,
+        customerName: customerName || customer?.name || "Walk-in",
+        customerPhone: customerPhone || "",
+        receiptId: generateReceiptId()
+      }], { session });
+
+      // 5. Update Customer Loyalty/History
+      if (customer) {
+        customer.totalSpent += totalAmount;
+        customer.totalOrders += 1;
+        customer.lastPurchaseAt = new Date();
+        customer.loyaltyPoints += Math.floor(totalAmount / 1000);
+        await customer.save({ session });
+      }
+
+      // 🔥 6. AUTO-CREATE INVOICE FROM SALE
+      try {
+        const invoiceItems = items.map(item => ({
+          product: item.product || null,
+          name: item.name,
+          quantity: Number(item.quantity || 0),
+          price: Number(item.sellingPrice || 0),
+          total: Number(item.total || 0),
+          returned: false,
+          returnQuantity: 0,
+          returnAmount: 0,
+          receivedQuantity: 0,
+          soldQuantity: Number(item.quantity || 0),
+          supplierCreditStatus: null,
+          supplierBatchLabel: ""
+        }));
+
+        let invoiceNumber = null;
+        let lastInvoiceError = null;
+
+        for (let invoiceAttempt = 0; invoiceAttempt < 3; invoiceAttempt += 1) {
+          try {
+            invoiceNumber = await generateInvoiceNumber({ businessId, session });
+            const invoice = await Invoice.create([{
+              business: businessId,
+              branch: branchId,
+              createdBy: req.user.id,
+              transactionType: "outgoing",
+              customer: customer?._id || null,
+              customerName: customerName || customer?.name || "Walk-in",
+              customerPhone: customerPhone || "",
+              items: invoiceItems,
+              subtotal: totalAmount,
+              tax: 0,
+              discount: 0,
+              totalAmount: totalAmount,
+              amountPaid: isCreditPayment(normalizedPaymentMethod) ? 0 : totalAmount,
+              balance: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
+              balanceDue: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
+              returnedAmount: 0,
+              paymentStatus: isCreditPayment(normalizedPaymentMethod) ? "Unpaid" : "Fully Paid",
+              status: isCreditPayment(normalizedPaymentMethod) ? "draft" : "paid",
+              invoiceType: "invoice",
+              invoiceNumber
+            }], { session }).then(res => res[0]);
+
+            sale[0].invoice = invoice._id;
+            await sale[0].save({ session });
+
+            if (customer && isCreditPayment(normalizedPaymentMethod)) {
+              customer.outstandingBalance = (customer.outstandingBalance || 0) + totalAmount;
+              await customer.save({ session });
+            }
+
+            break;
+          } catch (invoiceErr) {
+            lastInvoiceError = invoiceErr;
+            if (invoiceErr?.code !== 11000) {
+              throw invoiceErr;
+            }
+          }
+        }
+
+        if (!invoiceNumber && lastInvoiceError) {
+          throw lastInvoiceError;
+        }
+      } catch (invoiceErr) {
+        console.error("Failed to create linked invoice:", invoiceErr);
+        // Don't fail the sale if invoice creation fails.
+      }
+
+      if (transactionStarted && session.inTransaction()) {
+        await session.commitTransaction();
+        transactionStarted = false;
+      }
+      return res.json({ message: "Sale completed", sale: sale[0] });
+
+    } catch (error) {
+      try {
+        if (transactionStarted && session && session.inTransaction()) {
+          await session.abortTransaction();
+        }
+      } catch (abortErr) {
+        console.error("Failed to abort transaction:", abortErr);
+      } finally {
+        transactionStarted = false;
+      }
+
+      const shouldRetry = isTransactionAbortedError(error) && attempt < 3;
+      if (shouldRetry) {
+        continue;
+      }
+
+      return res.status(500).json({ message: normalizeSaleErrorMessage(error) });
     } finally {
-      transactionStarted = false;
-    }
-    res.status(500).json({ message: error.message });
-  } finally {
-    if (session) {
-      session.endSession();
+      if (session) {
+        session.endSession();
+      }
     }
   }
+
+  return res.status(500).json({ message: "The sale transaction was aborted by the database. Please retry the sale." });
 };
 
 const bulkUpdateSaleStatus = async (req, res) => {

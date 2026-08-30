@@ -79,6 +79,31 @@ export const buildSaleLedgerEntry = ({ sale, businessId, createdBy = null, statu
   };
 };
 
+export const isTransactionAbortedError = (error) => {
+  if (!error) return false;
+
+  const message = String(error?.message || error || '');
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes('transaction with { txnnumber:') && normalized.includes('has been aborted') ||
+    normalized.includes('transaction has been aborted') ||
+    normalized.includes('write conflict') ||
+    normalized.includes('aborted transaction') ||
+    error?.code === 251 ||
+    error?.code === 112 ||
+    error?.codeName === 'WriteConflict'
+  );
+};
+
+export const normalizeSaleErrorMessage = (error) => {
+  if (isTransactionAbortedError(error)) {
+    return 'The sale transaction was aborted by the database. Please retry the sale.';
+  }
+
+  return error?.message || 'Failed to create sale';
+};
+
 export const buildSalesQuery = ({ businessId, isSuperAdmin = false, includeDeleted = false, canAccessDeleted = false } = {}) => {
   const query = {};
 
