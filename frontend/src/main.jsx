@@ -28,11 +28,13 @@ const Root = () => {
       }
 
       const pending = await db.pendingOperations.toArray();
-      if (pending.length === 0) return;
+      const activeBusinessId = localStorage.getItem("bms_impersonation") || localStorage.getItem("bms_business_id") || null;
+      const businessScopedPending = pending.filter((item) => !item.businessId || item.businessId === activeBusinessId);
+      if (businessScopedPending.length === 0) return;
 
-      console.log(`📡 Online! Syncing ${pending.length} pending transactions...`);
+      console.log(`📡 Online! Syncing ${businessScopedPending.length} pending transactions for this business...`);
 
-      for (const item of pending) {
+      for (const item of businessScopedPending) {
         try {
           const response = await fetch(`${API_URL}${item.path}`, {
             ...item.options,

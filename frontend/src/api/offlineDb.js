@@ -38,12 +38,13 @@ export const getCachedCollection = async (key) => {
   return cached?.data ?? null;
 };
 
-export const queueOperation = async ({ path, options, entity, action, operationId }) => {
+export const queueOperation = async ({ path, options, entity, action, operationId, businessId = null }) => {
   const resolvedOperationId = operationId || `${Date.now()}-${crypto.randomUUID()}`;
   const body = typeof options.body === "string" ? JSON.parse(options.body) : options.body;
 
   await db.pendingOperations.add({
     operationId: resolvedOperationId,
+    businessId,
     path,
     options: {
       ...options,

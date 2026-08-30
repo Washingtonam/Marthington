@@ -224,17 +224,11 @@ const request = async (path, options = {}) => {
     return data;
 
   } catch (err) {
-    const isTransientFailure =
-      err.isNetworkError ||
-      navigator.onLine === false ||
-      err.status >= 500 ||
-      err.name === "TypeError" ||
-      err.message === "Failed to fetch" ||
-      err.message === "NetworkError";
+    const isOfflineFailure = err.isNetworkError || navigator.onLine === false || err.name === "TypeError" || err.message === "Failed to fetch" || err.message === "NetworkError";
 
     if (err.status >= 500) {
       console.error(`Server request failed for ${path}: ${err.message}`);
-    } else if (isTransientFailure) {
+    } else if (isOfflineFailure) {
       console.warn(`Network unavailable for ${path}, checking offline database...`);
     }
 
@@ -247,7 +241,7 @@ const request = async (path, options = {}) => {
       if (snapshotFallback !== null) return snapshotFallback;
     }
 
-    const canQueue = isMutation && !path.startsWith("/auth/") && isTransientFailure;
+    const canQueue = isMutation && !path.startsWith("/auth/") && isOfflineFailure;
 
     if (canQueue) {
       const operationId = await queueOperation({
@@ -255,7 +249,8 @@ const request = async (path, options = {}) => {
         options,
         entity: path.split("/")[1] || "unknown",
         action: method.toLowerCase(),
-        operationId
+        operationId,
+        businessId: localStorage.getItem("bms_impersonation") || localStorage.getItem("bms_business_id") || null
       });
       return { success: true, offline: true, pending: true, operationId };
     }
