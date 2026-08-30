@@ -137,14 +137,15 @@ const createSale = async (req, res) => {
       const business = await Business.findById(businessId).session(session);
       if (!business) throw new Error("Business not found");
 
-      const isPro = business?.subscription?.status === "active";
-      const isTrial = business?.subscription?.status === "trial" && new Date() <= new Date(business.trialEndsAt);
+const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
+    const isPro = business?.subscription?.status === "active";
+    const isTrial = business?.subscription?.status === "trial" && new Date() <= new Date(business.trialEndsAt);
 
-      if (!isPro && !isTrial) {
-        throw new Error("Subscription inactive. Please renew to process sales.");
-      }
+    if (!isOwner && !isPro && !isTrial) {
+      throw new Error("Subscription inactive. Please renew to process sales.");
+    }
 
-      if (autoSend && !isPro) {
+    if (autoSend && !isPro && !isOwner) {
         return res.status(403).json({ message: "Auto WhatsApp is a Pro feature" });
       }
 
