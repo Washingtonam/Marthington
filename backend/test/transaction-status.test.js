@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { normalizeTransactionStatus } from '../src/modules/transactions/transaction.controller.js';
-import salesController from '../src/modules/sales/sales.controller.js';
+import salesController, { buildInvoiceCounterUpdate } from '../src/modules/sales/sales.controller.js';
 import { isDuplicateKeyError, isTransactionAbortedError, normalizeSaleErrorMessage } from '../src/modules/sales/sales.utils.js';
 
 test('Transaction status normalizer accepts valid states and maps legacy aliases', () => {
@@ -34,4 +34,12 @@ test('Duplicate-key Mongo errors are not mistaken for transaction aborts', () =>
   assert.equal(isDuplicateKeyError(duplicate), true);
   assert.equal(isTransactionAbortedError(duplicate), false);
   assert.equal(normalizeSaleErrorMessage(duplicate), duplicate.message);
+});
+
+test('Invoice counter update avoids setting and incrementing lastNumber in the same Mongo operator', () => {
+  const update = buildInvoiceCounterUpdate({ businessId: '64d27f4f11d24e0000000001' });
+
+  assert.deepEqual(update.$setOnInsert, { business: '64d27f4f11d24e0000000001', prefix: 'INV' });
+  assert.equal(update.$setOnInsert.lastNumber, undefined);
+  assert.deepEqual(update.$inc, { lastNumber: 1 });
 });

@@ -28,6 +28,14 @@ const generateReceiptId = () => {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
 };
 
+export const buildInvoiceCounterUpdate = ({ businessId }) => ({
+  $setOnInsert: {
+    business: businessId,
+    prefix: "INV"
+  },
+  $inc: { lastNumber: 1 }
+});
+
 const generateInvoiceNumber = async ({ businessId, session }) => {
   const now = new Date();
   const year = now.getFullYear();
@@ -35,10 +43,7 @@ const generateInvoiceNumber = async ({ businessId, session }) => {
 
   const counter = await InvoiceCounter.findOneAndUpdate(
     { business: businessId },
-    {
-      $setOnInsert: { business: businessId, lastNumber: 0, prefix: "INV" },
-      $inc: { lastNumber: 1 }
-    },
+    buildInvoiceCounterUpdate({ businessId }),
     {
       new: true,
       upsert: true,
@@ -47,8 +52,8 @@ const generateInvoiceNumber = async ({ businessId, session }) => {
     }
   );
 
-  const nextNumber = Number(counter.lastNumber || 1);
-  return `${counter.prefix || "INV"}-${year}-${month}-${String(nextNumber).padStart(6, "0")}`;
+  const nextNumber = Number(counter?.lastNumber || 1);
+  return `${counter?.prefix || "INV"}-${year}-${month}-${String(nextNumber).padStart(6, "0")}`;
 };
 
 const reserveStockAtomically = async ({ businessId, branchId, productId, quantity, userId, session }) => {
