@@ -36,7 +36,7 @@ export const buildInvoiceCounterUpdate = ({ businessId }) => ({
   $inc: { lastNumber: 1 }
 });
 
-const generateInvoiceNumber = async ({ businessId, session }) => {
+const generateInvoiceNumber = async ({ businessId }) => {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -47,7 +47,6 @@ const generateInvoiceNumber = async ({ businessId, session }) => {
     {
       new: true,
       upsert: true,
-      session,
       setDefaultsOnInsert: true
     }
   );
@@ -302,7 +301,7 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
 
         for (let invoiceAttempt = 0; invoiceAttempt < 3; invoiceAttempt += 1) {
           try {
-            invoiceNumber = await generateInvoiceNumber({ businessId, session });
+            invoiceNumber = await generateInvoiceNumber({ businessId });
             const invoice = await Invoice.create([{
               business: businessId,
               branch: branchId,
@@ -348,10 +347,6 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
         }
       } catch (invoiceErr) {
         console.error("Failed to create linked invoice:", invoiceErr);
-
-        if (isTransactionAbortedError(invoiceErr) || invoiceErr?.code === 251 || invoiceErr?.codeName === "NoSuchTransaction") {
-          throw invoiceErr;
-        }
         // Don't fail the sale if invoice creation fails.
       }
 
