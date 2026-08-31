@@ -348,6 +348,10 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
         }
       } catch (invoiceErr) {
         console.error("Failed to create linked invoice:", invoiceErr);
+
+        if (isTransactionAbortedError(invoiceErr) || invoiceErr?.code === 251 || invoiceErr?.codeName === "NoSuchTransaction") {
+          throw invoiceErr;
+        }
         // Don't fail the sale if invoice creation fails.
       }
 

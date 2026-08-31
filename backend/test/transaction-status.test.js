@@ -36,6 +36,17 @@ test('Duplicate-key Mongo errors are not mistaken for transaction aborts', () =>
   assert.equal(normalizeSaleErrorMessage(duplicate), duplicate.message);
 });
 
+test('NoSuchTransaction errors are treated as aborted Mongo transactions', () => {
+  const aborted = {
+    code: 251,
+    codeName: 'NoSuchTransaction',
+    message: 'Transaction with { txnNumber: 9 } has been aborted.'
+  };
+
+  assert.equal(isTransactionAbortedError(aborted), true);
+  assert.equal(normalizeSaleErrorMessage(aborted), 'The sale transaction was aborted by the database. Please retry the sale.');
+});
+
 test('Invoice counter update avoids setting and incrementing lastNumber in the same Mongo operator', () => {
   const update = buildInvoiceCounterUpdate({ businessId: '64d27f4f11d24e0000000001' });
 
