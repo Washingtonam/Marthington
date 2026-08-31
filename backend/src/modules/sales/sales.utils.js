@@ -79,8 +79,24 @@ export const buildSaleLedgerEntry = ({ sale, businessId, createdBy = null, statu
   };
 };
 
-export const isTransactionAbortedError = (error) => {
+export const isDuplicateKeyError = (error) => {
   if (!error) return false;
+
+  const message = String(error?.message || error || '');
+  const normalized = message.toLowerCase();
+
+  return (
+    error?.code === 11000 ||
+    error?.code === 11001 ||
+    error?.codeName === 'DuplicateKey' ||
+    normalized.includes('duplicate key') ||
+    normalized.includes('e11000') ||
+    normalized.includes('dup key')
+  );
+};
+
+export const isTransactionAbortedError = (error) => {
+  if (!error || isDuplicateKeyError(error)) return false;
 
   const message = String(error?.message || error || '');
   const normalized = message.toLowerCase();

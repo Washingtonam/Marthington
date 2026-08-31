@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { normalizeTransactionStatus } from '../src/modules/transactions/transaction.controller.js';
 import salesController from '../src/modules/sales/sales.controller.js';
-import { isTransactionAbortedError, normalizeSaleErrorMessage } from '../src/modules/sales/sales.utils.js';
+import { isDuplicateKeyError, isTransactionAbortedError, normalizeSaleErrorMessage } from '../src/modules/sales/sales.utils.js';
 
 test('Transaction status normalizer accepts valid states and maps legacy aliases', () => {
   assert.equal(normalizeTransactionStatus('posted'), 'posted');
@@ -26,4 +26,12 @@ test('Sales controller exposes a bulk status update handler for multiple sale re
 test('Transaction-aborted Mongo errors are normalized to a user-facing sale retry message', () => {
   assert.equal(isTransactionAbortedError('Transaction with { txnNumber: 1 } has been aborted.'), true);
   assert.equal(normalizeSaleErrorMessage(new Error('Transaction with { txnNumber: 1 } has been aborted.')), 'The sale transaction was aborted by the database. Please retry the sale.');
+});
+
+test('Duplicate-key Mongo errors are not mistaken for transaction aborts', () => {
+  const duplicate = { code: 11000, message: 'E11000 duplicate key error collection: marthington.sales index: receiptId_1 dup key: { receiptId: "ABC123" }' };
+
+  assert.equal(isDuplicateKeyError(duplicate), true);
+  assert.equal(isTransactionAbortedError(duplicate), false);
+  assert.equal(normalizeSaleErrorMessage(duplicate), duplicate.message);
 });

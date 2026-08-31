@@ -17,6 +17,7 @@ import {
   getCustomerSaleImpact,
   normalizePaymentMethod,
   isCreditPayment,
+  isDuplicateKeyError,
   isTransactionAbortedError,
   normalizeSaleErrorMessage
 } from "./sales.utils.js";
@@ -360,6 +361,10 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
         console.error("Failed to abort transaction:", abortErr);
       } finally {
         transactionStarted = false;
+      }
+
+      if (isDuplicateKeyError(error)) {
+        return res.status(409).json({ message: normalizeSaleErrorMessage(error) });
       }
 
       const shouldRetry = isTransactionAbortedError(error) && attempt < 3;
