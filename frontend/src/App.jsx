@@ -24,6 +24,7 @@ const SaleDetails = lazy(() => import("./pages/SaleDetails.jsx"));
 const Staff = lazy(() => import("./pages/Staff.jsx"));
 const Settings = lazy(() => import("./pages/Settings.jsx"));
 const Reports = lazy(() => import("./pages/Reports.jsx"));
+const ReportsDetailPage = lazy(() => import("./pages/ReportsDetailPage.jsx"));
 const Analytics = lazy(() => import("./pages/Analytics.jsx"));
 const DeletedSales = lazy(() => import("./pages/DeletedSales.jsx"));
 const Billing = lazy(() => import("./pages/Billing.jsx"));
@@ -273,6 +274,7 @@ const App = () => {
               <Route path="settings" element={<Settings />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="reports/detail" element={<ReportsDetailPage />} />
               <Route path="inventory" element={<BranchInventory />} />
               <Route path="deleted-sales" element={<DeletedSales />} />
               <Route path="staff-reports" element={<StaffReports />} />

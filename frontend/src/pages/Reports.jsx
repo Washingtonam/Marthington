@@ -21,6 +21,7 @@ import { updateSaleStatus } from "../api/sales.js";
 import StatusToast from "../components/StatusToast.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated, subscribeToSalesUpdates } from "../utils/salesEvents.js";
+import { buildReportDetailRoute } from "../utils/reportDateRouting.js";
 
 const PERIOD_OPTIONS = [
   { value: "7", label: "7D" },
@@ -180,11 +181,19 @@ const Reports = () => {
     }
   };
 
+  const handleOpenReportDetail = (label, selectedRange) => {
+    const range = selectedRange || { start: startDate, end: endDate };
+    if (!range.start || !range.end) return;
+
+    navigate(buildReportDetailRoute({ label, start: range.start, end: range.end }));
+  };
+
   const handlePresetDate = (preset) => {
     const dates = preset.getValue();
     setStartDate(dates.start);
     setEndDate(dates.end);
     setShowCustomDatePicker(false);
+    handleOpenReportDetail(preset.label, dates);
   };
 
   const formatDateRange = () => {
@@ -1286,6 +1295,15 @@ const Reports = () => {
             >
               {showCustomDatePicker ? "Close" : "Custom"}
             </button>
+            {startDate && endDate && (
+              <button
+                type="button"
+                onClick={() => handleOpenReportDetail("Selected range", { start: startDate, end: endDate })}
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-900 dark:hover:bg-emerald-400"
+              >
+                View details
+              </button>
+            )}
           </div>
         </div>
 
