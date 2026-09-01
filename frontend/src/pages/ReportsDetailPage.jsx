@@ -69,6 +69,88 @@ const paymentOptions = [
   { value: "other", label: "Other" },
 ];
 
+export const buildLedgerEntries = ({ sales = [], expenses = [] }) => {
+  const rows = [
+    ...sales.map((sale, index) => ({
+      id: sale?._id || sale?.receiptId || `sale-${index}`,
+      side: "sale",
+      date: sale?.createdAt,
+      particulars: getItemLabel(sale),
+      reference: sale?.receiptId || sale?._id || "Sales receipt",
+      amount: Number(sale?.totalAmount || sale?.amount || 0),
+      paymentMethod: sale?.paymentMethod || "cash",
+    })),
+    ...expenses.map((expense, index) => ({
+      id: expense?._id || expense?.reference || `expense-${index}`,
+      side: "expense",
+      date: expense?.createdAt || expense?.occurredAt,
+      particulars: expense?.description || expense?.note || expense?.category || "Operating expense",
+      reference: expense?.reference || expense?.category || "Expense record",
+      amount: Number(expense?.amount || expense?.totalAmount || 0),
+      paymentMethod: "Expense",
+    })),
+  ];
+
+  return rows.sort((a, b) => new Date(a.date) - new Date(b.date));
+};
+
+const LedgerRegister = ({ title, subtitle, total, tone, entries }) => {
+  const palette = tone === "emerald"
+    ? {
+      wrapper: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/20",
+      divider: "border-emerald-200 dark:border-emerald-900/60",
+      heading: "text-emerald-700 dark:text-emerald-300",
+      amount: "text-emerald-800 dark:text-emerald-200",
+      row: "border-emerald-100 dark:border-emerald-900/50",
+    }
+    : {
+      wrapper: "border-amber-200 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/20",
+      divider: "border-amber-200 dark:border-amber-900/60",
+      heading: "text-amber-700 dark:text-amber-300",
+      amount: "text-amber-800 dark:text-amber-200",
+      row: "border-amber-100 dark:border-amber-900/50",
+    };
+
+  return (
+    <div className={`rounded-2xl border p-3 shadow-sm ${palette.wrapper}`}>
+      <div className={`mb-3 flex items-center justify-between gap-3 border-b pb-2 ${palette.divider}`}>
+        <div>
+          <div className={`text-[10px] font-bold uppercase tracking-[0.2em] ${palette.heading}`}>{title}</div>
+          <div className={`mt-1 text-xs opacity-80 ${palette.heading}`}>{subtitle}</div>
+        </div>
+        <span className={`text-sm font-black ${palette.amount}`}>{formatCurrency(total)}</span>
+      </div>
+
+      {entries.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-sm">
+            <thead>
+              <tr className={`border-b text-left ${palette.divider}`}>
+                <th className={`pb-2 pr-3 text-[11px] font-bold uppercase tracking-[0.18em] ${palette.heading}`}>Date</th>
+                <th className={`pb-2 pr-3 text-[11px] font-bold uppercase tracking-[0.18em] ${palette.heading}`}>Particulars</th>
+                <th className={`pb-2 pr-3 text-[11px] font-bold uppercase tracking-[0.18em] ${palette.heading}`}>Ref</th>
+                <th className={`pb-2 text-right text-[11px] font-bold uppercase tracking-[0.18em] ${palette.heading}`}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <tr key={entry.id} className={`border-b align-top ${palette.row}`}>
+                  <td className="py-2.5 pr-3 text-slate-600 dark:text-slate-300">{new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(entry.date))}</td>
+                  <td className="py-2.5 pr-3 text-slate-700 dark:text-slate-200">{entry.particulars}</td>
+                  <td className="py-2.5 pr-3 text-slate-500 dark:text-slate-400">{entry.reference}</td>
+                  <td className={`py-2.5 text-right font-bold ${palette.amount}`}>{formatCurrency(entry.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">No entries</div>
+      )}
+    </div>
+  );
+};
+
 const ReportsDetailPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -150,6 +232,8 @@ const ReportsDetailPage = () => {
     const grossProfit = grossRevenue - cogs;
     const operatingExpenses = filteredTransactions.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
     const netProfit = grossProfit - operatingExpenses;
+    const averageSaleValue = filteredSales.length ? grossRevenue / filteredSales.length : 0;
+    const topPayment = Object.entries(paymentBreakdown).sort(([, a], [, b]) => b - a)[0];
 
     return {
       grossRevenue,
@@ -157,15 +241,20 @@ const ReportsDetailPage = () => {
       grossProfit,
       operatingExpenses,
       netProfit,
+      averageSaleValue,
+      topPayment: topPayment ? { name: topPayment[0], value: topPayment[1] } : { name: "cash", value: 0 },
       salesCount: filteredSales.length,
       transactionCount: filteredTransactions.length + filteredSales.length,
     };
-  }, [filteredSales, filteredTransactions]);
+  }, [filteredSales, filteredTransactions, paymentBreakdown]);
 
-  const activityRows = useMemo(() => {
-    return [...filteredSales.map((sale) => ({ ...sale, type: "sale" })), ...filteredTransactions]
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [filteredSales, filteredTransactions]);
+  const ledgerRows = useMemo(() => buildLedgerEntries({
+    sales: filteredSales,
+    expenses: filteredTransactions,
+  }), [filteredSales, filteredTransactions]);
+
+  const salesTotal = useMemo(() => filteredSales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0), [filteredSales]);
+  const expensesTotal = useMemo(() => filteredTransactions.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0), [filteredTransactions]);
 
   if (loading) {
     return <div className="p-6 text-slate-600 dark:text-slate-300">Loading report detail...</div>;
@@ -175,21 +264,63 @@ const ReportsDetailPage = () => {
     return <div className="p-6"><div className="form-error">{error}</div></div>;
   }
 
+  const summaryCards = [
+    {
+      label: "Gross Revenue",
+      value: formatCurrency(metrics.grossRevenue),
+      className: "from-slate-900 via-slate-800 to-slate-700 text-white",
+      accent: "bg-white/10 text-white/80",
+    },
+    {
+      label: "COGS",
+      value: formatCurrency(metrics.cogs),
+      className: "border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-50",
+      accent: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+    },
+    {
+      label: "Gross Profit",
+      value: formatCurrency(metrics.grossProfit),
+      className: "border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-700/60 dark:bg-emerald-950/40 dark:text-emerald-200",
+      accent: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    },
+    {
+      label: "Operating Expenses",
+      value: formatCurrency(metrics.operatingExpenses),
+      className: "border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200",
+      accent: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    },
+    {
+      label: "Net Profit",
+      value: formatCurrency(metrics.netProfit),
+      className: "border border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-700/60 dark:bg-emerald-900/30 dark:text-emerald-200",
+      accent: "bg-emerald-200/80 text-emerald-800 dark:bg-emerald-800/40 dark:text-emerald-200",
+    },
+  ];
+
+  const insights = [
+    { label: "Average sale", value: formatCurrency(metrics.averageSaleValue) },
+    { label: "Top payment", value: metrics.topPayment.name ? metrics.topPayment.name.replace("_", " ") : "Cash" },
+    { label: "Entries", value: String(metrics.transactionCount) },
+  ];
+
   return (
     <section className="page-stack reports-hub dark:text-slate-100">
-      <div className="page-heading dark:border-slate-700 dark:bg-slate-900/80">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-5 text-white shadow-lg shadow-slate-900/10 dark:border-slate-700 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <span className="section-eyebrow dark:text-emerald-300">Detailed analysis</span>
-            <h1 className="dark:text-slate-100">{range.label}</h1>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{getDateLabel(range.start)} - {getDateLabel(range.end)}</p>
+            <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-200">Detailed analysis</span>
+            <h1 className="mt-3 text-3xl font-black tracking-tight text-white">{range.label}</h1>
+            <p className="mt-2 text-sm text-slate-200">{getDateLabel(range.start)} - {getDateLabel(range.end)}</p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">
+              {metrics.salesCount} sales
+            </div>
             <button
               type="button"
               onClick={() => navigate("/app/reports")}
-              className="toolbar-button toolbar-button--ghost"
+              className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               ← Back to Reports
             </button>
@@ -197,52 +328,58 @@ const ReportsDetailPage = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <div className="tool-panel rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-          <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Gross Revenue</div>
-          <div className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">{formatCurrency(metrics.grossRevenue)}</div>
-        </div>
-        <div className="tool-panel rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-          <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">COGS</div>
-          <div className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">{formatCurrency(metrics.cogs)}</div>
-        </div>
-        <div className="tool-panel rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-          <div className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Gross Profit</div>
-          <div className="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(metrics.grossProfit)}</div>
-        </div>
-        <div className="tool-panel rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-          <div className="text-xs font-bold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">Operating Expenses</div>
-          <div className="mt-2 text-2xl font-black text-amber-600 dark:text-amber-400">{formatCurrency(metrics.operatingExpenses)}</div>
-        </div>
-        <div className="tool-panel rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-          <div className="text-xs font-bold uppercase tracking-[0.2em] text-green-600 dark:text-green-400">Net Profit</div>
-          <div className="mt-2 text-2xl font-black text-green-600 dark:text-green-400">{formatCurrency(metrics.netProfit)}</div>
-        </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {insights.map((item) => (
+          <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{item.label}</div>
+            <div className="mt-2 text-lg font-black text-slate-900 dark:text-slate-100">{item.value}</div>
+          </div>
+        ))}
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-5">
-        {paymentOptions.map((option) => {
-          const amount = option.value === "all" ? metrics.grossRevenue : paymentBreakdown[option.value] || 0;
-          const isActive = paymentFilter === option.value;
-
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setPaymentFilter(option.value)}
-              className={`rounded-2xl border p-3 text-left transition ${isActive ? "border-emerald-500 bg-emerald-50 shadow-sm dark:border-emerald-400 dark:bg-emerald-900/20" : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/80"}`}
-            >
-              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">{option.label}</div>
-              <div className="mt-2 text-lg font-black text-slate-900 dark:text-slate-100">{formatCurrency(amount)}</div>
-            </button>
-          );
-        })}
+      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {summaryCards.map((card) => (
+          <div key={card.label} className={`rounded-2xl bg-gradient-to-br p-4 shadow-sm ${card.className}`}>
+            <div className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${card.accent}`}>
+              {card.label}
+            </div>
+            <div className="mt-3 text-2xl font-black leading-tight">{card.value}</div>
+          </div>
+        ))}
       </div>
 
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/40 dark:border-slate-700 dark:bg-slate-900/80 dark:shadow-slate-950/20">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Activity breakdown</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Payment mix</span>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Total sales by method</p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-5">
+          {paymentOptions.map((option) => {
+            const amount = option.value === "all" ? metrics.grossRevenue : paymentBreakdown[option.value] || 0;
+            const isActive = paymentFilter === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setPaymentFilter(option.value)}
+                className={`rounded-2xl border p-3 text-left transition ${isActive ? "border-emerald-500 bg-emerald-50 shadow-sm dark:border-emerald-400 dark:bg-emerald-900/20" : "border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800/80"}`}
+              >
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">{option.label}</div>
+                <div className="mt-2 text-lg font-black text-slate-900 dark:text-slate-100">{formatCurrency(amount)}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/40 dark:border-slate-700 dark:bg-slate-900/80 dark:shadow-slate-950/20">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Financial register</span>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{metrics.salesCount} sales • {metrics.transactionCount} total entries</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -251,7 +388,7 @@ const ReportsDetailPage = () => {
                 key={`filter-${option.value}`}
                 type="button"
                 onClick={() => setPaymentFilter(option.value)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${paymentFilter === option.value ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-900" : "border border-slate-200 text-slate-600 dark:border-slate-600 dark:text-slate-300"}`}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${paymentFilter === option.value ? "bg-slate-900 text-white shadow-sm dark:bg-emerald-500 dark:text-slate-900" : "border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"}`}
               >
                 {option.label}
               </button>
@@ -259,56 +396,22 @@ const ReportsDetailPage = () => {
           </div>
         </div>
 
-        {activityRows.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px] text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700">
-                  <th className="px-4 py-3 text-left text-slate-600 dark:text-slate-400">Time</th>
-                  <th className="px-4 py-3 text-left text-slate-600 dark:text-slate-400">Items</th>
-                  <th className="px-4 py-3 text-left text-slate-600 dark:text-slate-400">Type</th>
-                  <th className="px-4 py-3 text-left text-slate-600 dark:text-slate-400">Payment</th>
-                  <th className="px-4 py-3 text-left text-slate-600 dark:text-slate-400">Staff</th>
-                  <th className="px-4 py-3 text-left text-slate-600 dark:text-slate-400">Reference</th>
-                  <th className="px-4 py-3 text-right text-slate-600 dark:text-slate-400">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activityRows.map((entry, index) => {
-                  const statusTone = entry.type === "expense"
-                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-
-                  const itemLabel = getItemLabel(entry);
-                  const paymentLabel = entry.type === "expense" ? "Expense" : (entry.paymentMethod || "Cash");
-
-                  return (
-                    <tr key={`${entry._id || entry.receiptId || index}`} className="border-b border-slate-100 align-top dark:border-slate-700/80">
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                        {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(entry.createdAt))}
-                      </td>
-                      <td className="max-w-xs px-4 py-3 text-slate-700 dark:text-slate-300">
-                        <div className="font-semibold text-slate-900 dark:text-slate-100">{itemLabel}</div>
-                        {entry.type === "sale" && Array.isArray(entry.items) && entry.items.length > 0 && (
-                          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                            {entry.items.slice(0, 3).map((item) => `${item.name || item.productName || "Item"} (${item.quantity || 1})`).join(" • ")}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${statusTone}`}>
-                          {entry.type === "expense" ? "Expense" : "Sale"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{paymentLabel}</td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{entry.createdBy?.name || entry.staff || "System"}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">#{entry.receiptId || entry._id?.slice(-6) || "N/A"}</td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-slate-100">{formatCurrency(entry.totalAmount || entry.amount || 0)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {ledgerRows.length > 0 ? (
+          <div className="grid gap-4 xl:grid-cols-2">
+            <LedgerRegister
+              title="Sales register"
+              subtitle="Cash inflow"
+              total={salesTotal}
+              tone="emerald"
+              entries={ledgerRows.filter((entry) => entry.side === "sale")}
+            />
+            <LedgerRegister
+              title="Expenses register"
+              subtitle="Cash outflow"
+              total={expensesTotal}
+              tone="amber"
+              entries={ledgerRows.filter((entry) => entry.side === "expense")}
+            />
           </div>
         ) : (
           <div className="py-8 text-center text-slate-500 dark:text-slate-400">No activity was found for this period.</div>
