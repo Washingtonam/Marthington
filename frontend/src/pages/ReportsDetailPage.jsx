@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getReport, REPORT_TYPES } from "../api/reportApi.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { parseReportDetailRoute } from "../utils/reportDateRouting.js";
+import { FiDownload, FiGrid, FiList, FiPrinter, FiShare2 } from "react-icons/fi";
 
 const getDateLabel = (date) => {
   if (!date || Number.isNaN(date.getTime())) return "Custom";
@@ -69,6 +70,8 @@ const paymentOptions = [
   { value: "other", label: "Other" },
 ];
 
+const getPaymentLabel = (value) => paymentOptions.find((option) => option.value === value)?.label || "Other";
+
 export const buildLedgerEntries = ({ sales = [], expenses = [] }) => {
   const rows = [
     ...sales.map((sale, index) => ({
@@ -94,7 +97,7 @@ export const buildLedgerEntries = ({ sales = [], expenses = [] }) => {
   return rows.sort((a, b) => new Date(a.date) - new Date(b.date));
 };
 
-const LedgerRegister = ({ title, subtitle, total, tone, entries }) => {
+const LedgerRegister = ({ title, subtitle, total, tone, entries, viewMode }) => {
   const palette = tone === "emerald"
     ? {
       wrapper: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/20",
@@ -122,6 +125,22 @@ const LedgerRegister = ({ title, subtitle, total, tone, entries }) => {
       </div>
 
       {entries.length > 0 ? (
+        viewMode === "expanded" ? (
+          <div className="grid gap-2">
+            {entries.map((entry) => (
+              <div key={entry.id} className={`rounded-xl border bg-white/70 p-3 transition hover:-translate-y-0.5 hover:shadow-sm dark:bg-slate-900/40 ${palette.row}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-900 dark:text-slate-100">{entry.particulars}</div>
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(entry.date))} · {entry.reference}</div>
+                  </div>
+                  <div className={`shrink-0 text-sm font-black ${palette.amount}`}>{formatCurrency(entry.amount)}</div>
+                </div>
+                <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{entry.paymentMethod === "Expense" ? "Expense" : getPaymentLabel(entry.paymentMethod)}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[420px] text-sm">
             <thead>
@@ -144,6 +163,7 @@ const LedgerRegister = ({ title, subtitle, total, tone, entries }) => {
             </tbody>
           </table>
         </div>
+        )
       ) : (
         <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">No entries</div>
       )}
@@ -158,6 +178,7 @@ const ReportsDetailPage = () => {
   const [error, setError] = useState("");
   const [report, setReport] = useState(null);
   const [paymentFilter, setPaymentFilter] = useState("all");
+  const [viewMode, setViewMode] = useState("compact");
 
   const range = useMemo(() => parseReportDetailRoute(new URLSearchParams(location.search)), [location.search]);
 
@@ -256,6 +277,28 @@ const ReportsDetailPage = () => {
   const salesTotal = useMemo(() => filteredSales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0), [filteredSales]);
   const expensesTotal = useMemo(() => filteredTransactions.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0), [filteredTransactions]);
 
+  const paymentTotal = Object.values(paymentBreakdown).reduce((sum, amount) => sum + amount, 0);
+  const handleExport = () => {
+    const rows = [
+      ["Date", "Type", "Particulars", "Reference", "Payment", "Amount"],
+      ...ledgerRows.map((entry) => [entry.date, entry.side, entry.particulars, entry.reference, entry.paymentMethod, entry.amount]),
+    ];
+    const csv = rows.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    link.download = `${range.label.toLowerCase().replaceAll(" ", "-")}-report.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      await navigator.share({ title: `${range.label} report`, text: "Financial report", url: window.location.href });
+    } else {
+      await navigator.clipboard?.writeText(window.location.href);
+    }
+  };
+
   if (loading) {
     return <div className="p-6 text-slate-600 dark:text-slate-300">Loading report detail...</div>;
   }
@@ -268,32 +311,26 @@ const ReportsDetailPage = () => {
     {
       label: "Gross Revenue",
       value: formatCurrency(metrics.grossRevenue),
-      className: "from-slate-900 via-slate-800 to-slate-700 text-white",
-      accent: "bg-white/10 text-white/80",
+      className: "border-white/10 bg-white/10 text-white",
+      accent: "text-emerald-200",
     },
     {
-      label: "COGS",
+      label: "Cost of goods sold",
       value: formatCurrency(metrics.cogs),
-      className: "border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-50",
-      accent: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+      className: "border-white/10 bg-white/5 text-white",
+      accent: "text-slate-300",
     },
     {
-      label: "Gross Profit",
-      value: formatCurrency(metrics.grossProfit),
-      className: "border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-700/60 dark:bg-emerald-950/40 dark:text-emerald-200",
-      accent: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-    },
-    {
-      label: "Operating Expenses",
+      label: "Operating expenses",
       value: formatCurrency(metrics.operatingExpenses),
-      className: "border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200",
-      accent: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+      className: "border-white/10 bg-white/5 text-white",
+      accent: "text-amber-200",
     },
     {
-      label: "Net Profit",
+      label: "Net profit",
       value: formatCurrency(metrics.netProfit),
-      className: "border border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-700/60 dark:bg-emerald-900/30 dark:text-emerald-200",
-      accent: "bg-emerald-200/80 text-emerald-800 dark:bg-emerald-800/40 dark:text-emerald-200",
+      className: "border-emerald-300/40 bg-emerald-400/20 text-white shadow-lg shadow-emerald-950/20",
+      accent: "text-emerald-200",
     },
   ];
 
@@ -305,18 +342,21 @@ const ReportsDetailPage = () => {
 
   return (
     <section className="page-stack reports-hub dark:text-slate-100">
-      <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-5 text-white shadow-lg shadow-slate-900/10 dark:border-slate-700 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950">
+      <div className="overflow-hidden rounded-3xl border border-slate-700/70 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-2xl shadow-slate-900/20">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-200">Detailed analysis</span>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-white">{range.label}</h1>
-            <p className="mt-2 text-sm text-slate-200">{getDateLabel(range.start)} - {getDateLabel(range.end)}</p>
+            <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-300">Financial health</span>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-white">{range.label} report</h1>
+            <div className="mt-3 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200">{getDateLabel(range.start)} - {getDateLabel(range.end)}</div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">
               {metrics.salesCount} sales
             </div>
+            <button type="button" title="Export report" aria-label="Export report" onClick={handleExport} className="rounded-xl border border-white/15 bg-white/5 p-2.5 text-slate-200 transition hover:bg-white/15"><FiDownload /></button>
+            <button type="button" title="Print report" aria-label="Print report" onClick={() => window.print()} className="rounded-xl border border-white/15 bg-white/5 p-2.5 text-slate-200 transition hover:bg-white/15"><FiPrinter /></button>
+            <button type="button" title="Share report" aria-label="Share report" onClick={handleShare} className="rounded-xl border border-white/15 bg-white/5 p-2.5 text-slate-200 transition hover:bg-white/15"><FiShare2 /></button>
             <button
               type="button"
               onClick={() => navigate("/app/reports")}
@@ -326,37 +366,34 @@ const ReportsDetailPage = () => {
             </button>
           </div>
         </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {insights.map((item) => (
-          <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{item.label}</div>
-            <div className="mt-2 text-lg font-black text-slate-900 dark:text-slate-100">{item.value}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {summaryCards.map((card) => (
-          <div key={card.label} className={`rounded-2xl bg-gradient-to-br p-4 shadow-sm ${card.className}`}>
-            <div className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${card.accent}`}>
-              {card.label}
+        <div className="mt-6 grid gap-3 border-t border-white/10 pt-5 md:grid-cols-2 xl:grid-cols-4">
+          {summaryCards.map((card) => (
+            <div key={card.label} className={`rounded-2xl border p-4 backdrop-blur-sm ${card.className}`}>
+              <div className={`text-[10px] font-bold uppercase tracking-[0.18em] ${card.accent}`}>{card.label}</div>
+              <div className="mt-3 text-2xl font-black leading-tight">{card.value}</div>
             </div>
-            <div className="mt-3 text-2xl font-black leading-tight">{card.value}</div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/40 dark:border-slate-700 dark:bg-slate-900/80 dark:shadow-slate-950/20">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Payment mix</span>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Total sales by method</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Where revenue came from</p>
           </div>
+          <span className="text-sm font-black text-slate-900 dark:text-slate-100">{formatCurrency(paymentTotal)}</span>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-5">
+        <div className="flex h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+          {paymentOptions.slice(1).map((option, index) => {
+            const amount = paymentBreakdown[option.value] || 0;
+            const width = paymentTotal ? `${Math.max((amount / paymentTotal) * 100, amount ? 2 : 0)}%` : "0%";
+            const colors = ["bg-emerald-500", "bg-sky-500", "bg-violet-500", "bg-amber-500", "bg-slate-400"];
+            return <button key={option.value} type="button" title={`${option.label}: ${formatCurrency(amount)}`} onClick={() => setPaymentFilter(option.value)} className={`${colors[index]} transition-opacity hover:opacity-80`} style={{ width }} aria-label={`Filter by ${option.label}`} />;
+          })}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
           {paymentOptions.map((option) => {
             const amount = option.value === "all" ? metrics.grossRevenue : paymentBreakdown[option.value] || 0;
             const isActive = paymentFilter === option.value;
@@ -366,10 +403,10 @@ const ReportsDetailPage = () => {
                 key={option.value}
                 type="button"
                 onClick={() => setPaymentFilter(option.value)}
-                className={`rounded-2xl border p-3 text-left transition ${isActive ? "border-emerald-500 bg-emerald-50 shadow-sm dark:border-emerald-400 dark:bg-emerald-900/20" : "border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800/80"}`}
+                className={`rounded-full border px-3 py-2 text-left transition ${isActive ? "border-emerald-500 bg-emerald-50 shadow-sm dark:border-emerald-400 dark:bg-emerald-900/20" : "border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800/80"}`}
               >
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">{option.label}</div>
-                <div className="mt-2 text-lg font-black text-slate-900 dark:text-slate-100">{formatCurrency(amount)}</div>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{option.label}</span>
+                <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{formatCurrency(amount)}</span>
               </button>
             );
           })}
@@ -383,6 +420,10 @@ const ReportsDetailPage = () => {
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{metrics.salesCount} sales • {metrics.transactionCount} total entries</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <div className="mr-1 flex rounded-xl border border-slate-200 p-1 dark:border-slate-700">
+              <button type="button" title="Compact table view" aria-label="Compact table view" onClick={() => setViewMode("compact")} className={`rounded-lg p-2 ${viewMode === "compact" ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950" : "text-slate-500"}`}><FiList /></button>
+              <button type="button" title="Expanded card view" aria-label="Expanded card view" onClick={() => setViewMode("expanded")} className={`rounded-lg p-2 ${viewMode === "expanded" ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950" : "text-slate-500"}`}><FiGrid /></button>
+            </div>
             {paymentOptions.map((option) => (
               <button
                 key={`filter-${option.value}`}
@@ -404,6 +445,7 @@ const ReportsDetailPage = () => {
               total={salesTotal}
               tone="emerald"
               entries={ledgerRows.filter((entry) => entry.side === "sale")}
+              viewMode={viewMode}
             />
             <LedgerRegister
               title="Expenses register"
@@ -411,6 +453,7 @@ const ReportsDetailPage = () => {
               total={expensesTotal}
               tone="amber"
               entries={ledgerRows.filter((entry) => entry.side === "expense")}
+              viewMode={viewMode}
             />
           </div>
         ) : (
