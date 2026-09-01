@@ -22,6 +22,7 @@ import StatusToast from "../components/StatusToast.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated, subscribeToSalesUpdates } from "../utils/salesEvents.js";
 import { buildReportDetailRoute } from "../utils/reportDateRouting.js";
+import { FiCalendar, FiDownload, FiMail, FiPrinter, FiSettings } from "react-icons/fi";
 
 const PERIOD_OPTIONS = [
   { value: "7", label: "7D" },
@@ -1077,21 +1078,22 @@ const Reports = () => {
 
   return (
     <section className="page-stack reports-hub dark:text-slate-100">
-      <div className="page-heading dark:border-slate-700 dark:bg-slate-900/80">
-        <div className="flex items-center justify-between">
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-2xl shadow-slate-900/15 dark:border-slate-700">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <span className="section-eyebrow dark:text-emerald-300">
-              <span className="status-dot" />
-              Business Intelligence
-            </span>
-            <h1 className="dark:text-slate-100">Reports Hub</h1>
+            <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-300">Business intelligence</span>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Reports Hub</h1>
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200">
+              <FiCalendar /> {formatDateRange()}
+            </div>
           </div>
-          <div className="reports-toolbar-group relative">
+          <div className="reports-toolbar-group relative flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-2 shadow-lg backdrop-blur-md">
             <button
               onClick={() => setShowCustomizationMenu(!showCustomizationMenu)}
-              className="toolbar-button toolbar-button--ghost"
+              title="Customize visible report widgets"
+              className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-slate-200 transition hover:bg-white/15"
             >
-              ⚙️ Customize View
+              <FiSettings />
             </button>
 
             {/* Customization Dropdown Menu */}
@@ -1127,22 +1129,25 @@ const Reports = () => {
             <button
               onClick={handleExportCSV}
               disabled={!startDate || timelineTransactions.length === 0}
-              className="toolbar-button toolbar-button--ghost"
+              title="Export CSV"
+              className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-slate-200 transition hover:bg-white/15 disabled:opacity-40"
             >
-              📥 Export CSV
+              <FiDownload />
             </button>
             <button
               onClick={() => setShowEmailScheduler(!showEmailScheduler)}
-              className="toolbar-button toolbar-button--ghost"
+              title="Schedule reports by email"
+              className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-slate-200 transition hover:bg-white/15"
             >
-              ✉️ Scheduled Reports
+              <FiMail />
             </button>
             <button
               onClick={handlePrintReport}
               disabled={!startDate || timelineTransactions.length === 0}
-              className="toolbar-button toolbar-button--primary disabled:opacity-50"
+              title="Print report"
+              className="rounded-xl bg-emerald-400 p-2.5 text-slate-950 transition hover:bg-emerald-300 disabled:opacity-40"
             >
-              🖨️ Print
+              <FiPrinter />
             </button>
           </div>
         </div>
@@ -1308,12 +1313,12 @@ const Reports = () => {
         </div>
 
         {/* Quick Presets */}
-        <div className="mb-4 flex flex-wrap gap-2">
+        <div className="mb-4 inline-flex max-w-full flex-wrap gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 shadow-inner dark:border-slate-700 dark:bg-slate-800/70">
           {PRESET_DATES.map((preset) => (
             <button
               key={preset.label}
               onClick={() => handlePresetDate(preset)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-xl px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
             >
               {preset.label}
             </button>
@@ -1345,8 +1350,9 @@ const Reports = () => {
         )}
 
         {/* Selected Date Display */}
-        <div className="inline-block rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
-          <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">📅 {formatDateRange()}</span>
+        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 shadow-sm dark:border-emerald-800 dark:bg-emerald-900/20">
+          <FiCalendar className="text-emerald-600 dark:text-emerald-300" />
+          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">{formatDateRange()}</span>
         </div>
       </div>
 
@@ -1435,11 +1441,11 @@ const Reports = () => {
         )}
       </div>
 
-      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+      <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/40 dark:border-slate-700 dark:bg-slate-900/80 dark:shadow-slate-950/20">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Daily analysis</span>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Revenue less cost of goods and operating expenses.</p>
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Executive command summary</span>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Revenue, costs, and net result for the selected view.</p>
           </div>
           <input
             type="date"
@@ -1474,9 +1480,9 @@ const Reports = () => {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {summaryCards.map(([label, value], index) => (
-            <div key={label} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+            <div key={label} className={`rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${index === summaryCards.length - 1 ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/30" : "border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80"}`}>
               <div className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
-              <div className={`mt-2 text-lg font-black ${index === summaryCards.length - 1 ? "text-blue-600 dark:text-blue-400" : index === 2 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-slate-100"}`}>{label === "Sales count" ? value || 0 : formatCurrency(value || 0)}</div>
+              <div className={`mt-3 ${index === summaryCards.length - 1 ? "text-3xl" : "text-xl"} font-black ${index === summaryCards.length - 1 ? "text-emerald-700 dark:text-emerald-300" : index === 2 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-slate-100"}`}>{label === "Sales count" ? value || 0 : formatCurrency(value || 0)}</div>
             </div>
           ))}
         </div>
@@ -1497,7 +1503,7 @@ const Reports = () => {
       {widgetVisibility.executiveCards && (
         <div className="reports-detail-grid">
           <div className="mb-4">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Detailed analytics</span>
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Supporting audit metrics</span>
           </div>
           
           <div className="grid gap-4 mb-6 lg:grid-cols-5 dark:text-slate-100">
@@ -1848,13 +1854,13 @@ const Reports = () => {
 
           {/* DAILY TRANSACTION & ACTIVITY TIMELINE */}
           {widgetVisibility.transactionLog && (
-          <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+          <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/30 dark:border-slate-700 dark:bg-slate-900/80 dark:shadow-slate-950/20">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">Transaction Timeline</span>
                 <p className="text-sm text-slate-500 dark:text-slate-400">All activities for selected period</p>
               </div>
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/60">
                 <input
                   value={timelineSearch}
                   onChange={(e) => setTimelineSearch(e.target.value)}
@@ -1924,7 +1930,7 @@ const Reports = () => {
                   </thead>
                   <tbody>
                     {paginatedTimelineTransactions.map((transaction, idx) => (
-                      <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/50">
+                        <tr key={idx} className="border-b border-slate-100 even:bg-slate-50/70 hover:bg-emerald-50/60 dark:border-slate-700 dark:even:bg-slate-800/30 dark:hover:bg-emerald-950/20">
                         <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
                           {new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(transaction.createdAt))}
                         </td>
