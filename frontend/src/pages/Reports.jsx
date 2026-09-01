@@ -24,13 +24,6 @@ import { notifySalesUpdated, subscribeToSalesUpdates } from "../utils/salesEvent
 import { buildReportDetailRoute } from "../utils/reportDateRouting.js";
 import { FiCalendar, FiDownload, FiMail, FiPrinter, FiSettings } from "react-icons/fi";
 
-const PERIOD_OPTIONS = [
-  { value: "7", label: "7D" },
-  { value: "30", label: "30D" },
-  { value: "90", label: "90D" },
-  { value: "all", label: "All" },
-];
-
 const PRESET_DATES = [
   { label: "Today", getValue: () => {
     const d = new Date();
@@ -86,13 +79,12 @@ const Reports = () => {
   const [selectedStaff, setSelectedStaff] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("all");
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(true);
   const [timelineSearch, setTimelineSearch] = useState("");
   const deferredTimelineSearch = useDeferredValue(timelineSearch);
   const [timelinePage, setTimelinePage] = useState(1);
   const [updatingTransactionId, setUpdatingTransactionId] = useState(null);
   const [transactionStatusNotice, setTransactionStatusNotice] = useState(null);
-  const [dailyDate, setDailyDate] = useState(new Date().toISOString().slice(0, 10));
   const currentUser = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("bms_user") || "null");
@@ -105,8 +97,6 @@ const Reports = () => {
     currentUser?.role === "super_admin" ||
     currentUser?.permissions?.canManagePayments
   );
-  const [dailyAnalysis, setDailyAnalysis] = useState(null);
-  const [summaryMode, setSummaryMode] = useState("daily");
   const [showCustomizationMenu, setShowCustomizationMenu] = useState(false);
   const [widgetVisibility, setWidgetVisibility] = useState(() => {
     const stored = localStorage.getItem(WIDGET_CONFIG_KEY);
@@ -487,16 +477,6 @@ const Reports = () => {
     };
   }, [period]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    getReport(REPORT_TYPES.dailyAnalysis, { date: dailyDate, signal: controller.signal })
-      .then(setDailyAnalysis)
-      .catch((err) => {
-        if (err.name !== "AbortError") setError(err.message || "Failed to load daily analysis");
-      });
-    return () => controller.abort();
-  }, [dailyDate]);
-
   const overview = reports?.overview || {};
   const recentSales = reports?.recentSales || [];
   const allTransactions = reports?.raw?.transactions || [];
@@ -512,27 +492,38 @@ const Reports = () => {
   ];
 
   // Filter transactions by date range
+  const activeDateRange = useMemo(() => {
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
+    }
+
+    const end = new Date();
+    const start = new Date(end);
+    if (period !== "all") start.setDate(start.getDate() - (Number(period) || 30));
+    else start.setTime(0);
+    return { start, end };
+  }, [startDate, endDate, period]);
+
   const transactionsByDateRange = useMemo(() => {
     const sales = reportActivity;
-    const startCheck = startDate || new Date(new Date().setDate(new Date().getDate() - 30));
-    const endCheck = endDate || new Date();
+    const { start: startCheck, end: endCheck } = activeDateRange;
 
     return sales.filter((sale) => {
       const saleDate = new Date(sale.createdAt);
       return saleDate >= startCheck && saleDate <= endCheck;
     });
-  }, [reports, startDate, endDate]);
+  }, [reports, activeDateRange]);
 
   const filteredSales = useMemo(() => {
     const sales = reportSales;
-    if (period === "all") return sales;
-
-    const days = Number(period) || 30;
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-
-    return sales.filter((sale) => new Date(sale.createdAt) >= cutoff);
-  }, [reports, period]);
+    return sales.filter((sale) => {
+      const date = new Date(sale.createdAt);
+      return date >= activeDateRange.start && date <= activeDateRange.end;
+    });
+  }, [reports, activeDateRange]);
 
   // Extract available filter options
   const availableBranches = useMemo(() => {
@@ -581,7 +572,7 @@ const Reports = () => {
 
   // 7-day moving average calculation
   const movingAverageData = useMemo(() => {
-    const sales = filteredSales.length ? filteredSales : reportSales;
+    const sales = filteredSales;
     const dailyData = new Map();
 
     sales.forEach(sale => {
@@ -634,24 +625,24 @@ const Reports = () => {
 
   // Audit Metrics for selected date range
   const auditMetrics = useMemo(() => {
-    const sales = multiDimensionalFiltered;
+    const sales = multiDimensionalFiltered.filter((entry) => entry.type !== "expense");
     const grossRevenue = sales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
     const cogs = sales.reduce((sum, s) => {
       const itemsCost = (s.items || []).reduce((itemSum, item) => itemSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0);
       return sum + itemsCost;
     }, 0);
     const grossProfit = grossRevenue - cogs;
-    const operatingExpenses = reportTransactions
-      .filter((transaction) => new Date(transaction.createdAt) >= (startDate || new Date(new Date().setDate(new Date().getDate() - 30))) && new Date(transaction.createdAt) <= (endDate || new Date()))
+    const operatingExpenses = multiDimensionalFiltered
+      .filter((transaction) => transaction.type === "expense")
       .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
     const netProfit = grossProfit - operatingExpenses;
 
     return { grossRevenue, cogs, grossProfit, operatingExpenses, netProfit };
-  }, [multiDimensionalFiltered, reportTransactions, startDate, endDate]);
+  }, [multiDimensionalFiltered]);
 
   // Payment methods breakdown
   const paymentMethodsBreakdown = useMemo(() => {
-    const sales = multiDimensionalFiltered;
+    const sales = multiDimensionalFiltered.filter((entry) => entry.type !== "expense");
     const breakdown = {
       cash: 0,
       card: 0,
@@ -661,9 +652,10 @@ const Reports = () => {
     };
 
     sales.forEach((sale) => {
-      const method = (sale.paymentMethod || "cash").toLowerCase();
-      if (breakdown.hasOwnProperty(method)) {
-        breakdown[method] += Number(sale.totalAmount || 0);
+      const method = String(sale.paymentMethod || "cash").toLowerCase().replace(/[- ]/g, "_");
+      const normalizedMethod = method === "transfer" ? "bank_transfer" : method === "debt" ? "credit" : method;
+      if (Object.prototype.hasOwnProperty.call(breakdown, normalizedMethod)) {
+        breakdown[normalizedMethod] += Number(sale.totalAmount || 0);
       }
     });
 
@@ -863,7 +855,7 @@ const Reports = () => {
   }, [multiDimensionalFiltered]);
 
   const salesChartData = useMemo(() => {
-    const source = filteredSales.length ? filteredSales : reports?.recentSales || [];
+    const source = filteredSales;
     const bucketMap = new Map();
 
     source.forEach((sale) => {
@@ -936,25 +928,14 @@ const Reports = () => {
   );
 
   const summaryCards = useMemo(() => {
-    if (summaryMode === "daily") {
-      return [
-        ["Sales", dailyAnalysis?.summary?.revenue],
-        ["COGS", dailyAnalysis?.summary?.cogs],
-        ["Gross profit", dailyAnalysis?.summary?.grossProfit],
-        ["Expenses", dailyAnalysis?.summary?.expenses],
-        ["Net result", dailyAnalysis?.summary?.netProfit],
-      ];
-    }
-
-    const isMonthly = summaryMode === "monthly";
     return [
-      ["Sales", isMonthly ? overview.monthlyRevenue : overview.periodRevenue],
-      ["Gross profit", isMonthly ? overview.monthlyGrossProfit : overview.periodGrossProfit],
-      ["Expenses", isMonthly ? overview.monthlyOperatingExpenses : overview.periodOperatingExpenses],
-      ["Net result", isMonthly ? overview.monthlyProfit : overview.periodProfit],
-      ["Sales count", filteredSales.length],
+      ["Sales", auditMetrics.grossRevenue],
+      ["COGS", auditMetrics.cogs],
+      ["Gross profit", auditMetrics.grossProfit],
+      ["Expenses", auditMetrics.operatingExpenses],
+      ["Net result", auditMetrics.netProfit],
     ];
-  }, [summaryMode, dailyAnalysis, overview, filteredSales]);
+  }, [auditMetrics]);
 
   const renderMetricValue = (value) => {
     const numericValue = Number(value || 0);
@@ -1323,6 +1304,13 @@ const Reports = () => {
               {preset.label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setShowCustomDatePicker(true)}
+            className={`rounded-xl px-3 py-2 text-xs font-bold transition ${showCustomDatePicker ? "bg-emerald-600 text-white shadow-sm" : "text-emerald-700 hover:bg-white dark:text-emerald-300 dark:hover:bg-slate-700"}`}
+          >
+            Custom
+          </button>
         </div>
 
         {/* Custom Date Picker */}
@@ -1333,7 +1321,7 @@ const Reports = () => {
               <input 
                 type="date" 
                 value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : null)}
+                onChange={(e) => { setPeriod("all"); setStartDate(e.target.value ? new Date(e.target.value) : null); }}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
               />
             </div>
@@ -1342,7 +1330,7 @@ const Reports = () => {
               <input 
                 type="date" 
                 value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : null)}
+                onChange={(e) => { setPeriod("all"); setEndDate(e.target.value ? new Date(e.target.value) : null); }}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
               />
             </div>
@@ -1447,35 +1435,26 @@ const Reports = () => {
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Executive command summary</span>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Revenue, costs, and net result for the selected view.</p>
           </div>
-          <input
-            type="date"
-            value={dailyDate}
-            onChange={(e) => setDailyDate(e.target.value)}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-          />
-        </div>
-        <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-100 pb-3 dark:border-slate-700">
-          {["daily", "monthly", "period"].map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setSummaryMode(mode)}
-              className={`rounded-lg px-3 py-2 text-xs font-bold capitalize ${summaryMode === mode ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-900" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}
-            >
-              {mode === "period" ? "Selected period" : mode}
-            </button>
-          ))}
-          <div className="ml-auto flex flex-wrap gap-1">
-            {PERIOD_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => { setPeriod(option.value); setStartDate(null); setEndDate(null); }}
-                className={`rounded-lg px-2 py-1 text-[11px] font-bold ${period === option.value && !startDate ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" : "text-slate-500 dark:text-slate-400"}`}
-              >
-                {option.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              From
+              <input
+                type="date"
+                value={startDate ? startDate.toISOString().slice(0, 10) : ""}
+                onChange={(event) => { setPeriod("all"); setStartDate(event.target.value ? new Date(event.target.value) : null); }}
+                className="bg-transparent text-xs font-bold text-slate-700 outline-none dark:text-slate-100"
+              />
+            </label>
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              To
+              <input
+                type="date"
+                value={endDate ? endDate.toISOString().slice(0, 10) : ""}
+                onChange={(event) => { setPeriod("all"); setEndDate(event.target.value ? new Date(event.target.value) : null); }}
+                className="bg-transparent text-xs font-bold text-slate-700 outline-none dark:text-slate-100"
+              />
+            </label>
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">{formatDateRange()}</span>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -1487,15 +1466,12 @@ const Reports = () => {
           ))}
         </div>
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-          {(summaryMode === "daily"
-            ? dailyAnalysis?.paymentMethods || []
-            : Object.entries(paymentMethodsBreakdown).map(([method, amount]) => ({ method, amount, count: "" }))
-          ).map((item) => (
-            <span key={item.method} className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold dark:bg-slate-800 dark:text-slate-300">
-              {item.method.replace("_", " ")} · {formatCurrency(item.amount)} {item.count !== "" && `(${item.count})`}
+          {Object.entries(paymentMethodsBreakdown).map(([method, amount]) => (
+            <span key={method} className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold dark:bg-slate-800 dark:text-slate-300">
+              {method.replace("_", " ")} · {formatCurrency(amount)}
             </span>
           ))}
-          <span className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold dark:bg-slate-800 dark:text-slate-300">{summaryMode === "daily" ? dailyAnalysis?.summary?.salesCount || 0 : filteredSales.length} sales</span>
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold dark:bg-slate-800 dark:text-slate-300">{filteredSales.length} sales</span>
         </div>
       </div>
 
