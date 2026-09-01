@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import request from "../api/client.js";
 import { getBranches } from "../api/branches.js";
 import "../styles.css";
@@ -349,7 +349,7 @@ const Staff = () => {
   const [error, setError] = useState("");
   const [showDrawer, setShowDrawer] = useState(false);
   const [isDrawerMounted, setIsDrawerMounted] = useState(false);
-  const [openGroup, setOpenGroup] = useState("inventory");
+  const [openGroup, setOpenGroup] = useState("pos");
   const [showDetails, setShowDetails] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);

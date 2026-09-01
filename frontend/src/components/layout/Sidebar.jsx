@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 const SIDEBAR_GROUPS_STORAGE_KEY = "marthington-sidebar-groups";
@@ -42,9 +42,15 @@ const defaultNavGroups = [
     ],
   },
   {
-    label: "People & Locations",
+    label: "Team & Access",
     items: [
       { to: "/app/staff", label: "Staff", icon: "◎" },
+      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: "🛡️" },
+    ],
+  },
+  {
+    label: "People & Locations",
+    items: [
       { to: "/app/branches", label: "Branches", icon: "🏢" },
     ],
   },
@@ -65,6 +71,7 @@ export default function Sidebar({
   toggleTheme,
 }) {
   const { pathname } = useLocation();
+  const normalizeTarget = (target) => (typeof target === "string" ? target.split("?")[0] : target?.pathname || "/app");
   const [openGroups, setOpenGroups] = useState(() => {
     if (typeof window === "undefined") return {};
 
@@ -83,11 +90,12 @@ export default function Sidebar({
 
   useEffect(() => {
     const activeGroup = navigationGroups.find((group) =>
-      group.items.some((item) =>
-        item.to === "/app"
-          ? pathname === item.to
-          : pathname === item.to || pathname.startsWith(`${item.to}/`)
-      )
+      group.items.some((item) => {
+        const target = normalizeTarget(item.to);
+        return target === "/app"
+          ? pathname === target
+          : pathname === target || pathname.startsWith(`${target}/`);
+      })
     );
 
     if (activeGroup) {
@@ -165,9 +173,9 @@ export default function Sidebar({
               <div id={groupId} className={`space-y-1 ${isOpen ? "" : "hidden"}`}>
                 {group.items.map((item) => (
                   <NavLink
-                    key={item.to}
+                    key={typeof item.to === "string" ? item.to : item.to?.pathname || item.label}
                     to={item.to}
-                    end={item.to === "/app"}
+                    end={normalizeTarget(item.to) === "/app"}
                     onClick={() => setMobileOpen(false)}
                     className={({ isActive }) =>
                       `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 active:scale-[0.99] ${

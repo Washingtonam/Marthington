@@ -38,9 +38,15 @@ const defaultNavGroups = [
     ],
   },
   {
-    label: "People & Locations",
+    label: "Team & Access",
     items: [
       { to: "/app/staff", label: "Staff", icon: "◎" },
+      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: "🛡️" },
+    ],
+  },
+  {
+    label: "People & Locations",
+    items: [
       { to: "/app/branches", label: "Branches", icon: "🏢" },
     ],
   },

@@ -2,6 +2,29 @@ import User from "./user.model.js";
 import Branch from "../branches/branch.model.js";
 import bcrypt from "bcryptjs";
 
+const getPermissionGrantViolations = (actorPermissions = {}, candidatePermissions = {}) => {
+  const actorPerms = actorPermissions || {};
+  const candidatePerms = candidatePermissions || {};
+
+  return Object.keys(candidatePerms).filter((permission) => {
+    return candidatePerms[permission] === true && actorPerms[permission] !== true;
+  });
+};
+
+const rejectOverGrant = (req, candidatePermissions, res) => {
+  const actorPermissions = req.user?.permissions || {};
+  const violations = getPermissionGrantViolations(actorPermissions, candidatePermissions);
+
+  if (violations.length > 0) {
+    res.status(403).json({
+      message: `You cannot grant permissions you do not already hold: ${violations.join(", ")}`
+    });
+    return true;
+  }
+
+  return false;
+};
+
 // 🔥 CREATE STAFF
 export const createStaff = async (req, res) => {
   try {
@@ -9,6 +32,10 @@ export const createStaff = async (req, res) => {
 
     if (req.user.role !== "owner" && req.user.role !== "super_admin") {
       return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    if (permissions && rejectOverGrant(req, permissions, res)) {
+      return;
     }
 
     if (!name || !email || !password) {
@@ -122,6 +149,10 @@ export const updateStaff = async (req, res) => {
       staff.business.toString() !== req.user.businessId
     ) {
       return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    if (permissions !== undefined && rejectOverGrant(req, permissions, res)) {
+      return;
     }
 
     if (permissions !== undefined) {

@@ -64,7 +64,11 @@ const sections = [
     title: "Staff & Permissions",
     content: [
       "Use /app/staff to invite team members, assign roles, and set permissions.",
-      "Permissions include dashboard access, product management, sales creation, reports, price override, and settings administration.",
+      "Roles are a quick way to apply a standard access profile: Staff for basic cashier-like access, Cashier for sales-focused work, and Manager for operational administration.",
+      "Permissions control the real access level. Examples include POS access, product management, customer access, sales reporting, branch inventory permissions, and settings access.",
+      "Only permissions the user already has can be granted to another person. This prevents one staff member from creating a higher-privilege access level than they themselves hold.",
+      "Open /app/settings?tab=access to review and manage access control centrally, or go to /app/staff for team and role assignment.",
+      "Branch access is also permission-driven: team members can usually work only in their assigned branch unless cross-branch inventory permissions are explicitly granted.",
     ],
   },
   {
@@ -82,9 +86,11 @@ const sections = [
     ],
   },
   {
-    title: "Settings",
+    title: "Settings & Access Control",
     content: [
       "Update your business profile, receipt footer, receipt theme, and logo in /app/settings.",
+      "Use the Access Control tab in /app/settings?tab=access to review permission categories, understand role intent, and assign team access more safely.",
+      "Role presets provide a recommended baseline, but the actual security rule is enforced by the backend: a user can only grant permissions they already hold.",
       "Logo upload and custom themes are available on Pro plans.",
     ],
   },

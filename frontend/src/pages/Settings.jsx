@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { updateBusiness } from "../api/business.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
@@ -7,7 +7,8 @@ import { getOfflineSnapshotMeta, saveOfflineSnapshot } from "../api/offlineDb.js
 
 const Settings = () => {
   const location = useLocation();
-  const navigate = useNavigate(); // 🔥 Added to help clear the URL after success
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const {
     business,
@@ -140,6 +141,26 @@ const Settings = () => {
     }
   }, [location.search, verifyPaystackRedirect]);
 
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "access") {
+      setActiveTab("access");
+      return;
+    }
+
+    if (tab === "receipt") {
+      setActiveTab("receipt");
+      return;
+    }
+
+    if (tab === "billing") {
+      setActiveTab("billing");
+      return;
+    }
+
+    setActiveTab("business");
+  }, [searchParams]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -257,13 +278,32 @@ const Settings = () => {
 
         {[
           { key: "business", label: "Business" },
+          { key: "access", label: "Access Control" },
           { key: "receipt", label: "Receipts" },
           { key: "billing", label: "Plan & Billing 💰" }
         ].map((tab) => (
           <button
             key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => {
+              if (tab.key === "access") {
+                setSearchParams({ tab: "access" });
+                setActiveTab("access");
+                return;
+              }
+              if (tab.key === "receipt") {
+                setSearchParams({ tab: "receipt" });
+                setActiveTab("receipt");
+                return;
+              }
+              if (tab.key === "billing") {
+                setSearchParams({ tab: "billing" });
+                setActiveTab("billing");
+                return;
+              }
+              setSearchParams({});
+              setActiveTab(tab.key);
+            }}
             className={`block w-full rounded-md px-3 py-2 text-left text-sm transition ${
               activeTab === tab.key
                 ? "bg-black text-white shadow-md dark:bg-slate-100 dark:text-slate-900"
@@ -339,6 +379,58 @@ const Settings = () => {
                   <option value="hotel_lodging">Hotel & Lodging</option>
                 </select>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ACCESS CONTROL TAB */}
+        {activeTab === "access" && (
+          <div className="tool-panel space-y-4 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">Access Control</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Define role-based access and limit sensitive actions such as financial reporting, refunds, and inventory changes.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {[
+                {
+                  role: "Owner",
+                  scope: "Full system access",
+                  summary: "Can manage staff, settings, reports, billing, branch controls, and sensitive financial actions.",
+                },
+                {
+                  role: "Manager",
+                  scope: "Department access",
+                  summary: "Can manage operations, inventory, customer records, and team performance while keeping settings restricted.",
+                },
+                {
+                  role: "Cashier / Staff",
+                  scope: "POS-only access",
+                  summary: "Can process sales and basic customer tasks, while reports, settings, and staff management stay hidden.",
+                },
+              ].map((tier) => (
+                <div key={tier.role} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">{tier.role}</p>
+                  <p className="mt-3 text-sm font-semibold text-slate-800 dark:text-slate-100">{tier.scope}</p>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{tier.summary}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+              <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                Recommended permission guardrails
+              </h3>
+              <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                <li>• Restrict access to financial reports and ledger views for cashier-only roles.</li>
+                <li>• Keep sales processing enabled for cashiers while limiting refunds, discounts, and settings access.</li>
+                <li>• Allow managers to manage inventory and staff performance without exposing global settings and billing configuration.</li>
+                <li>• Reserve full staff management, permission editing, and billing changes to the owner or super admin.</li>
+              </ul>
             </div>
           </div>
         )}
